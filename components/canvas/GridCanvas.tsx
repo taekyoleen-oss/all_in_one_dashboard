@@ -22,8 +22,9 @@ import * as React from "react";
 import {
   Responsive,
   useContainerWidth,
-  noCompactor,
+  cloneLayout,
   getBreakpointFromWidth,
+  type Compactor,
   type Layout,
   type LayoutItem,
   type ResponsiveLayouts,
@@ -103,6 +104,22 @@ const MARGIN: [number, number] = [12, 12];
 const CONTAINER_PADDING: [number, number] = [0, 0];
 /** RGL v2's external-drop placeholder id (must match its internal default). */
 const DROPPING_ITEM_ID = "__dropping-elem__";
+
+/**
+ * Free placement WITH collision prevention. Two properties combine:
+ *  • type:null / no-op compact → tiles never auto-compact (no float-up), so
+ *    positions stay put on resize/zoom.
+ *  • preventCollision:true → dragging/dropping a tile NEVER pushes existing
+ *    tiles; a colliding move is blocked and the tile settles in free space
+ *    instead (요구: 새 앱을 가져올 때 기존 앱을 밀지 않고 빈 공간으로 가도록).
+ * The 재정렬(정리하기) button still packs everything via verticalCompactor.
+ */
+const freePlaceCompactor: Compactor = {
+  type: null,
+  allowOverlap: false,
+  preventCollision: true,
+  compact: (layout) => cloneLayout(layout),
+};
 
 /** Map a measured tile pixel-width to a coarse density bucket. */
 function densityForWidth(px: number): Density {
@@ -537,10 +554,10 @@ export function GridCanvas({
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={CONTAINER_PADDING}
-          // Free placement: tiles never auto-move (no float-up), so resize/zoom
-          // and dropping a new tile leave existing tiles exactly where the user
-          // put them. The 재정렬(정리하기) button applies vertical compaction.
-          compactor={noCompactor}
+          // Free placement + collision prevention (see freePlaceCompactor):
+          // existing tiles never move on resize/zoom OR when a new tile is
+          // dragged in — the new tile settles in free space. 재정렬 packs.
+          compactor={freePlaceCompactor}
           // v2 config objects (replaces v1 isDraggable / draggableHandle / isResizable):
           dragConfig={dragConfig}
           resizeConfig={resizeConfig}

@@ -10,14 +10,37 @@
  */
 
 import * as React from "react";
-import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
-import type { FavoritesConfig, FavoriteLink } from "./types";
+import { ArrowUp, ArrowDown, Trash2, Plus, ClipboardPaste } from "lucide-react";
+import { hostnameOf, type FavoritesConfig, type FavoriteLink } from "./types";
 import { FaviconImg } from "./FaviconImg";
 
 function newLinkId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? `fav-${crypto.randomUUID().slice(0, 6)}`
     : `fav-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** A pasted token is a link if it has an explicit scheme or a dotted host. */
+function looksLikeUrl(token: string): boolean {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(token)) return true;
+  return hostnameOf(token).includes(".");
+}
+
+/** Pull link-like tokens out of pasted text (handles one or several, multiline). */
+function extractUrls(text: string): string[] {
+  return text
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0 && looksLikeUrl(t));
+}
+
+/** Friendly default label from a URL's second-level domain ("github.com" → "Github"). */
+function labelFromUrl(rawUrl: string): string {
+  const host = hostnameOf(rawUrl).replace(/^www\./, "");
+  if (!host) return "";
+  const parts = host.split(".");
+  const sld = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+  return sld ? sld.charAt(0).toUpperCase() + sld.slice(1) : "";
 }
 
 export function LinkManager({
@@ -27,7 +50,30 @@ export function LinkManager({
   config: FavoritesConfig;
   onChange: (next: FavoritesConfig) => void;
 }) {
+  const [notice, setNotice] = React.useState<string | null>(null);
+
   const setLinks = (links: FavoriteLink[]) => onChange({ ...config, links });
+
+  /** Append link(s) from pasted URLs, auto-labeling each by domain. */
+  const addUrls = (urls: string[]) => {
+    if (urls.length === 0) return;
+    const added: FavoriteLink[] = urls.map((u) => ({
+      id: newLinkId(),
+      label: labelFromUrl(u),
+      url: u,
+      group: "",
+    }));
+    setLinks([...config.links, ...added]);
+    setNotice(`${added.length}개 링크를 추가했습니다.`);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    const urls = extractUrls(text);
+    if (urls.length === 0) return;
+    e.preventDefault();
+    addUrls(urls);
+  };
 
   const patch = (id: string, fields: Partial<FavoriteLink>) =>
     setLinks(config.links.map((l) => (l.id === id ? { ...l, ...fields } : l)));
@@ -114,14 +160,30 @@ export function LinkManager({
         ) : null}
       </ul>
 
-      <button
-        type="button"
-        onClick={add}
-        className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+      {/* 붙여넣기로 추가 — focus here and Ctrl/⌘+V a copied link (or several). */}
+      <div
+        onPaste={handlePaste}
+        tabIndex={0}
+        role="group"
+        aria-label="링크 붙여넣기로 추가"
+        className="flex flex-col items-center gap-2 rounded-md border-2 border-dashed border-border px-3 py-4 text-center outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Plus size={15} aria-hidden />
-        링크 추가
-      </button>
+        <ClipboardPaste size={18} className="text-muted-foreground" aria-hidden />
+        <p className="text-xs text-muted-foreground">
+          여기를 클릭한 뒤 복사한 링크를 붙여넣기(Ctrl/⌘+V)하면 즐겨찾기에 추가됩니다.
+        </p>
+        <button
+          type="button"
+          onClick={add}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Plus size={15} aria-hidden />
+          링크 직접 추가
+        </button>
+        {notice ? (
+          <p className="text-[11px] text-muted-foreground">{notice}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
