@@ -37,21 +37,108 @@ export const INDEX_CATALOG: SymbolMeta[] = [
   { symbol: "^IXIC", name: "나스닥", isIndex: true, currency: "USD" },
 ];
 
-/** A few well-known KR stocks for the picker's quick-add list (free-text also allowed). */
-export const KR_STOCK_SUGGESTIONS: SymbolMeta[] = [
-  { symbol: "005930", name: "삼성전자", isIndex: false, currency: "KRW" },
-  { symbol: "000660", name: "SK하이닉스", isIndex: false, currency: "KRW" },
-  { symbol: "035420", name: "NAVER", isIndex: false, currency: "KRW" },
-  { symbol: "035720", name: "카카오", isIndex: false, currency: "KRW" },
-  { symbol: "005380", name: "현대차", isIndex: false, currency: "KRW" },
-  { symbol: "051910", name: "LG화학", isIndex: false, currency: "KRW" },
-  { symbol: "005490", name: "POSCO홀딩스", isIndex: false, currency: "KRW" },
-  { symbol: "068270", name: "셀트리온", isIndex: false, currency: "KRW" },
+/** Helper: a KRW individual-stock catalog entry. KOSDAQ symbols carry ".KQ" so
+ *  the Yahoo fallback resolves the right exchange (toYahooSymbol defaults bare
+ *  codes to ".KS"); KOSPI entries use the bare 6-digit code. */
+function krStock(symbol: string, name: string): SymbolMeta {
+  return { symbol, name, isIndex: false, currency: "KRW" };
+}
+
+/**
+ * Searchable catalog of major 국내 종목 (KOSPI bare code · KOSDAQ ".KQ"). Curated
+ * large/most-traded names so 회사명 OR 코드 검색이 바로 동작한다. Any other code can
+ * still be added free-text (6-digit), so this list need not be exhaustive.
+ */
+export const KR_STOCK_CATALOG: SymbolMeta[] = [
+  // KOSPI
+  krStock("005930", "삼성전자"),
+  krStock("000660", "SK하이닉스"),
+  krStock("373220", "LG에너지솔루션"),
+  krStock("207940", "삼성바이오로직스"),
+  krStock("005380", "현대차"),
+  krStock("000270", "기아"),
+  krStock("005490", "POSCO홀딩스"),
+  krStock("035420", "NAVER"),
+  krStock("035720", "카카오"),
+  krStock("051910", "LG화학"),
+  krStock("006400", "삼성SDI"),
+  krStock("028260", "삼성물산"),
+  krStock("105560", "KB금융"),
+  krStock("055550", "신한지주"),
+  krStock("086790", "하나금융지주"),
+  krStock("316140", "우리금융지주"),
+  krStock("024110", "기업은행"),
+  krStock("012330", "현대모비스"),
+  krStock("068270", "셀트리온"),
+  krStock("034730", "SK"),
+  krStock("003550", "LG"),
+  krStock("066570", "LG전자"),
+  krStock("009150", "삼성전기"),
+  krStock("018260", "삼성에스디에스"),
+  krStock("032830", "삼성생명"),
+  krStock("000810", "삼성화재"),
+  krStock("015760", "한국전력"),
+  krStock("017670", "SK텔레콤"),
+  krStock("030200", "KT"),
+  krStock("033780", "KT&G"),
+  krStock("010130", "고려아연"),
+  krStock("051900", "LG생활건강"),
+  krStock("090430", "아모레퍼시픽"),
+  krStock("097950", "CJ제일제당"),
+  krStock("010950", "S-Oil"),
+  krStock("096770", "SK이노베이션"),
+  krStock("003670", "포스코퓨처엠"),
+  krStock("011200", "HMM"),
+  krStock("042700", "한미반도체"),
+  krStock("012450", "한화에어로스페이스"),
+  krStock("009540", "HD한국조선해양"),
+  krStock("010140", "삼성중공업"),
+  krStock("047810", "한국항공우주"),
+  krStock("086280", "현대글로비스"),
+  krStock("000720", "현대건설"),
+  krStock("251270", "넷마블"),
+  krStock("036570", "엔씨소프트"),
+  krStock("259960", "크래프톤"),
+  krStock("352820", "하이브"),
+  krStock("323410", "카카오뱅크"),
+  // KOSDAQ (.KQ)
+  krStock("247540.KQ", "에코프로비엠"),
+  krStock("086520.KQ", "에코프로"),
+  krStock("196170.KQ", "알테오젠"),
+  krStock("028300.KQ", "HLB"),
+  krStock("293490.KQ", "카카오게임즈"),
+  krStock("263750.KQ", "펄어비스"),
+  krStock("112040.KQ", "위메이드"),
+  krStock("058470.KQ", "리노공업"),
+  krStock("068760.KQ", "셀트리온제약"),
+  krStock("041510.KQ", "에스엠"),
+  krStock("035900.KQ", "JYP Ent."),
+  krStock("122870.KQ", "와이지엔터테인먼트"),
 ];
 
+/** A few well-known KR stocks shown as quick picks when the search box is empty. */
+export const KR_STOCK_SUGGESTIONS: SymbolMeta[] = KR_STOCK_CATALOG.slice(0, 8);
+
 const BY_SYMBOL = new Map<string, SymbolMeta>(
-  [...INDEX_CATALOG, ...KR_STOCK_SUGGESTIONS].map((m) => [m.symbol, m]),
+  [...INDEX_CATALOG, ...KR_STOCK_CATALOG].map((m) => [m.symbol, m]),
 );
+
+/**
+ * Search the KR stock catalog by 회사명(부분 일치) OR 코드(접두 일치). Empty query
+ * returns the popular head of the catalog. Used by the stock ConfigEditor's
+ * search box so the user can type "삼성" or "0059…" and pick a result.
+ */
+export function searchKrStocks(query: string, limit = 24): SymbolMeta[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return KR_STOCK_CATALOG.slice(0, limit);
+  const digits = q.replace(/\D/g, "");
+  return KR_STOCK_CATALOG.filter((m) => {
+    const nameHit = m.name.toLowerCase().includes(q);
+    const codeHit =
+      digits.length > 0 && (krCode(m.symbol) ?? "").startsWith(digits);
+    return nameHit || codeHit;
+  }).slice(0, limit);
+}
 
 /** Strip a ".KS"/".KQ" suffix and return the bare 6-digit code (else null). */
 export function krCode(symbol: string): string | null {

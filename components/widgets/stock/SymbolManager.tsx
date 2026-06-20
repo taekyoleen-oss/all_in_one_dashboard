@@ -14,7 +14,7 @@ import * as React from "react";
 import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
 import {
   INDEX_CATALOG,
-  KR_STOCK_SUGGESTIONS,
+  searchKrStocks,
   isIndexSymbol,
   krCode,
   resolveMeta,
@@ -28,12 +28,27 @@ export function SymbolManager({
   config: StockConfig;
   onChange: (next: StockConfig) => void;
 }) {
-  const [codeInput, setCodeInput] = React.useState("");
+  const [query, setQuery] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
 
   const setSymbols = (symbols: string[]) => onChange({ ...config, symbols });
 
   const has = (sym: string) => config.symbols.includes(sym);
+
+  // Catalog search results for the current query (회사명 부분일치 또는 코드 접두).
+  const results = searchKrStocks(query);
+  const isBareCode = /^\d{6}(\.[A-Za-z]{2})?$/.test(query.trim());
+
+  /** Add an exact catalog symbol (from a clicked search result). */
+  const addSymbol = (sym: string) => {
+    if (has(sym)) {
+      setErr("이미 추가된 종목입니다.");
+      return;
+    }
+    setSymbols([...config.symbols, sym]);
+    setQuery("");
+    setErr(null);
+  };
 
   const toggleIndex = (sym: string) => {
     if (has(sym)) {
@@ -71,7 +86,7 @@ export function SymbolManager({
       return;
     }
     setSymbols([...config.symbols, symbol]);
-    setCodeInput("");
+    setQuery("");
     setErr(null);
   };
 
@@ -161,43 +176,93 @@ export function SymbolManager({
           ) : null}
         </ul>
 
-        {/* Add by code */}
+        {/* Add by SEARCH — type a company name or code, then pick a result. */}
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            종목코드 (국내)
+            종목 검색 (회사명 또는 코드)
             <input
-              list="pb-stock-suggest"
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setErr(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  addStock(codeInput);
+                  // Enter adds the top result, else tries the raw text as a code.
+                  if (results.length > 0) addSymbol(results[0].symbol);
+                  else addStock(query);
                 }
               }}
-              placeholder="005930"
-              inputMode="numeric"
+              placeholder="삼성, 005930, 카카오…"
               className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <datalist id="pb-stock-suggest">
-              {KR_STOCK_SUGGESTIONS.map((m) => (
-                <option key={m.symbol} value={m.symbol}>
-                  {m.name}
-                </option>
-              ))}
-            </datalist>
           </label>
           {err ? <p className="text-xs text-destructive">{err}</p> : null}
-          <button
-            type="button"
-            onClick={() => addStock(codeInput)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Plus size={15} aria-hidden />
-            종목 추가
-          </button>
+
+          {/* Results (click to add). Falls back to a direct 6-digit code add. */}
+          <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto pb-scroll">
+            {results.map((m) => {
+              const added = has(m.symbol);
+              return (
+                <li key={m.symbol}>
+                  <button
+                    type="button"
+                    disabled={added}
+                    onClick={() => addSymbol(m.symbol)}
+                    className="flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                      {m.name}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {m.symbol}
+                    </span>
+                    {added ? (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        추가됨
+                      </span>
+                    ) : (
+                      <Plus
+                        size={14}
+                        aria-hidden
+                        className="shrink-0 text-muted-foreground"
+                      />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+
+            {results.length === 0 && isBareCode ? (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => addStock(query)}
+                  className="flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    이 코드로 직접 추가
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {query.trim()}
+                  </span>
+                  <Plus
+                    size={14}
+                    aria-hidden
+                    className="shrink-0 text-muted-foreground"
+                  />
+                </button>
+              </li>
+            ) : results.length === 0 ? (
+              <li className="rounded-md border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">
+                검색 결과가 없습니다. 6자리 코드(예: 005930)를 직접 입력할 수도 있어요.
+              </li>
+            ) : null}
+          </ul>
+
           <p className="text-[11px] text-muted-foreground">
-            미국은 지수만 제공합니다(개별 종목 미지원).
+            회사명 일부 또는 종목코드로 검색하세요. 미국은 지수만 제공합니다(개별 종목 미지원).
           </p>
         </div>
       </fieldset>

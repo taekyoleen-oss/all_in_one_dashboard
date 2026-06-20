@@ -1,11 +1,11 @@
 /**
  * image-slider widget — config shape (설계서 §2.1 #4: 이미지 슬라이드쇼).
  *
- *  Slides reference images by URL for now. Storage upload is DEFERRED.
- *  // TODO(storage): upload to pb-images bucket {user_id}/{instance_id}/{file},
- *  // store signed-URL refs (replace the raw `url` with a storage path + signed
- *  // URL once auth/Storage wiring lands). For now accept image URLs (or a local
- *  // URL.createObjectURL preview) stored in config.
+ *  A slide's `url` is either an https image URL OR a self-contained data URL
+ *  (picked/dropped/pasted files are downscaled on a canvas and stored inline by
+ *  ImageManager), so slides round-trip through `config` (jsonb) and survive
+ *  reload + sync. (A future optimization could move large libraries to the
+ *  pb-images Storage bucket with signed URLs.)
  *
  *  dataMode: 'static'. copyBehavior: 'config'.
  */
