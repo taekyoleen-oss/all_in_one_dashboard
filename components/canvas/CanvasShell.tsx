@@ -38,7 +38,7 @@ import {
   usePaletteCollapsed,
 } from "@/components/canvas/WidgetPalette";
 import { BoardTabs } from "@/components/canvas/BoardTabs";
-import { Toolbar, type ThemeMode } from "@/components/canvas/Toolbar";
+import { Toolbar } from "@/components/canvas/Toolbar";
 import { FocusOverlay } from "@/components/canvas/FocusOverlay";
 import { ConfigDialog } from "@/components/canvas/ConfigDialog";
 import { WidgetMenu } from "@/components/canvas/WidgetMenu";
@@ -48,6 +48,7 @@ import { widgetRegistry } from "@/components/widgets/registry";
 import { useBackStack } from "@/lib/utils/useBackStack";
 import { useClipboard } from "@/lib/utils/clipboard";
 import { createInstance } from "@/lib/utils/grid";
+import { usePersistedTheme } from "@/lib/utils/theme";
 import { usePersistence } from "@/lib/persistence/usePersistence";
 import type { BoardState } from "@/lib/persistence/types";
 import { verticalCompactor, type Layout } from "react-grid-layout";
@@ -144,10 +145,13 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     renameBoard,
     deleteBoard,
     setDefaultBoard,
+    reorderBoards,
   } = persistence;
 
   const [editable, setEditable] = React.useState(true);
-  const [theme, setTheme] = React.useState<ThemeMode>("dark");
+  // Theme persists across reloads (localStorage). data-theme is also set pre-paint
+  // by an inline script in app/layout.tsx so there is no flash on load.
+  const [theme, setTheme] = usePersistedTheme();
   // Desktop palette collapsed flag — persisted in localStorage (SSR-safe hook).
   const [paletteCollapsed, setCollapsed] = usePaletteCollapsed();
 
@@ -190,12 +194,22 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     [active.layout, addInstance],
   );
 
-  /* ----- add an instance by DROP (RGL gives the x/y placement) ----- */
+  /* ----- add an instance by DROP (RGL gives the x/y + dwell-fitted w/h) ----- */
   const addByDrop = React.useCallback(
     (type: string, placement: { x: number; y: number; w: number; h: number }) => {
-      // Keep RGL's dropped x/y, but size the tile from the widget's defaultSize.
+      // Honor RGL's dropped x/y AND the (dwell-fitted) w/h so a tile that tucked
+      // into a small gap keeps that fitted size (issue ②). createInstance clamps
+      // w/h to the widget's min/max.
+      const def = widgetRegistry[type];
+      const min = def?.minSize ?? { w: 1, h: 1 };
+      const max = def?.maxSize ?? { w: LG_COLS, h: Infinity };
       const created = createInstance(widgetRegistry, type, {
-        placement: { x: placement.x, y: placement.y },
+        placement: {
+          x: placement.x,
+          y: placement.y,
+          w: Math.min(Math.max(placement.w, min.w), max.w),
+          h: Math.min(Math.max(placement.h, min.h), max.h),
+        },
       });
       if (!created) return;
       addInstance(created.instance, created.layoutItem);
@@ -294,7 +308,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               onTogglePalette={() => setCollapsed(!paletteCollapsed)}
               theme={theme}
               onToggleTheme={() =>
-                setTheme((t) => (t === "dark" ? "light" : "dark"))
+                setTheme(theme === "dark" ? "light" : "dark")
               }
             />
           </div>
@@ -310,20 +324,25 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
             onRenameBoard={renameBoard}
             onDeleteBoard={deleteBoard}
             onSetDefaultBoard={setDefaultBoard}
+            onReorder={reorderBoards}
           />
         </div>
       </div>
 
-      {/* Body: palette sidebar + canvas */}
-      <div className="mx-auto flex max-w-screen-2xl gap-4 px-4 py-6 sm:px-6 lg:px-8">
-        <WidgetPalette
-          registry={widgetRegistry}
-          onAdd={addByType}
-          collapsed={paletteCollapsed}
-          onCollapsedChange={setCollapsed}
-        />
+      {/*
+        Body: full-width canvas. The palette is a FLOATING overlay (position:
+        fixed) rendered OUTSIDE this flow, so toggling/moving it never changes the
+        canvas's measured width — placed widgets stay put (issue ⑧/①).
+      */}
+      <WidgetPalette
+        registry={widgetRegistry}
+        onAdd={addByType}
+        collapsed={paletteCollapsed}
+        onCollapsedChange={setCollapsed}
+      />
 
-        <section className="min-w-0 flex-1">
+      <div className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="min-w-0">
           {active.instances.length === 0 ? (
             <div className="flex min-h-[40dvh] flex-col items-center justify-center gap-2 rounded-[var(--radius)] border border-dashed border-border text-center">
               <p className="text-sm font-medium text-foreground">

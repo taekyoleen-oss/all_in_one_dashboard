@@ -125,8 +125,19 @@ export function WidgetFrame({
         <div className="flex shrink-0 items-center gap-1">{actions}</div>
       </header>
 
-      {/* Body — error-isolated; min-h-0 lets it scroll within the grid cell. */}
-      <div className="min-h-0 flex-1 overflow-auto p-[var(--density-pad)]">
+      {/* Body — error-isolated; min-h-0 lets it scroll within the grid cell.
+          Overflow scrolls vertically with a THIN (6px) themed scrollbar
+          (scrollbar-width:thin for Firefox + ::-webkit-scrollbar for Chromium). */}
+      <div
+        className={[
+          "min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-[var(--density-pad)]",
+          "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
+          "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5",
+          "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
+          "[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/40",
+          "[&::-webkit-scrollbar-track]:bg-transparent",
+        ].join(" ")}
+      >
         <WidgetErrorBoundary title={title}>{children}</WidgetErrorBoundary>
       </div>
     </div>

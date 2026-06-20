@@ -86,6 +86,8 @@ export interface UsePersistenceResult {
   renameBoard: (boardId: string, name: string) => void;
   deleteBoard: (boardId: string) => void;
   setDefaultBoard: (boardId: string) => void;
+  /** Reorder boards to match `orderedIds` (recomputes + persists sort_order). */
+  reorderBoards: (orderedIds: string[]) => void;
 
   /** True while a flush is in flight (for optional UI). */
   saving: boolean;
@@ -564,6 +566,44 @@ export function usePersistence(
     [markBoard],
   );
 
+  const reorderBoards = React.useCallback(
+    (orderedIds: string[]) => {
+      const cur = stateRef.current;
+      const byId = new Map(cur.map((b) => [b.meta.id, b]));
+
+      // Build the new visual order from `orderedIds`, keeping it total + stable:
+      // honor every id we recognize (in the requested order), then append any
+      // board the caller omitted (defensive — never drop a board on a partial list).
+      const seen = new Set<string>();
+      const ordered: BoardState[] = [];
+      for (const id of orderedIds) {
+        const b = byId.get(id);
+        if (b && !seen.has(id)) {
+          ordered.push(b);
+          seen.add(id);
+        }
+      }
+      for (const b of cur) {
+        if (!seen.has(b.meta.id)) ordered.push(b);
+      }
+
+      // Reassign sort_order by index; mark only the boards whose value changed so
+      // the debounced flush upserts pb_dashboards.sort_order for exactly those.
+      // is_default is left untouched (reorder never changes the default board).
+      const changed: string[] = [];
+      const next = ordered.map((b, idx) => {
+        if (b.meta.sortOrder === idx) return b;
+        changed.push(b.meta.id);
+        return { ...b, meta: { ...b.meta, sortOrder: idx } };
+      });
+
+      if (changed.length === 0) return; // order unchanged — no write
+      setBoards(next); // active selection survives: activeId is untouched
+      changed.forEach(markBoard);
+    },
+    [markBoard],
+  );
+
   return {
     boards,
     activeId,
@@ -578,6 +618,7 @@ export function usePersistence(
     renameBoard,
     deleteBoard,
     setDefaultBoard,
+    reorderBoards,
     saving,
   };
 }

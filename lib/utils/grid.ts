@@ -1,8 +1,11 @@
-"use client";
-
 /**
  * ============================================================================
  *  Grid helpers — instance creation + placement (설계서 §3 팔레트, §6.1 캔버스)
+ *
+ *  Universal (server + client): pure functions over the registry data — used by
+ *  client components (WidgetPalette/FocusOverlay) AND the server first-login
+ *  bootstrap (lib/supabase/queries/boards.ts). No "use client": these never touch
+ *  React/DOM, only `crypto`/`structuredClone` (both exist in Node 22 + browsers).
  * ============================================================================
  *
  *  Shared by WidgetPalette (drag/tap add) and FocusOverlay/menu (복사·붙여넣기
@@ -20,13 +23,21 @@ import type {
 /** Number of columns at the desktop (lg) breakpoint — mirrors GridCanvas COLS.lg. */
 export const LG_COLS = 12;
 
-/** Mint a reasonably-unique instance id (local-only; DB will assign real uuids). */
-export function newInstanceId(type: string): string {
-  const rand =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID().slice(0, 8)
-      : Math.random().toString(36).slice(2, 10);
-  return `${type}-${rand}`;
+/**
+ * Mint a real UUID for a widget instance. `pb_widgets.id` is a `uuid` column and
+ * the client supplies the id on insert (DB id === instanceId from the first
+ * write), so a `${type}-xxxx` string is rejected by Postgres with `22P02`. The
+ * type is no longer encoded in the id (it was only cosmetic).
+ */
+export function newInstanceId(_type?: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  // Defensive fallback for environments without crypto.randomUUID (RFC4122 v4).
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
 }
 
 /**

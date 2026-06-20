@@ -1,9 +1,12 @@
-"use client";
-
 /**
  * ============================================================================
  *  PaneBoard PRODUCTION widget registry (설계서 §9.4, §2.1–2.2)
  * ============================================================================
+ *
+ *  Shared module (no "use client"): the canvas (client) renders the View
+ *  components, while the server first-login bootstrap (lib/supabase/queries/
+ *  boards.ts) reads only the plain data (defaultConfig/defaultSize). The View
+ *  fields are client references on the server and are never called there.
  *
  *  The single source of truth the canvas consumes: `type` → WidgetDefinition.
  *  The palette lists these, GridCanvas renders CompactView, FocusOverlay renders
