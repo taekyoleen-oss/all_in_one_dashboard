@@ -1,0 +1,49 @@
+/**
+ * memo widget — config shape (설계서 §2.1 #2: 본문·색상·크기).
+ *
+ *  Kept JSON-serializable so it round-trips through pb_widgets.config (jsonb).
+ *  All views render PURELY from this config (no local seeded state) so editing
+ *  config via the ConfigEditor re-renders the tile — the demo memo held its own
+ *  state and could not reflect config edits; the real widget fixes that.
+ */
+export interface MemoConfig {
+  /** Body text. */
+  text: string;
+  /** Accent color token key (mapped to a concrete swatch in the views). */
+  color: MemoColor;
+  /** Font size bucket for the body. */
+  size: MemoSize;
+}
+
+export type MemoColor = "default" | "amber" | "rose" | "green" | "blue" | "violet";
+export type MemoSize = "sm" | "md" | "lg";
+
+/** Selectable swatches — value is a usable CSS color (border/left-rail accent). */
+export const MEMO_COLORS: Record<MemoColor, { label: string; swatch: string }> = {
+  default: { label: "기본", swatch: "var(--border)" },
+  amber: { label: "앰버", swatch: "oklch(0.78 0.15 80)" },
+  rose: { label: "로즈", swatch: "oklch(0.7 0.18 15)" },
+  green: { label: "그린", swatch: "oklch(0.72 0.16 150)" },
+  blue: { label: "블루", swatch: "oklch(0.68 0.14 240)" },
+  violet: { label: "바이올렛", swatch: "oklch(0.68 0.17 295)" },
+};
+
+/** Body font-size per bucket (compact view scales up via @container). */
+export const MEMO_SIZE_CLASS: Record<MemoSize, string> = {
+  sm: "text-xs @[220px]/widget:text-sm",
+  md: "text-sm @[220px]/widget:text-base",
+  lg: "text-base @[220px]/widget:text-lg",
+};
+
+/** Body font-size per bucket for the (larger) expanded view. */
+export const MEMO_SIZE_CLASS_EXPANDED: Record<MemoSize, string> = {
+  sm: "text-sm",
+  md: "text-base",
+  lg: "text-lg",
+};
+
+export const DEFAULT_MEMO_CONFIG: MemoConfig = {
+  text: "",
+  color: "default",
+  size: "md",
+};
