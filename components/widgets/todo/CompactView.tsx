@@ -51,7 +51,7 @@ export function TodoCompactView({ config, density }: CompactViewProps<TodoConfig
           할 일이 없습니다. 편집에서 추가하세요.
         </p>
       ) : (
-        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-scroll">
           {shown.map((it) => (
             <li key={it.id} className="flex items-center gap-2">
               <input

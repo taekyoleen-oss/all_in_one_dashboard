@@ -38,7 +38,7 @@ export function FxCompactView({ config }: CompactViewProps<FxConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-1">
-      <ul className="flex min-h-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden">
+      <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
         {rows.map((row) => (
           <FxRateRow key={row.quote} base={base} row={row} size="compact" />
         ))}

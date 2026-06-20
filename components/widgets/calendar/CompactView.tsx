@@ -43,7 +43,7 @@ export function CalendarCompactView({ config }: CompactViewProps<CalendarConfig>
   }
 
   return (
-    <ul className="flex h-full min-h-0 flex-col gap-0.5 overflow-hidden">
+    <ul className="flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto pb-scroll">
       {shown.map((ev) => (
         <EventRow key={ev.id} event={ev} variant="compact" />
       ))}

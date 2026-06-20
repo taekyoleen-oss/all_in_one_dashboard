@@ -29,7 +29,7 @@ export function StockCompactView({ config }: CompactViewProps<StockConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-1">
-      <ul className="flex min-h-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden">
+      <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
         {config.symbols.map((sym) => {
           const meta = resolveMeta(sym);
           return (

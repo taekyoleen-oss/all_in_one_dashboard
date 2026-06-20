@@ -262,6 +262,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
   const renderActions = React.useCallback(
     (instance: WidgetInstance) => (
       <WidgetMenu
+        instanceId={instance.instanceId}
         onCopy={() => copyInstance(instance.instanceId)}
         onPaste={pasteFromClipboard}
         canPaste={clipboard.hasContent}

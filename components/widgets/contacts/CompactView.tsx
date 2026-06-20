@@ -43,7 +43,7 @@ export function ContactsCompactView({
           즐겨찾기 연락처 없음 — 전체 목록
         </span>
       ) : null}
-      <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+      <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-scroll">
         {shown.map((c) => (
           <li key={c.id} className="flex items-center gap-2">
             <span

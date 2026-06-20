@@ -22,7 +22,7 @@ import * as React from "react";
 import {
   Responsive,
   useContainerWidth,
-  verticalCompactor,
+  noCompactor,
   getBreakpointFromWidth,
   type Layout,
   type LayoutItem,
@@ -32,6 +32,7 @@ import { calcXY } from "react-grid-layout";
 import type { WidgetRegistry, Density } from "@/lib/widgets/contract";
 import { WidgetFrame } from "./WidgetFrame";
 import { getDragType, clearDragType } from "@/lib/utils/dragSource";
+import { usePersistedFontScale } from "@/lib/utils/fontScale";
 
 /* ------------------------------- public types ----------------------------- */
 
@@ -51,7 +52,7 @@ export interface CanvasLayoutItem {
   h: number;
 }
 
-export type BreakpointKey = "lg" | "md" | "sm";
+export type BreakpointKey = "lg";
 
 export interface GridCanvasProps {
   /** Widget definitions keyed by type. */
@@ -90,8 +91,13 @@ export interface GridCanvasProps {
 
 /* --------------------------------- config --------------------------------- */
 
-const BREAKPOINTS: Record<BreakpointKey, number> = { lg: 1280, md: 768, sm: 0 };
-const COLS: Record<BreakpointKey, number> = { lg: 12, md: 8, sm: 1 };
+// Single fixed breakpoint (always active at width ≥ 0). The canvas no longer
+// switches column counts on resize/zoom: the column WIDTH flexes with the
+// container, but every tile keeps its grid x/y/w/h, so positions & structure
+// never change (요구: 화면 축소·확대 시 위치 불변). The 재정렬 button is the only
+// thing that re-packs the layout (verticalCompactor, in CanvasShell).
+const BREAKPOINTS: Record<BreakpointKey, number> = { lg: 0 };
+const COLS: Record<BreakpointKey, number> = { lg: 12 };
 const ROW_HEIGHT = 96;
 const MARGIN: [number, number] = [12, 12];
 const CONTAINER_PADDING: [number, number] = [0, 0];
@@ -201,6 +207,10 @@ function CanvasCell({
 }) {
   const cellRef = React.useRef<HTMLDivElement | null>(null);
   const [density, setDensity] = React.useState<Density>("cozy");
+  // Per-instance 글자 크기 (zoom factor). The ⋮-menu control writes the same key,
+  // so the tile re-scales live. Density (above) is measured on the UNZOOMED cell,
+  // so the reflow bucket stays correct regardless of font scale.
+  const { scale } = usePersistedFontScale(instance.instanceId);
 
   React.useEffect(() => {
     const el = cellRef.current;
@@ -238,13 +248,23 @@ function CanvasCell({
   return (
     <div ref={cellRef} className="h-full w-full">
       <WidgetFrame title={displayName} icon={icon} actions={actions}>
-        {/* Keyed by instanceId ⇒ independent state across instances of one type. */}
-        <CompactView
-          key={instance.instanceId}
-          config={instance.config}
-          instanceId={instance.instanceId}
-          density={density}
-        />
+        {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +
+            spacing). h-full keeps the height chain intact so fill-frame widgets
+            still fill and list widgets keep their own inner scroll. */}
+        <div
+          className="h-full"
+          style={
+            scale !== 1 ? ({ zoom: scale } as React.CSSProperties) : undefined
+          }
+        >
+          {/* Keyed by instanceId ⇒ independent state across instances of one type. */}
+          <CompactView
+            key={instance.instanceId}
+            config={instance.config}
+            instanceId={instance.instanceId}
+            density={density}
+          />
+        </div>
       </WidgetFrame>
     </div>
   );
@@ -281,11 +301,7 @@ export function GridCanvas({
 
   // Derive per-breakpoint layouts from the single persisted (lg) layout.
   const layouts = React.useMemo<ResponsiveLayouts<BreakpointKey>>(
-    () => ({
-      lg: toRglLayout(layout, instances, registry, COLS.lg),
-      md: toRglLayout(layout, instances, registry, COLS.md),
-      sm: toRglLayout(layout, instances, registry, COLS.sm),
-    }),
+    () => ({ lg: toRglLayout(layout, instances, registry, COLS.lg) }),
     [layout, instances, registry],
   );
 
@@ -521,7 +537,10 @@ export function GridCanvas({
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={CONTAINER_PADDING}
-          compactor={verticalCompactor}
+          // Free placement: tiles never auto-move (no float-up), so resize/zoom
+          // and dropping a new tile leave existing tiles exactly where the user
+          // put them. The 재정렬(정리하기) button applies vertical compaction.
+          compactor={noCompactor}
           // v2 config objects (replaces v1 isDraggable / draggableHandle / isResizable):
           dragConfig={dragConfig}
           resizeConfig={resizeConfig}

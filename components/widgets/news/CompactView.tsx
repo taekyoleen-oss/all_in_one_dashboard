@@ -39,7 +39,7 @@ export function NewsCompactView({ config }: CompactViewProps<NewsConfig>) {
       <p className="shrink-0 truncate text-xs text-muted-foreground">
         “{data.query}”
       </p>
-      <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+      <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
         {data.items.slice(0, 8).map((item, i) => {
           const when = relativeTime(item.publishedAt);
           return (

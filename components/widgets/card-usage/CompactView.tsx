@@ -67,7 +67,7 @@ export function CardUsageCompactView({ config }: CompactViewProps<CardUsageConfi
       </div>
 
       {summary.byCard.length > 0 ? (
-        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-scroll">
           {summary.byCard.slice(0, 4).map((c) => {
             const card = cards.find((cd) => cd.id === c.card_id);
             return (

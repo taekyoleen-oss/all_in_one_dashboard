@@ -77,7 +77,7 @@ export function Toolbar({
             {editable ? <Unlock size={16} /> : <Lock size={16} />}
           </IconButton>
 
-          <IconButton label="정리하기" onClick={onCompact}>
+          <IconButton label="재정렬 (한 화면에 맞추기)" onClick={onCompact}>
             <Sparkles size={16} />
           </IconButton>
 

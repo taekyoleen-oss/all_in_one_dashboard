@@ -5,6 +5,28 @@
 @import "react-grid-layout/css/styles.css";
 @import "react-resizable/css/styles.css";
 
+/* Thin, themed scrollbar — shared by the WidgetFrame body and any widget whose
+   content overflows (주식 등 리스트 위젯이 아래로 넘칠 때 스크롤). Firefox uses
+   scrollbar-*; Chromium uses ::-webkit-scrollbar. Keep the gutter slim (6px). */
+.pb-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.pb-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.pb-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: var(--border);
+}
+.pb-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+}
+.pb-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* ============================================================================
    PaneBoard design tokens — Calm Dashboard (설계서 §8.1–8.2, tweakcn-theme)
    DARK IS THE DEFAULT. Values live on :root (dark); a light override is applied
