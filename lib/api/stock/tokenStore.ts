@@ -15,20 +15,21 @@
  *  (survives restarts). Values are namespaced by `key` so one file holds both the
  *  access token and the realtime approval key.
  *
- *  File location: $KIS_TOKEN_CACHE_FILE if set, else <os.tmpdir()>/
- *  paneboard-kis-token-cache.json. We write directly (no temp+rename) so it works
- *  on Windows too; every read/write is wrapped so a missing/corrupt file just
- *  means "re-issue once" — this module NEVER throws.
+ *  File location: $KIS_TOKEN_CACHE_FILE if set, else <project>/.cache/
+ *  kis-token-cache.json (a STABLE, repo-local path that survives restarts — more
+ *  reliable than the OS temp dir, which cleaners may wipe). We write directly (no
+ *  temp+rename) so it works on Windows too. Read/write failures degrade to
+ *  "re-issue once" — this module NEVER throws — but unlike before they are now
+ *  LOGGED (console.error), because a SILENT write failure looks exactly like the
+ *  "token re-issued every time" bug we are trying to kill.
  *
  *  Security: the file stores the short-/medium-lived TOKEN + APPROVAL KEY only —
- *  never the appkey/appsecret. Keep it on a private server filesystem and do not
- *  commit it (the default temp-dir path is outside the repo; `.env*` and the repo
- *  are unaffected).
+ *  never the appkey/appsecret. The `.cache/` dir is gitignored so it is never
+ *  committed; `.env*` and the repo are unaffected.
  * ============================================================================
  */
 
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 /** One cached secret + the epoch-ms instant after which it must be re-issued. */
@@ -38,10 +39,10 @@ interface CacheEntry {
 }
 type CacheFile = Record<string, CacheEntry>;
 
-/** Resolve the cache-file path once (env override → OS temp dir default). */
-const CACHE_FILE =
+/** Resolve the cache-file path once (env override → repo-local .cache default). */
+export const KIS_CACHE_FILE =
   process.env.KIS_TOKEN_CACHE_FILE?.trim() ||
-  path.join(os.tmpdir(), "paneboard-kis-token-cache.json");
+  path.join(process.cwd(), ".cache", "kis-token-cache.json");
 
 /** Fast per-process mirror so warm requests never touch the disk. */
 const memory = new Map<string, CacheEntry>();
@@ -49,7 +50,7 @@ const memory = new Map<string, CacheEntry>();
 /** Read+parse the whole cache file; {} on any error (missing/corrupt/locked). */
 async function readFile(): Promise<CacheFile> {
   try {
-    const raw = await fs.readFile(CACHE_FILE, "utf8");
+    const raw = await fs.readFile(KIS_CACHE_FILE, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     return parsed && typeof parsed === "object" ? (parsed as CacheFile) : {};
   } catch {
@@ -57,14 +58,23 @@ async function readFile(): Promise<CacheFile> {
   }
 }
 
-/** Overwrite the cache file; best-effort (the in-memory mirror still serves us). */
+/**
+ * Overwrite the cache file. Best-effort for control flow (we never throw), BUT a
+ * failure is LOGGED — a silent write failure is indistinguishable from the bug
+ * where every request re-issues a token (and re-pushes a KakaoTalk). Ensures the
+ * parent dir exists first so a fresh checkout works.
+ */
 async function writeFile(data: CacheFile): Promise<void> {
   try {
+    await fs.mkdir(path.dirname(KIS_CACHE_FILE), { recursive: true });
     // Direct write (no temp+rename) — cross-platform incl. Windows. mode 0o600
     // restricts to the owner where the FS honors it (no-op on Windows).
-    await fs.writeFile(CACHE_FILE, JSON.stringify(data), { mode: 0o600 });
-  } catch {
-    /* best-effort: a failed write just means the next restart re-issues once */
+    await fs.writeFile(KIS_CACHE_FILE, JSON.stringify(data), { mode: 0o600 });
+  } catch (e) {
+    console.error(
+      `[KIS] 토큰 캐시 저장 실패 (${KIS_CACHE_FILE}). 재시작 시 토큰이 다시 발급됩니다:`,
+      e instanceof Error ? e.message : e,
+    );
   }
 }
 

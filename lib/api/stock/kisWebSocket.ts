@@ -94,6 +94,7 @@ async function requestApprovalKey(): Promise<string> {
     json.approval_key,
     Date.now() + APPROVAL_TTL_MS,
   );
+  console.warn("[KIS] 새 웹소켓 접속키 발급됨 → 캐시 저장(약 24시간 재사용).");
   return json.approval_key;
 }
 

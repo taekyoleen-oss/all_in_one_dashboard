@@ -13,6 +13,7 @@ import * as React from "react";
 import { Trash2, Plus, Star, Smartphone, Upload } from "lucide-react";
 import type { ContactsConfig, Contact } from "./types";
 import { parseVCards, type ParsedContact } from "./vcard";
+import { parseContactsCsv } from "./csv";
 
 function newContactId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -127,14 +128,20 @@ export function ContactManager({
     }
   };
 
-  const importVcf = async (files: FileList | null) => {
+  const importFile = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
     setNotice(null);
     try {
-      const parsed = parseVCards(await file.text());
+      const text = await file.text();
+      // Route by extension, falling back to content sniffing (vCard has a
+      // BEGIN:VCARD marker; anything else with commas is treated as CSV).
+      const isCsv =
+        /\.csv$/i.test(file.name) ||
+        (!/BEGIN:VCARD/i.test(text) && text.includes(","));
+      const parsed = isCsv ? parseContactsCsv(text) : parseVCards(text);
       if (parsed.length === 0) {
-        setNotice("연락처를 찾지 못했습니다 (.vcf 형식을 확인하세요).");
+        setNotice("연락처를 찾지 못했습니다 (.vcf 또는 .csv 형식을 확인하세요).");
         return;
       }
       mergeImported(parsed);
@@ -180,15 +187,15 @@ export function ContactManager({
             className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Upload size={15} aria-hidden />
-            .vcf 파일에서 가져오기
+            파일에서 가져오기 (.vcf / .csv)
           </button>
           <input
             ref={vcfRef}
             type="file"
-            accept=".vcf,text/vcard,text/x-vcard"
+            accept=".vcf,.csv,text/vcard,text/x-vcard,text/csv"
             className="hidden"
             onChange={(e) => {
-              void importVcf(e.target.files);
+              void importFile(e.target.files);
               e.target.value = "";
             }}
           />
@@ -198,8 +205,8 @@ export function ContactManager({
         ) : (
           <p className="text-[11px] text-muted-foreground">
             {pickerSupported
-              ? "안드로이드 크롬은 ‘휴대폰에서 선택’으로 바로 가져옵니다. 아이폰·PC는 연락처를 .vcf(vCard)로 내보내 가져오세요."
-              : "휴대폰 연락처 앱에서 .vcf(vCard)로 내보낸 뒤 가져오세요. (안드로이드 크롬은 ‘휴대폰에서 선택’ 직접 지원)"}
+              ? "안드로이드 크롬은 ‘휴대폰에서 선택’으로 한 번에 가져옵니다(전체 선택 가능). 아이폰은 연락처를 .vcf(vCard)로, 구글 연락처는 .csv로 내보내 가져오세요."
+              : "아이폰: 연락처 → 공유 → ‘vCard로 보내기(.vcf)’. 구글 연락처: 내보내기 → CSV. 받은 파일을 ‘파일에서 가져오기’로 올리면 한 번에 등록됩니다."}
           </p>
         )}
       </div>

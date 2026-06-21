@@ -16,6 +16,7 @@
  */
 
 import type { StockSymbol } from "@/output/api-shapes";
+import { KRX_STOCKS } from "./krx-catalog.generated";
 
 export interface SymbolMeta {
   /** Provider-neutral symbol (catalog key). */
@@ -45,11 +46,11 @@ function krStock(symbol: string, name: string): SymbolMeta {
 }
 
 /**
- * Searchable catalog of major 국내 종목 (KOSPI bare code · KOSDAQ ".KQ"). Curated
- * large/most-traded names so 회사명 OR 코드 검색이 바로 동작한다. Any other code can
- * still be added free-text (6-digit), so this list need not be exhaustive.
+ * Curated popular 국내 종목 — shown as quick picks when the search box is EMPTY
+ * (the full catalog below is alphabetical, which makes poor suggestions). Search
+ * itself runs over the complete KRX catalog, so every listed stock is findable.
  */
-export const KR_STOCK_CATALOG: SymbolMeta[] = [
+const POPULAR_KR_STOCKS: SymbolMeta[] = [
   // KOSPI
   krStock("005930", "삼성전자"),
   krStock("000660", "SK하이닉스"),
@@ -116,28 +117,49 @@ export const KR_STOCK_CATALOG: SymbolMeta[] = [
   krStock("122870.KQ", "와이지엔터테인먼트"),
 ];
 
+/**
+ * The COMPLETE searchable catalog: every KOSPI + KOSDAQ listing (생성: KRX KIND,
+ * lib/api/stock/krx-catalog.generated.ts). This is what makes 모든 종목 검색 가능.
+ * Popular curated names override the generated label where they differ (nicer
+ * display), but every symbol present in either list is included exactly once.
+ */
+export const KR_STOCK_CATALOG: SymbolMeta[] = (() => {
+  const popularNames = new Map(POPULAR_KR_STOCKS.map((m) => [m.symbol, m.name]));
+  return KRX_STOCKS.map(([symbol, name]) => ({
+    symbol,
+    name: popularNames.get(symbol) ?? name,
+    isIndex: false as const,
+    currency: "KRW" as const,
+  }));
+})();
+
 /** A few well-known KR stocks shown as quick picks when the search box is empty. */
-export const KR_STOCK_SUGGESTIONS: SymbolMeta[] = KR_STOCK_CATALOG.slice(0, 8);
+export const KR_STOCK_SUGGESTIONS: SymbolMeta[] = POPULAR_KR_STOCKS.slice(0, 8);
 
 const BY_SYMBOL = new Map<string, SymbolMeta>(
   [...INDEX_CATALOG, ...KR_STOCK_CATALOG].map((m) => [m.symbol, m]),
 );
 
 /**
- * Search the KR stock catalog by 회사명(부분 일치) OR 코드(접두 일치). Empty query
- * returns the popular head of the catalog. Used by the stock ConfigEditor's
- * search box so the user can type "삼성" or "0059…" and pick a result.
+ * Search the FULL KR stock catalog by 회사명(부분 일치, 대소문자 무시) OR 코드(접두
+ * 일치). Empty query returns popular quick-picks. Used by the stock ConfigEditor's
+ * search box so the user can type "삼성", "에코프로", "0059…" and pick any listed stock.
  */
-export function searchKrStocks(query: string, limit = 24): SymbolMeta[] {
+export function searchKrStocks(query: string, limit = 30): SymbolMeta[] {
   const q = query.trim().toLowerCase();
-  if (!q) return KR_STOCK_CATALOG.slice(0, limit);
+  if (!q) return KR_STOCK_SUGGESTIONS.slice(0, limit);
   const digits = q.replace(/\D/g, "");
-  return KR_STOCK_CATALOG.filter((m) => {
+  const out: SymbolMeta[] = [];
+  for (const m of KR_STOCK_CATALOG) {
     const nameHit = m.name.toLowerCase().includes(q);
     const codeHit =
       digits.length > 0 && (krCode(m.symbol) ?? "").startsWith(digits);
-    return nameHit || codeHit;
-  }).slice(0, limit);
+    if (nameHit || codeHit) {
+      out.push(m);
+      if (out.length >= limit) break;
+    }
+  }
+  return out;
 }
 
 /** Strip a ".KS"/".KQ" suffix and return the bare 6-digit code (else null). */

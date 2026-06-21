@@ -43,7 +43,6 @@ import {
 } from "./symbols";
 import {
   issueApprovalKey,
-  invalidateApprovalKey,
   openKisRealtime,
   type KisSocketHandle,
 } from "./kisWebSocket";
@@ -104,6 +103,15 @@ async function issueToken(): Promise<string> {
   const ttlSec = typeof json.expires_in === "number" ? json.expires_in : 23 * 3600;
   const expiresAt = Date.now() + Math.max(60, ttlSec - 600) * 1000;
   await writeCachedSecret(CACHE_KEY.accessToken, json.access_token, expiresAt);
+  // Diagnostic: this line prints ONLY when a NEW token is actually issued (i.e.,
+  // when KIS pushes a KakaoTalk). After a restart you should see it at most ONCE
+  // per ~24h. If it never prints but KakaoTalk still arrives, the issuer is
+  // another program sharing the same KIS appkey (Python 스크립트·HTS·다른 앱) —
+  // KIS allows ONE active token per appkey, so each external issuance invalidates
+  // this cache and forces a re-issue here. Use a separate appkey per program.
+  console.warn(
+    `[KIS] 새 접근토큰 발급됨 → 캐시 저장(${new Date(expiresAt).toLocaleString("ko-KR")}까지 재사용). 이 로그가 자주 보이면 같은 appkey를 쓰는 다른 프로그램이 있는지 확인하세요.`,
+  );
   return json.access_token;
 }
 
@@ -319,12 +327,12 @@ function subscribeImpl(symbols: StockSymbol[], onTick: OnTick): Unsubscribe {
           onQuote: (q) => {
             if (!stopped) onTick(q);
           },
-          // A socket error may mean the cached approval key went stale → drop it
-          // so the NEXT subscribe re-issues a fresh one (self-heal). The route
-          // also keeps a REST poll as backstop, so realtime degrades gracefully.
-          onError: () => {
-            void invalidateApprovalKey();
-          },
+          // Swallow socket errors: the REST seed already painted the widget and
+          // the route keeps a REST poll backstop. We deliberately do NOT drop the
+          // cached approval key here — a flaky/unreachable socket would otherwise
+          // force repeated re-issuance (churn). The 23h TTL refreshes it instead;
+          // invalidateApprovalKey() stays available for explicit recovery.
+          onError: () => {},
         });
       })
       .catch(() => {
