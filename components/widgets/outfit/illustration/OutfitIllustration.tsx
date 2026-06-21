@@ -57,8 +57,13 @@ export interface OutfitIllustrationProps {
   calendarMonth?: number;
   /** 라벨(코디명)을 일러스트 아래 표시할지. */
   showLabel?: boolean;
-  /** 프레임 최대 너비(px). 컨테이너에 맞춰 줄어든다. */
+  /** 프레임 최대 너비(px). 컨테이너에 맞춰 줄어든다. (fit=false일 때만) */
   maxWidth?: number;
+  /**
+   * 부모 박스 크기에 맞춰 가로·세로 모두로 축소(비율 유지). 타일을 줄이면 그림도 함께
+   * 작아지도록 할 때 사용(요구). 부모는 높이·너비가 정해진 flex 박스여야 한다.
+   */
+  fit?: boolean;
   className?: string;
 }
 
@@ -74,6 +79,7 @@ export function OutfitIllustration({
   calendarMonth,
   showLabel = true,
   maxWidth = 240,
+  fit = false,
   className,
 }: OutfitIllustrationProps) {
   const label = heroLabel(illustKey, calendarMonth);
@@ -100,21 +106,30 @@ export function OutfitIllustration({
     isNight,
   });
 
+  const frameStyle = {
+    // mix-blend-mode가 프레임 안에서만 합성되도록 격리 + 밝은 배경.
+    isolation: "isolate" as const,
+    background: "rgba(255,255,255,0.6)",
+    border: "1px solid var(--border)",
+    ...(fit ? {} : { maxWidth }),
+  };
+
   return (
     <div
-      className={["flex min-h-0 flex-col items-center gap-1.5", className ?? ""].join(
-        " ",
-      )}
+      className={[
+        "flex min-h-0 min-w-0 flex-col items-center justify-center gap-1.5",
+        fit ? "h-full w-full" : "",
+        className ?? "",
+      ].join(" ")}
     >
       <div
-        className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl"
-        style={{
-          maxWidth,
-          // mix-blend-mode가 프레임 안에서만 합성되도록 격리 + 밝은 배경.
-          isolation: "isolate",
-          background: "rgba(255,255,255,0.6)",
-          border: "1px solid var(--border)",
-        }}
+        className={
+          fit
+            ? // 부모 박스에 맞춰 너비·높이 모두로 축소(이미지가 비율 유지하며 fit).
+              "relative flex min-h-0 max-h-full max-w-full items-center justify-center overflow-hidden rounded-2xl"
+            : "relative flex w-full items-center justify-center overflow-hidden rounded-2xl"
+        }
+        style={frameStyle}
       >
         <WeatherCharBg
           mode={bgMode}
@@ -126,14 +141,20 @@ export function OutfitIllustration({
           alt={altText}
           width={CHAR_IMG_W}
           height={CHAR_IMG_H}
-          className="relative h-auto w-full max-w-full"
+          className={
+            fit
+              ? "relative block h-auto max-h-full w-auto max-w-full"
+              : "relative h-auto w-full max-w-full"
+          }
           style={{ mixBlendMode: "darken" }}
           loading="lazy"
           decoding="async"
         />
       </div>
       {showLabel ? (
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+          {label}
+        </span>
       ) : null}
     </div>
   );
