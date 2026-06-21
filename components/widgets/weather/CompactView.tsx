@@ -12,6 +12,7 @@
 import * as React from "react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import type { Weather } from "@/output/api-shapes";
+import { RefreshBar } from "@/components/widgets/shared/RefreshBar";
 import { useWeather } from "./useWeather";
 import {
   ConditionIcon,
@@ -24,7 +25,7 @@ import {
 import type { WeatherConfig } from "./types";
 
 export function WeatherCompactView({ config }: CompactViewProps<WeatherConfig>) {
-  const { data, loading, error } = useWeather(config);
+  const { data, loading, error, lastUpdated, refresh } = useWeather(config);
   const view = config.view ?? "current";
 
   if (loading && !data) {
@@ -43,6 +44,7 @@ export function WeatherCompactView({ config }: CompactViewProps<WeatherConfig>) 
       <p className="shrink-0 truncate text-xs text-muted-foreground">
         {location.label}
       </p>
+      <RefreshBar lastUpdated={lastUpdated} onRefresh={refresh} size="compact" />
 
       {view === "hourly" ? (
         <HourlyBody hourly={hourly} />

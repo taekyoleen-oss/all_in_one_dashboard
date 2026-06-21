@@ -36,6 +36,12 @@
 | `news` | 뉴스/RSS | extended | poll | (TBD) | Naver News/RSS 프록시 |
 | `calendar` | 캘린더 | extended | poll | (TBD) | **needsGoogleScope** — Google Calendar |
 
+## 추가 유틸 위젯
+
+| type | displayName | category | dataMode | sensitive | needsGoogleScope | 비고 |
+|------|-------------|----------|----------|-----------|------------------|------|
+| `clipboard` | 클립보드 기록 | extended | static(local) | – | – | 페이지 복사 자동 기록(`copy` 이벤트) + 수동 추가(readText/붙여넣기). 항목 클릭 시 재복사. 기록은 기기 localStorage(인스턴스별). OS 전역 감시는 브라우저 한계로 불가. |
+
 ## 불변 규칙 (모든 위젯)
 - **인스턴스 격리**: 모든 상태/구독은 `instanceId`로 키. 같은 종류 2개는 독립 config·독립 구독.
 - **shape import**: API 연동 위젯(Batch 3)은 응답 타입을 `output/api-shapes.ts`에서 import(로컬 재선언 금지).

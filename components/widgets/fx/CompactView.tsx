@@ -10,12 +10,13 @@
 
 import * as React from "react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
+import { RefreshBar } from "@/components/widgets/shared/RefreshBar";
 import { FxRateRow } from "./FxRateRow";
 import { useFxRates } from "./useFxRates";
 import type { FxConfig } from "./types";
 
 export function FxCompactView({ config }: CompactViewProps<FxConfig>) {
-  const { base, rows, stale, loading, error } = useFxRates(
+  const { base, rows, stale, loading, error, lastUpdated, refresh } = useFxRates(
     config.base,
     config.quotes,
   );
@@ -38,6 +39,7 @@ export function FxCompactView({ config }: CompactViewProps<FxConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-1">
+      <RefreshBar lastUpdated={lastUpdated} onRefresh={refresh} size="compact" />
       <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
         {rows.map((row) => (
           <FxRateRow key={row.quote} base={base} row={row} size="compact" />

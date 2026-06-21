@@ -626,7 +626,16 @@ export function GridCanvas({
   );
 
   return (
-    <div ref={containerRef} className="w-full">
+    // Give the grid surface a tall minimum so there is EMPTY droppable space
+    // below the existing tiles — otherwise the grid element is only as tall as
+    // its content and a dragged-in widget can only land beside what's already
+    // there. With room below, RGL maps the cursor to the row under it, so a new
+    // widget drops where you actually point (free placement keeps it from
+    // pushing others). Tall boards already exceed this, so it's a floor only.
+    <div
+      ref={containerRef}
+      className="w-full [&_.react-grid-layout]:min-h-[70vh]"
+    >
       {mounted ? (
         <Responsive<BreakpointKey>
           width={width}

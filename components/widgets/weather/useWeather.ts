@@ -14,8 +14,8 @@ import { WeatherSchema } from "@/output/api-shapes";
 import { usePoll, type PollState } from "@/components/widgets/shared/usePoll";
 import type { WeatherConfig } from "./types";
 
-/** Poll cadence for weather (forecasts are hourly; 10 min is plenty). */
-export const WEATHER_REFRESH_MS = 600_000;
+/** Poll cadence for weather (forecasts update hourly; auto-refresh every 30분). */
+export const WEATHER_REFRESH_MS = 1_800_000;
 
 export type WeatherState = PollState<typeof WeatherSchema._output>;
 
