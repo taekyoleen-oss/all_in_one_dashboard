@@ -50,6 +50,7 @@ import { useClipboard } from "@/lib/utils/clipboard";
 import { createInstance } from "@/lib/utils/grid";
 import { usePersistedTheme } from "@/lib/utils/theme";
 import { usePersistence } from "@/lib/persistence/usePersistence";
+import { WidgetPersistenceProvider } from "@/lib/widgets/persistence";
 import type { BoardState } from "@/lib/persistence/types";
 import { verticalCompactor, type Layout } from "react-grid-layout";
 
@@ -293,6 +294,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     : null;
 
   return (
+    <WidgetPersistenceProvider save={saveConfig}>
     <main className="min-h-dvh bg-background">
       {/* Sticky header: title + board tabs + toolbar */}
       <div className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
@@ -390,6 +392,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         onClose={closeTop}
       />
     </main>
+    </WidgetPersistenceProvider>
   );
 }
 

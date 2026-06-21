@@ -1,27 +1,50 @@
 "use client";
 
 /**
- * memo · CompactView — clamped text preview that renders PURELY from `config`.
- *
- *  @container responsive font (font bucket × @container breakpoint). The left
- *  rail carries the accent color, but color is NEVER the only signal — the text
- *  itself is the content, so an empty memo shows a neutral placeholder.
+ * memo · CompactView — INLINE-EDITABLE note. The body is a textarea bound to
+ * `config.text`: put the cursor in and type to edit right on the tile (요구:
+ * 현재 위치에서 바로 수정). Edits persist via the widget-persistence context
+ * (debounced; flushed on blur). The left rail carries the accent color.
  */
 
 import * as React from "react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
+import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { MEMO_COLORS, MEMO_SIZE_CLASS, type MemoConfig } from "./types";
 
-export function MemoCompactView({ config, density }: CompactViewProps<MemoConfig>) {
+export function MemoCompactView({
+  config,
+  instanceId,
+}: CompactViewProps<MemoConfig>) {
+  const save = useSaveWidgetConfig();
   const accent = MEMO_COLORS[config.color]?.swatch ?? MEMO_COLORS.default.swatch;
   const hasAccent = config.color !== "default";
-  // Line clamp scales with density so taller/wider tiles show more lines.
-  const clampClass =
-    density === "compact"
-      ? "line-clamp-3"
-      : density === "cozy"
-        ? "line-clamp-6"
-        : "line-clamp-[12]";
+
+  // Latest config in a ref so the debounced save always merges the current
+  // color/size, not a stale closure.
+  const configRef = React.useRef(config);
+  configRef.current = config;
+  const timer = React.useRef<number | null>(null);
+
+  const persist = React.useCallback(
+    (text: string, debounce: boolean) => {
+      if (timer.current != null) {
+        window.clearTimeout(timer.current);
+        timer.current = null;
+      }
+      const run = () => save(instanceId, { ...configRef.current, text });
+      if (debounce) timer.current = window.setTimeout(run, 500);
+      else run();
+    },
+    [instanceId, save],
+  );
+
+  React.useEffect(
+    () => () => {
+      if (timer.current != null) window.clearTimeout(timer.current);
+    },
+    [],
+  );
 
   return (
     <div className="flex h-full w-full gap-2">
@@ -32,21 +55,22 @@ export function MemoCompactView({ config, density }: CompactViewProps<MemoConfig
           style={{ backgroundColor: accent }}
         />
       ) : null}
-      {config.text.trim() ? (
-        <p
-          className={[
-            "min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed text-foreground",
-            MEMO_SIZE_CLASS[config.size],
-            clampClass,
-          ].join(" ")}
-        >
-          {config.text}
-        </p>
-      ) : (
-        <p className="min-w-0 flex-1 text-sm italic text-muted-foreground">
-          빈 메모입니다. 편집해서 내용을 추가하세요.
-        </p>
-      )}
+      <textarea
+        // Uncontrolled (defaultValue) so optimistic config updates don't reset
+        // the caret mid-typing; keyed by instanceId via the parent remount.
+        defaultValue={config.text}
+        onChange={(e) => persist(e.target.value, true)}
+        onBlur={(e) => persist(e.target.value, false)}
+        placeholder="여기에 메모를 입력하세요…"
+        spellCheck={false}
+        data-pb-no-drag=""
+        className={[
+          "min-w-0 flex-1 resize-none bg-transparent leading-relaxed outline-none",
+          "text-foreground placeholder:italic placeholder:text-muted-foreground",
+          "[scrollbar-width:thin]",
+          MEMO_SIZE_CLASS[config.size],
+        ].join(" ")}
+      />
     </div>
   );
 }

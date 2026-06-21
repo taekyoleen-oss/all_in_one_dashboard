@@ -42,6 +42,7 @@ import { WidgetFrame } from "./WidgetFrame";
 import { getDragType, clearDragType } from "@/lib/utils/dragSource";
 import { usePersistedFontScale } from "@/lib/utils/fontScale";
 import { usePersistedColor, tintBackground } from "@/lib/utils/widgetColor";
+import { usePersistedTitle } from "@/lib/utils/widgetTitle";
 
 /* ------------------------------- public types ----------------------------- */
 
@@ -295,6 +296,9 @@ function CanvasCell({
   // Per-instance 앱 색 (pastel tint blended over --card; readable in both themes).
   const { color } = usePersistedColor(instance.instanceId);
   const tint = tintBackground(color);
+  // Per-instance custom title (double-click the header to rename). Stored in
+  // localStorage (per device) so a widget's ConfigEditor can't drop it.
+  const { title: customTitle, setTitle } = usePersistedTitle(instance.instanceId);
 
   React.useEffect(() => {
     const el = cellRef.current;
@@ -332,7 +336,13 @@ function CanvasCell({
 
   return (
     <div ref={cellRef} className="h-full w-full">
-      <WidgetFrame title={displayName} icon={icon} actions={actions} tint={tint}>
+      <WidgetFrame
+        title={customTitle || displayName}
+        icon={icon}
+        actions={actions}
+        tint={tint}
+        onTitleChange={(next) => setTitle(next || null)}
+      >
         {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +
             spacing). h-full keeps the height chain intact so fill-frame widgets
             still fill and list widgets keep their own inner scroll. */}

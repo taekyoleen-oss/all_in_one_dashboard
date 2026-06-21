@@ -92,6 +92,11 @@ export interface WidgetFrameProps {
   className?: string;
   /** Optional background tint (a CSS color/color-mix) — per-widget app color. */
   tint?: string;
+  /**
+   * When provided, the title becomes editable: DOUBLE-CLICK it to rename (Enter/
+   * blur commits, Esc cancels). Used for per-instance custom titles (memo·image).
+   */
+  onTitleChange?: (next: string) => void;
 }
 
 export function WidgetFrame({
@@ -101,7 +106,15 @@ export function WidgetFrame({
   children,
   className,
   tint,
+  onTitleChange,
 }: WidgetFrameProps) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(title);
+  const commit = () => {
+    setEditing(false);
+    const next = draft.trim();
+    if (onTitleChange && next !== title) onTitleChange(next);
+  };
   return (
     <div
       style={tint ? { backgroundColor: tint } : undefined}
@@ -128,7 +141,44 @@ export function WidgetFrame({
             {icon}
           </span>
         ) : null}
-        <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h3>
+        {editing && onTitleChange ? (
+          <input
+            autoFocus
+            value={draft}
+            data-pb-no-drag=""
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setDraft(title);
+                setEditing(false);
+              }
+            }}
+            aria-label="제목 변경"
+            maxLength={40}
+            className="min-w-0 flex-1 rounded border border-border bg-background px-1 py-0.5 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        ) : (
+          <h3
+            className="min-w-0 flex-1 truncate text-sm font-medium"
+            title={onTitleChange ? "더블클릭하여 제목 변경" : undefined}
+            onDoubleClick={
+              onTitleChange
+                ? () => {
+                    setDraft(title);
+                    setEditing(true);
+                  }
+                : undefined
+            }
+          >
+            {title}
+          </h3>
+        )}
         {/* Actions placeholder — widget menu plugs in here later. */}
         <div className="flex shrink-0 items-center gap-1">{actions}</div>
       </header>
