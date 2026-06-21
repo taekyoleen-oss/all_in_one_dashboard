@@ -13,7 +13,7 @@ import {
   fxDirectionArrow,
   fxDirectionColorClass,
   formatRate,
-  formatFxPct,
+  formatFxAmount,
 } from "./format";
 import type { FxRow } from "./useFxRates";
 
@@ -66,8 +66,8 @@ export function FxRateRow({
             {fxDirectionArrow(row.direction)}
           </span>
         </div>
-        {/* 전일 대비 증감 (signed percent) — color + sign, never color-only. */}
-        {formatFxPct(row.changePct) ? (
+        {/* 전일 대비 증감 (signed 금액·원) — color + sign, never color-only. */}
+        {formatFxAmount(row.changeAbs) ? (
           <span
             className={[
               "font-mono tabular-nums",
@@ -75,7 +75,7 @@ export function FxRateRow({
               fxDirectionColorClass(row.direction),
             ].join(" ")}
           >
-            {formatFxPct(row.changePct)}
+            {formatFxAmount(row.changeAbs)}
             <span className="ml-1 text-muted-foreground">전일대비</span>
           </span>
         ) : null}

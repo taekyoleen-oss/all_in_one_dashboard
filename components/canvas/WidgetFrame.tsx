@@ -18,6 +18,7 @@
  */
 
 import * as React from "react";
+import { Maximize2 } from "lucide-react";
 
 /* ----------------------------- Error Boundary ----------------------------- */
 
@@ -97,6 +98,12 @@ export interface WidgetFrameProps {
    * blur commits, Esc cancels). Used for per-instance custom titles (memo·image).
    */
   onTitleChange?: (next: string) => void;
+  /**
+   * When provided, a "전체" button appears next to the title that opens this
+   * widget full-screen (the FocusOverlay / ExpandedView). On mobile, Back closes
+   * the overlay and keeps the app (useBackStack).
+   */
+  onExpand?: () => void;
 }
 
 export function WidgetFrame({
@@ -107,6 +114,7 @@ export function WidgetFrame({
   className,
   tint,
   onTitleChange,
+  onExpand,
 }: WidgetFrameProps) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(title);
@@ -122,11 +130,12 @@ export function WidgetFrame({
         // @container: internal reflow keys off this frame's inline size.
         "@container/widget",
         "group/widget flex h-full w-full flex-col overflow-hidden",
-        // Lift the tile off the canvas: stronger border + a layered shadow + a
-        // hairline ring so each app reads as a raised card against the bg (요구:
-        // 배경과 구분되게 약간 입체감).
-        "rounded-[var(--radius)] border border-border bg-card text-card-foreground",
-        "shadow-md ring-1 ring-black/5 dark:ring-white/10",
+        // Lift the tile off the canvas with a CLEARLY defined outline: a 2px
+        // border in a higher-contrast tone + a layered shadow + a hairline ring,
+        // so every app reads as a distinctly bordered, raised card against the bg
+        // (요구: 윤곽선이 명확하게 구분되도록).
+        "rounded-[var(--radius)] border-2 border-[color-mix(in_oklab,var(--border)_72%,var(--foreground))] bg-card text-card-foreground",
+        "shadow-md ring-1 ring-black/10 dark:ring-white/15",
         "transition-shadow duration-200 hover:shadow-lg",
         className ?? "",
       ].join(" ")}
@@ -179,6 +188,21 @@ export function WidgetFrame({
             {title}
           </h3>
         )}
+        {/* 전체 — open this widget full-screen (FocusOverlay). data-pb-no-drag so
+            tapping it never starts a grid drag. */}
+        {onExpand ? (
+          <button
+            type="button"
+            data-pb-no-drag=""
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onExpand}
+            aria-label="전체 화면으로 보기"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Maximize2 size={12} aria-hidden />
+            전체
+          </button>
+        ) : null}
         {/* Actions placeholder — widget menu plugs in here later. */}
         <div className="flex shrink-0 items-center gap-1">{actions}</div>
       </header>

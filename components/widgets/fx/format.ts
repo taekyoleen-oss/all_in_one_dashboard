@@ -55,3 +55,18 @@ export function formatFxPct(pct: number | undefined): string | null {
   const sign = pct > 0 ? "+" : pct < 0 ? "-" : "";
   return `${sign}${Math.abs(pct).toFixed(2)}%`;
 }
+
+/**
+ * "+5.30원" / "-12.00원" — 전일 대비 KRW 금액 변동 (null when unknown). Decimals
+ * scale to magnitude so small moves still read precisely (큰 값은 2자리로 충분).
+ */
+export function formatFxAmount(amount: number | undefined): string | null {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) return null;
+  const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
+  const abs = Math.abs(amount);
+  const maxFrac = abs >= 100 ? 1 : 2;
+  return `${sign}${abs.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maxFrac,
+  })}원`;
+}

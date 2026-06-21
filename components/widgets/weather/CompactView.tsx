@@ -132,29 +132,32 @@ function HourlyBody({ hourly }: { hourly: Weather["hourly"] }) {
   );
 }
 
-/** 주간 — daily min/max list. */
+/** 주간 — horizontal day strip (월·화·수 가로 나열), like the hourly strip. */
 function DailyBody({ daily }: { daily: Weather["daily"] }) {
   if (daily.length === 0) {
     return <p className="flex-1 text-sm text-muted-foreground">주간 예보 없음</p>;
   }
   return (
-    <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
+    <ul className="flex min-h-0 flex-1 items-stretch gap-1.5 overflow-x-auto pb-scroll">
       {daily.map((d) => (
-        <li key={d.date} className="flex items-center gap-2 px-0.5 py-0.5">
-          <span className="w-8 shrink-0 text-xs text-foreground">
+        <li
+          key={d.date}
+          className="flex shrink-0 flex-col items-center gap-0.5 rounded-md border border-border bg-background/40 px-2 py-1.5"
+        >
+          <span className="text-[10px] text-muted-foreground">
             {formatDay(d.date)}
           </span>
           <ConditionIcon
             condition={d.condition}
-            size={15}
+            size={18}
             aria-label={conditionLabel(d.condition)}
-            className="shrink-0 text-foreground"
+            className="text-foreground"
           />
-          <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-            {formatTemp(d.tempMin)}
-          </span>
-          <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
+          <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
             {formatTemp(d.tempMax)}
+          </span>
+          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            {formatTemp(d.tempMin)}
           </span>
         </li>
       ))}

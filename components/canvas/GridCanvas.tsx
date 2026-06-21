@@ -43,6 +43,11 @@ import { getDragType, clearDragType } from "@/lib/utils/dragSource";
 import { usePersistedFontScale } from "@/lib/utils/fontScale";
 import { usePersistedColor, tintBackground } from "@/lib/utils/widgetColor";
 import { usePersistedTitle } from "@/lib/utils/widgetTitle";
+import {
+  readMobileLayout,
+  writeMobileLayout,
+  type StoredLayout,
+} from "@/lib/utils/mobileLayout";
 
 /* ------------------------------- public types ----------------------------- */
 
@@ -97,6 +102,17 @@ export interface GridCanvasProps {
    * inject a menu wired to copy/paste/delete/focus/edit/lock for each instance.
    */
   renderActions?: (instance: WidgetInstance) => React.ReactNode;
+  /**
+   * Open a widget full-screen (the "전체" button in each tile header → FocusOverlay).
+   * Wired to the same focus path as the ⋮ menu's 자세히.
+   */
+  onFocusInstance?: (instanceId: string) => void;
+  /**
+   * Stable key (the board id) for device-local mobile/tablet layouts. md/sm edits
+   * persist to localStorage under this key instead of the DB, so a phone keeps its
+   * own arrangement without clobbering the desktop (lg) layout.
+   */
+  storageKey?: string;
 }
 
 /* --------------------------------- config --------------------------------- */
@@ -225,6 +241,83 @@ function toFlowLayout(
   return placed;
 }
 
+/**
+ * DEVICE-LOCAL (mobile/tablet) layout: like toFlowLayout, but seeded from a
+ * stored per-기기 layout (localStorage). Instances present in `stored` keep their
+ * saved x/y/w/h (clamped to the widget's min/max and this breakpoint's cols);
+ * instances NOT in `stored` (e.g. added later on desktop) flow-pack into the
+ * first free slots so nothing overlaps. When `stored` is null we fall back to the
+ * fully-derived flow layout (toFlowLayout). Never persisted to the DB.
+ */
+function toDeviceLayout(
+  items: CanvasLayoutItem[],
+  instances: WidgetInstance[],
+  registry: WidgetRegistry,
+  cols: number,
+  stored: StoredLayout | null,
+): Layout {
+  if (!stored) return toFlowLayout(items, instances, registry, cols);
+  const typeOf = new Map(instances.map((i) => [i.instanceId, i.type]));
+  const lgById = new Map(items.map((it) => [it.instanceId, it]));
+  const placed: LayoutItem[] = [];
+  const bounds = (id: string) => {
+    const def = registry[typeOf.get(id) ?? ""];
+    return {
+      min: def?.minSize ?? { w: 1, h: 1 },
+      max: def?.maxSize ?? { w: cols, h: Infinity },
+    };
+  };
+  // 1) Instances with a saved cell → honor it (clamped).
+  for (const inst of instances) {
+    const s = stored[inst.instanceId];
+    if (!s) continue;
+    const { min, max } = bounds(inst.instanceId);
+    const maxW = Math.min(max.w, cols);
+    const w = cols === 1 ? 1 : Math.min(Math.max(s.w, min.w), maxW);
+    const h = Math.min(Math.max(s.h, min.h), max.h);
+    const x = cols === 1 ? 0 : Math.min(Math.max(0, s.x), Math.max(0, cols - w));
+    placed.push({
+      i: inst.instanceId,
+      x,
+      y: Math.max(0, s.y),
+      w,
+      h,
+      minW: cols === 1 ? 1 : min.w,
+      minH: min.h,
+      maxW: cols === 1 ? 1 : maxW,
+      maxH: max.h,
+    });
+  }
+  // 2) Instances without a saved cell → flow-pack into the free space.
+  for (const inst of instances) {
+    if (stored[inst.instanceId]) continue;
+    const { min, max } = bounds(inst.instanceId);
+    const maxW = Math.min(max.w, cols);
+    const lg = lgById.get(inst.instanceId);
+    const w =
+      cols === 1
+        ? 1
+        : Math.min(
+            Math.max(Math.round(((lg?.w ?? min.w) / COLS.lg) * cols), min.w),
+            maxW,
+          );
+    const h = Math.min(Math.max(lg?.h ?? min.h, min.h), max.h);
+    const { x, y } = firstFreeSlot(placed, w, h, cols);
+    placed.push({
+      i: inst.instanceId,
+      x,
+      y,
+      w,
+      h,
+      minW: cols === 1 ? 1 : min.w,
+      minH: min.h,
+      maxW: cols === 1 ? 1 : maxW,
+      maxH: max.h,
+    });
+  }
+  return placed;
+}
+
 /* ----------------------------- hover-to-fit (②) --------------------------- */
 
 /** Plain x/y/w/h rect in grid units (the dropping item is one of these). */
@@ -286,10 +379,12 @@ function CanvasCell({
   instance,
   registry,
   actions,
+  onExpand,
 }: {
   instance: WidgetInstance;
   registry: WidgetRegistry;
   actions?: React.ReactNode;
+  onExpand?: () => void;
 }) {
   const cellRef = React.useRef<HTMLDivElement | null>(null);
   const [density, setDensity] = React.useState<Density>("cozy");
@@ -323,6 +418,7 @@ function CanvasCell({
           title={`알 수 없는 위젯: ${instance.type}`}
           actions={actions}
           tint={tint}
+          onExpand={onExpand}
         >
           <p className="text-xs text-muted-foreground">
             레지스트리에 등록되지 않은 타입입니다.
@@ -346,6 +442,7 @@ function CanvasCell({
         actions={actions}
         tint={tint}
         onTitleChange={(next) => setTitle(next || null)}
+        onExpand={onExpand}
       >
         {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +
             spacing). h-full keeps the height chain intact so fill-frame widgets
@@ -405,6 +502,43 @@ function pushResolveDown(
     placed.push(cur);
   }
   return placed;
+}
+
+/**
+ * Push every item that overlaps `anchor` (a virtual rect) straight DOWN, cascading,
+ * until nothing overlaps it — while keeping `keepId` (the tile being dragged) put.
+ * Used by the drag-dwell (요구: 드래그하여 멈춰있으면 그 공간의 앱 + 연속된 앱들이
+ * 아래로 이동). Only y moves (x preserved), so columns stay where the user set them.
+ */
+function pushBelowRect(
+  items: CanvasLayoutItem[],
+  anchor: GridRect,
+  keepId: string,
+): CanvasLayoutItem[] {
+  const kept = items.find((i) => i.instanceId === keepId);
+  const movable = items
+    .filter((i) => i.instanceId !== keepId)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const blocks: GridRect[] = [{ ...anchor }];
+  const out: CanvasLayoutItem[] = [];
+  for (const it of movable) {
+    const cur = { ...it };
+    let guard = 0;
+    let moved = true;
+    while (moved && guard < 4000) {
+      moved = false;
+      guard += 1;
+      for (const b of blocks) {
+        if (rectsOverlap(cur, b)) {
+          cur.y = b.y + b.h;
+          moved = true;
+        }
+      }
+    }
+    out.push(cur);
+    blocks.push({ x: cur.x, y: cur.y, w: cur.w, h: cur.h });
+  }
+  return kept ? [kept, ...out] : out;
 }
 
 /** Floating "다른 앱 밀기" button anchored to the resized tile's SE corner. */
@@ -477,6 +611,8 @@ export function GridCanvas({
   onDropWidget,
   dropItemSize,
   renderActions,
+  onFocusInstance,
+  storageKey = "",
 }: GridCanvasProps) {
   const { width, containerRef, mounted } = useContainerWidth({
     initialWidth: 1280,
@@ -494,6 +630,42 @@ export function GridCanvas({
   React.useEffect(() => {
     activeBpRef.current = activeBp;
   }, [activeBp]);
+
+  /* --------------- device-local (mobile/tablet) layout state --------------- */
+  // md/sm edits persist HERE (localStorage), never to the DB lg layout. Loaded on
+  // mount / when the board (storageKey) changes; null → derive via toFlowLayout.
+  // SSR + first client render both start null (= derived), so no hydration drift.
+  const [deviceLayouts, setDeviceLayouts] = React.useState<{
+    md: StoredLayout | null;
+    sm: StoredLayout | null;
+  }>({ md: null, sm: null });
+  React.useEffect(() => {
+    // Load device-local layouts for this board (client-only; localStorage is not
+    // readable during SSR/first render, so this MUST run in an effect).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external store (localStorage) → state on mount/board-change
+    setDeviceLayouts({
+      md: readMobileLayout(storageKey, "md"),
+      sm: readMobileLayout(storageKey, "sm"),
+    });
+  }, [storageKey]);
+
+  // Snapshot a breakpoint's RGL layout into localStorage (per board+bp). Guarded
+  // against RGL's transient/incomplete emissions: only persist when every current
+  // instance is present (and the dropping placeholder is dropped). md/sm only —
+  // never the DB lg layout.
+  const persistDeviceLayout = React.useCallback(
+    (bp: "md" | "sm", src: Layout) => {
+      const real = src.filter((it) => it.i !== DROPPING_ITEM_ID);
+      if (real.length !== instances.length) return;
+      const map: StoredLayout = {};
+      for (const it of real) {
+        map[it.i] = { x: it.x, y: it.y, w: it.w, h: it.h };
+      }
+      writeMobileLayout(storageKey, bp, map);
+      setDeviceLayouts((prev) => ({ ...prev, [bp]: map }));
+    },
+    [instances.length, storageKey],
+  );
 
   /* ----------------------- push-on-resize (밀기) state ---------------------- */
   // While a tile is being resized, the compactor CLAMPS it so it never overlaps a
@@ -597,6 +769,13 @@ export function GridCanvas({
   );
 
   const onResizeTick = React.useCallback(() => {
+    // The "다른 앱 밀기" push affordance operates on the DB (lg) layout, so it only
+    // runs on desktop. On md/sm the compactor still CLAMPS (no overlap); the resize
+    // just commits device-local on release.
+    if (activeBpRef.current !== "lg") {
+      clearAutoPush();
+      return;
+    }
     // compact() (run just before this) set clampHappenedRef + desiredRef.
     if (resizingIdRef.current && clampHappenedRef.current) {
       schedulePushPrompt(resizingIdRef.current);
@@ -613,12 +792,18 @@ export function GridCanvas({
     }
   }, [schedulePushPrompt, clearAutoPush]);
 
-  const onResizeStop = React.useCallback(() => {
-    resizingIdRef.current = null;
-    // Cancel a pending auto-push on release; the post-release button still works.
-    clearAutoPush();
-    // Keep desiredRef + the prompt so the button stays clickable after release.
-  }, [clearAutoPush]);
+  const onResizeStop = React.useCallback(
+    (lay: Layout) => {
+      resizingIdRef.current = null;
+      // Cancel a pending auto-push on release; the post-release button still works.
+      clearAutoPush();
+      // md/sm: commit the resized arrangement device-local (never the DB lg layout).
+      const bp = activeBpRef.current;
+      if (bp === "md" || bp === "sm") persistDeviceLayout(bp, lay);
+      // Keep desiredRef + the prompt so the button stays clickable after release (lg).
+    },
+    [clearAutoPush, persistDeviceLayout],
+  );
 
   // Apply the push: grow the tile to its desired size and shove colliders down.
   const applyPush = React.useCallback(() => {
@@ -642,16 +827,151 @@ export function GridCanvas({
   // onResizeTick) always pushes using the current layout/desired state.
   applyPushRef.current = applyPush;
 
+  /* ------------------------ drag-dwell push-down (②) ----------------------- */
+  // 요구: 개별 앱을 드래그하여 어떤 공간 위에서 ~멈춰 있으면~, 그 공간의 앱 + 그 아래로
+  // 연속된 앱들이 아래로 밀려난다. Free placement + preventCollision means the dragged
+  // tile would normally just snap to the nearest gap; instead we read the POINTER's
+  // target cell, and when it's held still over occupied cells, push those tiles
+  // (cascading) down so the dragged tile can land where the user is pointing. Only
+  // on desktop (lg) — the DB layout — where free placement needs this.
+  const dragIdRef = React.useRef<string | null>(null);
+  const dragSizeRef = React.useRef<{ w: number; h: number }>({ w: 1, h: 1 });
+  const dragCellRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragPushTimerRef = React.useRef<number | null>(null);
+  const applyDragPushRef = React.useRef<() => void>(() => {});
+
+  // Map a pointer event to the grid cell the dragged tile's TOP-LEFT should take,
+  // centering the tile under the cursor (matches where the user is aiming).
+  const pointerDragCell = React.useCallback(
+    (e: Event, w: number, h: number): { x: number; y: number } | null => {
+      const gridEl = containerRef.current?.querySelector<HTMLElement>(
+        ".react-grid-layout",
+      );
+      if (!gridEl) return null;
+      const me = e as MouseEvent & { touches?: TouchList };
+      const cx = me.touches?.[0]?.clientX ?? me.clientX;
+      const cy = me.touches?.[0]?.clientY ?? me.clientY;
+      if (typeof cx !== "number" || typeof cy !== "number") return null;
+      const cols = COLS.lg;
+      const colWidth = (width - MARGIN[0] * (cols - 1)) / cols;
+      const rect = gridEl.getBoundingClientRect();
+      const tileWpx = w * colWidth + (w - 1) * MARGIN[0];
+      // Horizontally center the tile under the cursor; vertically the user grabs
+      // the HEADER (top), so track the cursor's row (offset by ~half a row), which
+      // matches where the dragged tile visually sits.
+      const left = Math.max(0, cx - rect.left - tileWpx / 2);
+      const top = Math.max(0, cy - rect.top - ROW_HEIGHT / 2);
+      const positionParams = {
+        cols,
+        margin: MARGIN,
+        maxRows: Infinity,
+        rowHeight: ROW_HEIGHT,
+        containerWidth: width,
+        containerPadding: CONTAINER_PADDING,
+      } as const;
+      return calcXY(positionParams, top, left, w, h);
+    },
+    [containerRef, width],
+  );
+
+  // Push the occupiers below the held cell (keeps the dragged tile put). Reads the
+  // latest layout via layoutRef so the timer never pushes stale state.
+  const applyDragPush = React.useCallback(() => {
+    const id = dragIdRef.current;
+    const cell = dragCellRef.current;
+    if (!id || !cell) return;
+    const { w, h } = dragSizeRef.current;
+    const anchor: GridRect = {
+      x: Math.min(Math.max(0, cell.x), Math.max(0, COLS.lg - w)),
+      y: Math.max(0, cell.y),
+      w,
+      h,
+    };
+    const next = pushBelowRect(layoutRef.current, anchor, id);
+    onLayoutChange?.(next);
+    dragPushTimerRef.current = null;
+  }, [onLayoutChange]);
+  applyDragPushRef.current = applyDragPush;
+
+  const onDragStart = React.useCallback(
+    (_lay: Layout, oldItem: LayoutItem | null) => {
+      clearPushPrompt();
+      if (activeBpRef.current !== "lg" || !oldItem) {
+        dragIdRef.current = null;
+        return;
+      }
+      dragIdRef.current = oldItem.i;
+      dragSizeRef.current = { w: oldItem.w, h: oldItem.h };
+      dragCellRef.current = null;
+    },
+    [clearPushPrompt],
+  );
+
+  const onDragTick = React.useCallback(
+    (lay: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
+      const id = dragIdRef.current;
+      if (!id || activeBpRef.current !== "lg") return;
+      const cell = pointerDragCell(e, dragSizeRef.current.w, dragSizeRef.current.h);
+      if (!cell) return;
+      const { w, h } = dragSizeRef.current;
+      const anchor: GridRect = {
+        x: Math.min(Math.max(0, cell.x), Math.max(0, COLS.lg - w)),
+        y: Math.max(0, cell.y),
+        w,
+        h,
+      };
+      // Does any OTHER tile sit in the held space? (use the live RGL layout)
+      const blocked = lay.some(
+        (it) => it.i !== id && it.i !== DROPPING_ITEM_ID && rectsOverlap(anchor, it),
+      );
+      if (!blocked) {
+        if (dragPushTimerRef.current != null) {
+          window.clearTimeout(dragPushTimerRef.current);
+          dragPushTimerRef.current = null;
+        }
+        dragCellRef.current = cell;
+        return;
+      }
+      const prev = dragCellRef.current;
+      if (!prev || prev.x !== anchor.x || prev.y !== anchor.y) {
+        // Cell moved → restart the dwell. Holding still ~500ms then pushes down.
+        dragCellRef.current = { x: anchor.x, y: anchor.y };
+        if (dragPushTimerRef.current != null)
+          window.clearTimeout(dragPushTimerRef.current);
+        dragPushTimerRef.current = window.setTimeout(() => {
+          applyDragPushRef.current();
+        }, 500);
+      }
+      // Same cell + timer already running → let it ride (this is "멈춰 있음").
+    },
+    [pointerDragCell],
+  );
+
+  const onDragStop = React.useCallback(
+    (lay: Layout) => {
+      if (dragPushTimerRef.current != null) {
+        window.clearTimeout(dragPushTimerRef.current);
+        dragPushTimerRef.current = null;
+      }
+      dragIdRef.current = null;
+      dragCellRef.current = null;
+      // md/sm: commit this device's arrangement locally (never the DB lg layout).
+      const bp = activeBpRef.current;
+      if (bp === "md" || bp === "sm") persistDeviceLayout(bp, lay);
+    },
+    [persistDeviceLayout],
+  );
+
   // Derive per-breakpoint layouts from the single persisted (lg) layout. lg keeps
   // the exact desktop x/y/w/h; md/sm are re-flowed to fill the narrower grid
   // (tablet = a few across, mobile = one per row). See toFlowLayout.
   const layouts = React.useMemo<ResponsiveLayouts<BreakpointKey>>(
     () => ({
       lg: toRglLayout(layout, instances, registry, COLS.lg),
-      md: toFlowLayout(layout, instances, registry, COLS.md),
-      sm: toFlowLayout(layout, instances, registry, COLS.sm),
+      md: toDeviceLayout(layout, instances, registry, COLS.md, deviceLayouts.md),
+      sm: toDeviceLayout(layout, instances, registry, COLS.sm, deviceLayouts.sm),
     }),
-    [layout, instances, registry],
+    [layout, instances, registry, deviceLayouts],
   );
 
   const children = React.useMemo(
@@ -668,10 +988,15 @@ export function GridCanvas({
             instance={instance}
             registry={registry}
             actions={renderActions?.(instance)}
+            onExpand={
+              onFocusInstance
+                ? () => onFocusInstance(instance.instanceId)
+                : undefined
+            }
           />
         </div>
       )),
-    [instances, registry, renderActions],
+    [instances, registry, renderActions, onFocusInstance],
   );
 
   const handleLayoutChange = React.useCallback(
@@ -700,11 +1025,13 @@ export function GridCanvas({
     [onLayoutChange],
   );
 
-  // Drag/resize/drop only on the desktop (lg) layout: md/sm are derived, never
-  // persisted, and touch-dragging the header would fight page scroll on
-  // phones/tablets. Tap-to-add from the palette still works at every size.
-  const interactive = editable && activeBp === "lg";
-  const droppable = interactive && !!onDropWidget;
+  // Drag + resize at EVERY breakpoint now (요구: 모바일에서도 크기조절·이동). On
+  // md/sm the edits persist DEVICE-LOCAL (localStorage), so they never clobber the
+  // desktop (lg) DB layout. Palette DROP stays desktop-only (touch uses tap-to-add
+  // from the FAB sheet); the lg-only DB-push affordances are gated separately.
+  const interactive = editable;
+  const isLg = activeBp === "lg";
+  const droppable = editable && isLg && !!onDropWidget;
   const dropDefault = React.useMemo(
     () => dropItemSize ?? { w: 6, h: 4 }, // v2 default drop size (≈ old 3×2)
     [dropItemSize],
@@ -783,6 +1110,8 @@ export function GridCanvas({
         window.clearTimeout(promptTimerRef.current);
       if (autoPushTimerRef.current != null)
         window.clearTimeout(autoPushTimerRef.current);
+      if (dragPushTimerRef.current != null)
+        window.clearTimeout(dragPushTimerRef.current);
     };
   }, []);
 
@@ -931,8 +1260,11 @@ export function GridCanvas({
           droppingItem={droppingItem}
           onDrop={droppable ? handleDrop : undefined}
           onLayoutChange={handleLayoutChange}
-          // Resize tracking for the push-to-fit affordance.
-          onDragStart={clearPushPrompt}
+          // Drag tracking: the drag-dwell push-down (lg) + device-local commit (md/sm).
+          onDragStart={onDragStart}
+          onDrag={onDragTick}
+          onDragStop={onDragStop}
+          // Resize tracking for the push-to-fit affordance + device-local commit.
           onResizeStart={onResizeStart}
           onResize={onResizeTick}
           onResizeStop={onResizeStop}

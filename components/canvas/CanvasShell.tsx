@@ -369,6 +369,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               editable={editable}
               onDropWidget={addByDrop}
               renderActions={renderActions}
+              onFocusInstance={openFocus}
+              storageKey={activeId}
             />
           )}
         </section>

@@ -29,6 +29,8 @@ export interface FxRow {
   direction: FxDirection;
   /** 전일 대비 percent of the KRW value (signed) when available. */
   changePct?: number;
+  /** 전일 대비 KRW 금액 변동 (signed) — derived from changePct + current krw. */
+  changeAbs?: number;
 }
 
 export interface FxRatesState {
@@ -69,12 +71,19 @@ export function useFxRates(base: string, quotes: string[]): FxRatesState {
       // changePct[c] is for c-per-KRW; the KRW value moves the OPPOSITE way → negate.
       const sp = data.changePct?.[c];
       const cp = typeof sp === "number" ? -sp : undefined;
+      // Day-over-day KRW amount: prevKrw = krw / (1 + cp/100); Δ = krw − prevKrw.
+      let changeAbs: number | undefined;
+      if (typeof cp === "number" && Number.isFinite(cp)) {
+        const denom = 1 + cp / 100;
+        if (denom !== 0) changeAbs = krw - krw / denom;
+      }
       rows.push({
         quote: c,
         unit,
         krw,
         direction: fxDirectionFromPct(cp),
         changePct: cp,
+        changeAbs,
       });
     }
   }
