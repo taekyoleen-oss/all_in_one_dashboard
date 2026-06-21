@@ -5,7 +5,7 @@
  * prominent D5 warning (진짜 민감정보 저장 금지; 중간 수준만).
  */
 
-import { ShieldAlert } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import type { WidgetDefinition } from "@/lib/widgets/contract";
 import { EssentialInfoCompactView } from "./CompactView";
 import { EssentialInfoExpandedView } from "./ExpandedView";
@@ -17,8 +17,8 @@ import {
 
 export const essentialInfoWidget: WidgetDefinition<EssentialInfoConfig> = {
   type: "essential-info",
-  displayName: "필수정보",
-  icon: ShieldAlert,
+  displayName: "메모장(비번설정)",
+  icon: LockKeyhole,
   category: "core",
   defaultConfig: DEFAULT_ESSENTIAL_INFO_CONFIG,
   defaultSize: { w: 3, h: 2 },
