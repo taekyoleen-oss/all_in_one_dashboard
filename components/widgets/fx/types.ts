@@ -15,10 +15,31 @@ export interface FxConfig {
   quotes: string[];
 }
 
+// KRW-oriented by default: show how many 원 per 1 USD / 100 JPY / 1 EUR / 1 CNY
+// (한국에서 보통 보는 방식). The widget treats KRW as the reference and lists the
+// other currencies; base is kept for backward-compat but display is always 원 기준.
 export const DEFAULT_FX_CONFIG: FxConfig = {
-  base: "USD",
-  quotes: ["KRW", "EUR", "JPY", "CNY"],
+  base: "KRW",
+  quotes: ["USD", "JPY", "EUR", "CNY"],
 };
+
+/** Conventional quote unit per currency (KR shows 엔 per 100; others per 1). */
+export function fxUnit(code: string): number {
+  return code === "JPY" ? 100 : 1;
+}
+
+/**
+ * The foreign currencies to show in KRW terms, derived from any config (so old
+ * USD-based configs still work): everything in base+quotes except KRW itself.
+ */
+export function foreignCurrencies(config: FxConfig): string[] {
+  const seen = new Set<string>();
+  for (const c of [config.base, ...config.quotes]) {
+    const code = (c ?? "").trim().toUpperCase();
+    if (code && code !== "KRW") seen.add(code);
+  }
+  return [...seen];
+}
 
 /** A small palette of common currencies for the picker (free-text also allowed). */
 export const COMMON_CURRENCIES: { code: string; label: string }[] = [

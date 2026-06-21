@@ -13,16 +13,21 @@
 import * as React from "react";
 import { FxRatesSchema, type FxRates } from "@/output/api-shapes";
 import { usePoll } from "@/components/widgets/shared/usePoll";
-import { fxDirection, fxDirectionFromPct, type FxDirection } from "./format";
+import { fxDirectionFromPct, type FxDirection } from "./format";
+import { fxUnit, foreignCurrencies, type FxConfig } from "./types";
 
 /** Poll cadence for FX (rates are daily; 60s keeps the badge/time fresh). */
 export const FX_REFRESH_MS = 60_000;
 
 export interface FxRow {
+  /** Foreign currency code (e.g. "USD", "JPY"). */
   quote: string;
-  rate: number;
+  /** Quote unit (1, or 100 for JPY) — "100 JPY = …원". */
+  unit: number;
+  /** KRW per `unit` of the currency (the 원화 value shown). */
+  krw: number;
   direction: FxDirection;
-  /** 전일 대비 percent (signed) when the source provides it. */
+  /** 전일 대비 percent of the KRW value (signed) when available. */
   changePct?: number;
 }
 
@@ -38,62 +43,47 @@ export interface FxRatesState {
 }
 
 export function useFxRates(base: string, quotes: string[]): FxRatesState {
-  const symbols = quotes.join(",");
-  const url = `/api/fx?base=${encodeURIComponent(base)}&symbols=${encodeURIComponent(symbols)}`;
-  const enabled = quotes.length > 0;
+  // KRW-oriented: list the foreign currencies and show 원 per unit. We fetch with
+  // base=KRW (so rates[C] = C per 1 KRW) and invert to KRW-per-unit for display.
+  const foreign = foreignCurrencies({ base, quotes } as FxConfig);
+  const symbols = foreign.join(",");
+  const enabled = foreign.length > 0;
+  const url = `/api/fx?base=KRW&symbols=${encodeURIComponent(symbols)}`;
 
   const poll = usePoll<typeof FxRatesSchema>(url, FxRatesSchema, {
     intervalMs: FX_REFRESH_MS,
     enabled,
   });
 
-  const { data, lastUpdated } = poll;
+  const data = poll.data as FxRates | null;
 
-  // Direction (this poll's rate vs. the PREVIOUS poll's) is computed client-side,
-  // since the server only publishes the current level. We derive `rows` during
-  // render and cache them in state, "adjusting state during render" when a new
-  // poll (or quote set) lands — the React-sanctioned pattern for deriving from a
-  // previous render's value
-  // (https://react.dev/reference/react/useState#storing-information-from-previous-renders).
-  // This avoids reading/writing a ref in render AND setState-in-effect. The
-  // cached `prevRates`/`rows` only advance when `key` changes, so the comparison
-  // baseline is the genuinely previous poll (not the current one).
-  const key = `${lastUpdated ?? "none"}|${symbols}`;
-  const [cache, setCache] = React.useState<{
-    key: string;
-    rows: FxRow[];
-    prevRates: Record<string, number>;
-  }>({ key: "", rows: [], prevRates: {} });
-
-  let rows = cache.rows;
-  if (cache.key !== key) {
-    const currentRates = (data as FxRates | null)?.rates ?? {};
-    const changePct = (data as FxRates | null)?.changePct;
-    const out: FxRow[] = [];
-    if (data) {
-      for (const q of quotes) {
-        const rate = currentRates[q];
-        if (typeof rate !== "number") continue;
-        const cp = changePct?.[q];
-        // Prefer the server's 전일 대비 change; fall back to poll-to-poll motion.
-        const direction =
-          typeof cp === "number"
-            ? fxDirectionFromPct(cp)
-            : fxDirection(rate, cache.prevRates[q]);
-        out.push({ quote: q, rate, direction, changePct: cp });
-      }
+  // Derive rows directly from the payload (pure) — direction/% come from the
+  // server's 전일 대비 changePct (no client poll-to-poll state needed).
+  const rows: FxRow[] = [];
+  if (data) {
+    for (const c of foreign) {
+      const rate = data.rates[c]; // c per 1 KRW
+      if (typeof rate !== "number" || rate === 0) continue;
+      const unit = fxUnit(c);
+      const krw = unit / rate; // KRW per `unit` of c
+      // changePct[c] is for c-per-KRW; the KRW value moves the OPPOSITE way → negate.
+      const sp = data.changePct?.[c];
+      const cp = typeof sp === "number" ? -sp : undefined;
+      rows.push({
+        quote: c,
+        unit,
+        krw,
+        direction: fxDirectionFromPct(cp),
+        changePct: cp,
+      });
     }
-    rows = out;
-    // Advance the baseline: the rates we just rendered become "previous" for the
-    // next poll's comparison.
-    setCache({ key, rows: out, prevRates: currentRates });
   }
 
   return {
-    base: poll.data?.base ?? base,
+    base: "KRW",
     rows,
-    date: poll.data?.date ?? null,
-    stale: poll.data?.stale ?? false,
+    date: data?.date ?? null,
+    stale: data?.stale ?? false,
     loading: poll.loading,
     error: poll.error,
     lastUpdated: poll.lastUpdated,

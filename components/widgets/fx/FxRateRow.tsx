@@ -18,11 +18,11 @@ import {
 import type { FxRow } from "./useFxRates";
 
 export function FxRateRow({
-  base,
   row,
   size = "compact",
 }: {
-  base: string;
+  /** base kept optional for call-site compat; display is always 원 기준. */
+  base?: string;
   row: FxRow;
   size?: "compact" | "expanded";
 }) {
@@ -39,23 +39,26 @@ export function FxRateRow({
             big ? "text-base" : "text-sm",
           ].join(" ")}
         >
-          {base}/{row.quote}
+          {row.unit > 1 ? `${row.unit} ` : ""}
+          {row.quote}
         </span>
         <span className="truncate text-[11px] text-muted-foreground">
-          1 {base}
+          {row.unit > 1 ? `${row.unit} ` : "1 "}
+          {row.quote} → 원
         </span>
       </div>
 
       <div className="flex shrink-0 flex-col items-end">
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-1">
           <span
             className={[
               "font-mono font-semibold tabular-nums text-foreground",
               big ? "text-lg" : "text-sm @[240px]/widget:text-base",
             ].join(" ")}
           >
-            {formatRate(row.rate)}
+            {formatRate(row.krw)}
           </span>
+          <span className="text-[11px] text-muted-foreground">원</span>
           <span
             aria-hidden
             className={["text-xs", fxDirectionColorClass(row.direction)].join(" ")}
