@@ -79,7 +79,11 @@ export function WidgetMenu({
           label="위젯 메뉴"
           data-pb-no-drag=""
           onPointerDown={(e) => e.stopPropagation()}
-          className="size-7 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/widget:opacity-100"
+          // Desktop (fine pointer): reveal on hover/focus to keep tiles clean.
+          // Touch (coarse pointer): there is no hover, so the button must be
+          // ALWAYS visible — otherwise the ⋮ menu is invisible & unusable on
+          // phones/tablets. pointer-coarse pins it to full opacity.
+          className="size-7 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/widget:opacity-100 pointer-coarse:opacity-100"
         >
           <MoreVertical size={16} />
         </IconButton>

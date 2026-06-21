@@ -8,9 +8,12 @@
  *    • getQuotes  → KIS REST current-price (도메스틱) + index price.
  *    • subscribe  → KIS realtime WebSocket relay (kisWebSocket.ts).
  *
- *  Access token is cached in-process for ~24h (KIS issues 24h tokens and rate-
- *  limits issuance). Credentials (appkey/appsecret) live here only and are sent
- *  exclusively to KIS — never to the browser, never into an SSE frame.
+ *  Access token is cached PERSISTENTLY (file-backed, see tokenStore.ts) for ~24h.
+ *  KIS issues 24h tokens AND pushes a KakaoTalk message on every issuance, so the
+ *  cache must survive process restarts — otherwise each redeploy / cold start /
+ *  dev reload re-issues a token and spams a notification. Credentials
+ *  (appkey/appsecret) live here only and are sent exclusively to KIS — never to
+ *  the browser, never into an SSE frame.
  *
  *  READ-ONLY: current-price + index-price quotations only. No order/balance.
  *
@@ -40,9 +43,15 @@ import {
 } from "./symbols";
 import {
   issueApprovalKey,
+  invalidateApprovalKey,
   openKisRealtime,
   type KisSocketHandle,
 } from "./kisWebSocket";
+import {
+  readCachedSecret,
+  writeCachedSecret,
+  CACHE_KEY,
+} from "./tokenStore";
 
 const KIS_BASE = "https://openapi.koreainvestment.com:9443";
 const TOKEN_URL = `${KIS_BASE}/oauth2/tokenP`;
@@ -61,12 +70,10 @@ const KR_INDEX_CODE: Record<string, string> = {
 
 /* --------------------------- access-token cache --------------------------- */
 
-interface TokenCache {
-  token: string;
-  /** Epoch ms after which the token is considered expired (refresh proactively). */
-  expiresAt: number;
-}
-let tokenCache: TokenCache | null = null;
+// Coalesces concurrent issuance WITHIN this process; cross-restart reuse is the
+// persistent store's job (tokenStore.ts → file-backed). Together they ensure a
+// token is issued ~once per 24h regardless of restarts, so KIS sends at most one
+// KakaoTalk notification per day instead of one per process start.
 let tokenInFlight: Promise<string> | null = null;
 
 async function issueToken(): Promise<string> {
@@ -91,18 +98,23 @@ async function issueToken(): Promise<string> {
   };
   if (!json.access_token) throw new Error("KIS token: no access_token in response");
 
-  // Refresh ~10 min before the stated expiry; default to 23h if absent.
+  // Refresh ~10 min before the stated expiry; default to 23h if absent. Persist
+  // so the very next restart reuses this token instead of re-issuing (→ no new
+  // KakaoTalk push).
   const ttlSec = typeof json.expires_in === "number" ? json.expires_in : 23 * 3600;
-  tokenCache = {
-    token: json.access_token,
-    expiresAt: Date.now() + Math.max(60, ttlSec - 600) * 1000,
-  };
+  const expiresAt = Date.now() + Math.max(60, ttlSec - 600) * 1000;
+  await writeCachedSecret(CACHE_KEY.accessToken, json.access_token, expiresAt);
   return json.access_token;
 }
 
-/** Get a cached token, issuing/refreshing as needed. Coalesces concurrent issuance. */
+/**
+ * Get a token, reusing the persisted one until it nears expiry; only issue a new
+ * one (→ a KakaoTalk push) when none is cached or it has expired. Concurrent
+ * callers in this process share a single in-flight issuance.
+ */
 async function getToken(): Promise<string> {
-  if (tokenCache && Date.now() < tokenCache.expiresAt) return tokenCache.token;
+  const cached = await readCachedSecret(CACHE_KEY.accessToken);
+  if (cached) return cached;
   if (tokenInFlight) return tokenInFlight;
   tokenInFlight = issueToken().finally(() => {
     tokenInFlight = null;
@@ -307,8 +319,12 @@ function subscribeImpl(symbols: StockSymbol[], onTick: OnTick): Unsubscribe {
           onQuote: (q) => {
             if (!stopped) onTick(q);
           },
-          // Errors are swallowed here; the route also keeps a REST poll as backstop.
-          onError: () => {},
+          // A socket error may mean the cached approval key went stale → drop it
+          // so the NEXT subscribe re-issues a fresh one (self-heal). The route
+          // also keeps a REST poll as backstop, so realtime degrades gracefully.
+          onError: () => {
+            void invalidateApprovalKey();
+          },
         });
       })
       .catch(() => {

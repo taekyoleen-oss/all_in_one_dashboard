@@ -296,11 +296,30 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     <main className="min-h-dvh bg-background">
       {/* Sticky header: title + board tabs + toolbar */}
       <div className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-lg font-semibold tracking-tight text-foreground">
-              PaneBoard
-            </h1>
+        {/* Single-row header: 제목 | 보드탭(가로 스크롤) | 툴바. The title and
+            toolbar stay fixed (shrink-0); the tabs take the middle and scroll
+            horizontally (min-w-0) so everything fits on ONE line at any width. */}
+        <div className="mx-auto flex max-w-screen-2xl items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-6 lg:px-8">
+          <h1 className="shrink-0 text-base font-semibold tracking-tight text-foreground sm:text-lg">
+            PaneBoard
+          </h1>
+          <div className="min-w-0 flex-1">
+            <BoardTabs
+              boards={boards.map((b) => ({
+                id: b.meta.id,
+                name: b.meta.name,
+                isDefault: b.meta.isDefault,
+              }))}
+              activeId={activeId}
+              onSelect={setActiveId}
+              onAddBoard={addBoard}
+              onRenameBoard={renameBoard}
+              onDeleteBoard={deleteBoard}
+              onSetDefaultBoard={setDefaultBoard}
+              onReorder={reorderBoards}
+            />
+          </div>
+          <div className="shrink-0">
             <Toolbar
               editable={editable}
               onToggleEditable={() => setEditable((v) => !v)}
@@ -313,20 +332,6 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               }
             />
           </div>
-          <BoardTabs
-            boards={boards.map((b) => ({
-              id: b.meta.id,
-              name: b.meta.name,
-              isDefault: b.meta.isDefault,
-            }))}
-            activeId={activeId}
-            onSelect={setActiveId}
-            onAddBoard={addBoard}
-            onRenameBoard={renameBoard}
-            onDeleteBoard={deleteBoard}
-            onSetDefaultBoard={setDefaultBoard}
-            onReorder={reorderBoards}
-          />
         </div>
       </div>
 

@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# KIS token/approval-key persistent cache (holds live secrets — never commit)
+/.cache
+*kis-token*.json
+
 # vercel
 .vercel
 

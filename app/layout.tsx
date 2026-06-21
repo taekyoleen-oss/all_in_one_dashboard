@@ -15,6 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PaneBoard",
   description: "개인 모듈형 캔버스 대시보드",
+  applicationName: "PaneBoard",
+  // Icons + manifest are wired automatically via app/icon.svg, app/apple-icon.tsx
+  // and app/manifest.ts (file conventions). appleWebApp makes the iOS home-screen
+  // launch open standalone (no Safari chrome) with the app name.
+  appleWebApp: {
+    capable: true,
+    title: "PaneBoard",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export default function RootLayout({

@@ -39,9 +39,23 @@
 // extra dependency. This is the browser-compatible client, not the `ws` package.
 import type { StockQuote } from "@/output/api-shapes";
 import { resolveMeta } from "./symbols";
+import {
+  readCachedSecret,
+  writeCachedSecret,
+  invalidateCachedSecret,
+  CACHE_KEY,
+} from "./tokenStore";
 
 const APPROVAL_URL =
   "https://openapi.koreainvestment.com:9443/oauth2/Approval";
+
+/**
+ * Realtime approval keys are valid ~24h but the endpoint returns no expires_in,
+ * so we cache for a conservative 23h. A socket auth failure self-heals via
+ * invalidateApprovalKey() (called by the realtime client), so a stale key never
+ * sticks for the full window.
+ */
+const APPROVAL_TTL_MS = 23 * 60 * 60 * 1000;
 
 // VERIFY(kis): the realtime host/port/path. The samples use ops.koreainvestment.com:21000;
 // some accounts/regions use a different path segment. Confirm against your approved app.
@@ -49,8 +63,12 @@ const WS_URL = "ws://ops.koreainvestment.com:21000/tryitout/H0STCNT0";
 
 const REALTIME_TR_ID = "H0STCNT0"; // 국내주식 실시간 체결가 (read-only)
 
-/** Issue a websocket approval_key (server-side, short-lived, never sent to client). */
-export async function issueApprovalKey(): Promise<string> {
+// Coalesce concurrent issuance within this process; cross-restart reuse is the
+// persistent store's job (tokenStore.ts).
+let approvalInFlight: Promise<string> | null = null;
+
+/** Request a fresh approval_key from KIS and persist it for reuse across restarts. */
+async function requestApprovalKey(): Promise<string> {
   const appkey = process.env.KIS_APP_KEY?.trim();
   const secret = process.env.KIS_APP_SECRET?.trim();
   if (!appkey || !secret) throw new Error("KIS credentials missing");
@@ -71,7 +89,32 @@ export async function issueApprovalKey(): Promise<string> {
   }
   const json = (await res.json()) as { approval_key?: string };
   if (!json.approval_key) throw new Error("KIS approval: no approval_key in response");
+  await writeCachedSecret(
+    CACHE_KEY.approvalKey,
+    json.approval_key,
+    Date.now() + APPROVAL_TTL_MS,
+  );
   return json.approval_key;
+}
+
+/**
+ * Get a websocket approval_key (server-side, never sent to client), reusing the
+ * persisted one until it nears expiry so reconnects/restarts don't re-issue.
+ * Concurrent callers in this process share a single in-flight issuance.
+ */
+export async function issueApprovalKey(): Promise<string> {
+  const cached = await readCachedSecret(CACHE_KEY.approvalKey);
+  if (cached) return cached;
+  if (approvalInFlight) return approvalInFlight;
+  approvalInFlight = requestApprovalKey().finally(() => {
+    approvalInFlight = null;
+  });
+  return approvalInFlight;
+}
+
+/** Drop the cached approval key so the next issueApprovalKey() re-issues a fresh one. */
+export async function invalidateApprovalKey(): Promise<void> {
+  await invalidateCachedSecret(CACHE_KEY.approvalKey);
 }
 
 /** Map prdy_vrss_sign → numeric multiplier (+1 up, −1 down, 0 flat). */

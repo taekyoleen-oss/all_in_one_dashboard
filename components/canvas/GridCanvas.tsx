@@ -13,7 +13,12 @@
  *    • onLayoutChange signature is (layout, layouts).
  *    • min/max come from per-item minW/minH/maxW/maxH on each LayoutItem.
  *
- *  Breakpoints (§6.2): lg ≥1280 (12col) / md ≥768 (8col) / sm <768 (1col stack).
+ *  Breakpoints: lg >1024 (12col, desktop — the persisted source of truth) /
+ *  md >640 (6col, tablet·foldable — flow-packed to fill the width) / sm ≤640
+ *  (1col stack, mobile — one widget per row). Only the lg layout is persisted;
+ *  md/sm are DERIVED from lg each render (re-flowed to fill the narrower grid),
+ *  so phones/tablets get a layout that fills the screen without ever clobbering
+ *  the desktop arrangement (handleLayoutChange guards persistence to lg only).
  *  Each widget instance is rendered through a registry lookup and keyed by its
  *  `instanceId`, so two instances of the same type hold **independent** state.
  */
@@ -53,7 +58,7 @@ export interface CanvasLayoutItem {
   h: number;
 }
 
-export type BreakpointKey = "lg";
+export type BreakpointKey = "lg" | "md" | "sm";
 
 export interface GridCanvasProps {
   /** Widget definitions keyed by type. */
@@ -92,13 +97,17 @@ export interface GridCanvasProps {
 
 /* --------------------------------- config --------------------------------- */
 
-// Single fixed breakpoint (always active at width ≥ 0). The canvas no longer
-// switches column counts on resize/zoom: the column WIDTH flexes with the
-// container, but every tile keeps its grid x/y/w/h, so positions & structure
-// never change (요구: 화면 축소·확대 시 위치 불변). The 재정렬 button is the only
-// thing that re-packs the layout (verticalCompactor, in CanvasShell).
-const BREAKPOINTS: Record<BreakpointKey, number> = { lg: 0 };
-const COLS: Record<BreakpointKey, number> = { lg: 12 };
+// Responsive breakpoints (RGL rule: a breakpoint is active when width > value).
+//  • lg (>1024px, desktop): 12 cols. The PERSISTED source of truth. Within lg
+//    the column WIDTH flexes with the container but every tile keeps its grid
+//    x/y/w/h, so desktop positions never change on resize/zoom (요구: 위치 불변).
+//  • md (>640px, tablet·foldable): 6 cols. DERIVED from lg and flow-packed so a
+//    few widgets sit side-by-side and FILL the width (toFlowLayout).
+//  • sm (≤640px, mobile): 1 col. DERIVED — one widget per row, full-width stack.
+// Only lg is persisted (handleLayoutChange), so phone/tablet reflows never
+// overwrite the desktop arrangement. The 재정렬 button re-packs lg (CanvasShell).
+const BREAKPOINTS: Record<BreakpointKey, number> = { lg: 1024, md: 640, sm: 0 };
+const COLS: Record<BreakpointKey, number> = { lg: 12, md: 6, sm: 1 };
 const ROW_HEIGHT = 96;
 const MARGIN: [number, number] = [12, 12];
 const CONTAINER_PADDING: [number, number] = [0, 0];
@@ -154,6 +163,69 @@ function toRglLayout(
       maxH: max.h,
     };
   });
+}
+
+/**
+ * First top-left grid slot (scanning rows top→down, cols left→right) where a
+ * w×h rect fits without overlapping anything already placed. Drives the flow
+ * packing for derived (tablet/mobile) layouts.
+ */
+function firstFreeSlot(
+  placed: LayoutItem[],
+  w: number,
+  h: number,
+  cols: number,
+): { x: number; y: number } {
+  for (let y = 0; ; y += 1) {
+    for (let x = 0; x <= cols - w; x += 1) {
+      const rect = { x, y, w, h };
+      if (!placed.some((p) => rectsOverlap(rect, p))) return { x, y };
+    }
+  }
+}
+
+/**
+ * Build a DERIVED (non-desktop) layout that FILLS a narrower grid. We do NOT keep
+ * the desktop x positions (they'd leave gaps / overflow at fewer cols). Instead:
+ *  1) take widgets in reading order (top→bottom, then left→right) from the lg layout,
+ *  2) scale each width from 12 cols down to `cols` (clamped to the widget's min/max;
+ *     forced to full width when cols === 1, i.e. mobile = one per row),
+ *  3) flow-pack them with firstFreeSlot so they tuck together and fill the width.
+ * The result is recomputed every render and never persisted (lg stays canonical).
+ */
+function toFlowLayout(
+  items: CanvasLayoutItem[],
+  instances: WidgetInstance[],
+  registry: WidgetRegistry,
+  cols: number,
+): Layout {
+  const typeOf = new Map(instances.map((i) => [i.instanceId, i.type]));
+  const ordered = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed: LayoutItem[] = [];
+  for (const it of ordered) {
+    const def = registry[typeOf.get(it.instanceId) ?? ""];
+    const min = def?.minSize ?? { w: 1, h: 1 };
+    const max = def?.maxSize ?? { w: cols, h: Infinity };
+    const maxW = Math.min(max.w, cols);
+    const w =
+      cols === 1
+        ? 1
+        : Math.min(Math.max(Math.round((it.w / COLS.lg) * cols), min.w), maxW);
+    const h = Math.min(Math.max(it.h, min.h), max.h);
+    const { x, y } = firstFreeSlot(placed, w, h, cols);
+    placed.push({
+      i: it.instanceId,
+      x,
+      y,
+      w,
+      h,
+      minW: cols === 1 ? 1 : min.w,
+      minH: min.h,
+      maxW: cols === 1 ? 1 : maxW,
+      maxH: max.h,
+    });
+  }
+  return placed;
 }
 
 /* ----------------------------- hover-to-fit (②) --------------------------- */
@@ -316,9 +388,15 @@ export function GridCanvas({
     activeBpRef.current = activeBp;
   }, [activeBp]);
 
-  // Derive per-breakpoint layouts from the single persisted (lg) layout.
+  // Derive per-breakpoint layouts from the single persisted (lg) layout. lg keeps
+  // the exact desktop x/y/w/h; md/sm are re-flowed to fill the narrower grid
+  // (tablet = a few across, mobile = one per row). See toFlowLayout.
   const layouts = React.useMemo<ResponsiveLayouts<BreakpointKey>>(
-    () => ({ lg: toRglLayout(layout, instances, registry, COLS.lg) }),
+    () => ({
+      lg: toRglLayout(layout, instances, registry, COLS.lg),
+      md: toFlowLayout(layout, instances, registry, COLS.md),
+      sm: toFlowLayout(layout, instances, registry, COLS.sm),
+    }),
     [layout, instances, registry],
   );
 
@@ -363,7 +441,11 @@ export function GridCanvas({
     [onLayoutChange],
   );
 
-  const droppable = editable && !!onDropWidget;
+  // Drag/resize/drop only on the desktop (lg) layout: md/sm are derived, never
+  // persisted, and touch-dragging the header would fight page scroll on
+  // phones/tablets. Tap-to-add from the palette still works at every size.
+  const interactive = editable && activeBp === "lg";
+  const droppable = interactive && !!onDropWidget;
   const dropDefault = React.useMemo(
     () => dropItemSize ?? { w: 3, h: 2 },
     [dropItemSize],
@@ -515,7 +597,7 @@ export function GridCanvas({
   // input changes — keep the grid stable.
   const dragConfig = React.useMemo(
     () => ({
-      enabled: editable,
+      enabled: interactive,
       bounded: false,
       threshold: 4,
       handle: "[data-pb-drag-handle]",
@@ -524,11 +606,11 @@ export function GridCanvas({
       // never grabs the tile.
       cancel: "[data-pb-no-drag]",
     }),
-    [editable],
+    [interactive],
   );
   const resizeConfig = React.useMemo(
-    () => ({ enabled: editable, handles: ["se"] as const }),
-    [editable],
+    () => ({ enabled: interactive, handles: ["se"] as const }),
+    [interactive],
   );
   const dropConfig = React.useMemo(
     () => ({
