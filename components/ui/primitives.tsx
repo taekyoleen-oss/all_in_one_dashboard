@@ -17,6 +17,7 @@
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 /* ------------------------------- IconButton ------------------------------- */
 
@@ -152,31 +153,78 @@ export function DropdownMenuContent({
   align = "end",
   className,
 }: DropdownMenuContentProps) {
-  const { open, menuRef } = useDropdownMenu();
+  const { open, menuRef, triggerRef } = useDropdownMenu();
+  // Fixed viewport coords (null until measured). The menu is PORTALED to <body>
+  // so it escapes the widget frame's overflow-hidden — otherwise a tile low on
+  // the screen would clip its own menu to the tile's height (요구: 속성 전체 표시).
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(
+    null,
+  );
 
-  // Move focus into the menu when it opens (focus the first item).
+  // Position below the trigger, flipping ABOVE when there isn't room, and clamp
+  // into the viewport. Re-runs on open + scroll/resize so it tracks the trigger.
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const place = () => {
+      const t = triggerRef.current?.getBoundingClientRect();
+      const m = menuRef.current?.getBoundingClientRect();
+      if (!t || !m) return;
+      const margin = 8;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let top = t.bottom + 4;
+      if (top + m.height > vh - margin) {
+        const above = t.top - 4 - m.height;
+        top = above >= margin ? above : Math.max(margin, vh - margin - m.height);
+      }
+      let left = align === "end" ? t.right - m.width : t.left;
+      left = Math.min(Math.max(margin, left), Math.max(margin, vw - margin - m.width));
+      setPos({ top, left });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, align, triggerRef, menuRef]);
+
+  // Move focus into the menu once it's positioned (focus the first item).
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || !pos) return;
     const first = menuRef.current?.querySelector<HTMLElement>(
       '[role="menuitem"]:not([disabled])',
     );
     first?.focus();
-  }, [open, menuRef]);
+  }, [open, pos, menuRef]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
     <div
       ref={menuRef}
       role="menu"
+      style={{
+        position: "fixed",
+        top: pos?.top ?? -9999,
+        left: pos?.left ?? -9999,
+        // Hidden until measured so it never flashes at the wrong spot.
+        visibility: pos ? "visible" : "hidden",
+        maxHeight: "80vh",
+      }}
       className={[
-        "absolute top-full z-50 mt-1 min-w-44 overflow-hidden rounded-md border border-border",
+        "z-[80] min-w-44 overflow-y-auto rounded-md border border-border",
         "bg-popover p-1 text-popover-foreground shadow-md",
-        align === "end" ? "right-0" : "left-0",
+        "[scrollbar-width:thin]",
         className ?? "",
       ].join(" ")}
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

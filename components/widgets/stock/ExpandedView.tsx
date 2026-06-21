@@ -13,6 +13,7 @@ import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import { resolveMeta } from "@/lib/api/stock/symbols";
 import { useStockQuotes } from "./useStockQuotes";
 import { QuoteRow } from "./QuoteRow";
+import { RefreshBar } from "./RefreshBar";
 import type { StockConfig } from "./types";
 
 const CONN_LABEL: Record<string, string> = {
@@ -23,9 +24,8 @@ const CONN_LABEL: Record<string, string> = {
 };
 
 export function StockExpandedView({ config }: ExpandedViewProps<StockConfig>) {
-  const { quotes, history, provider, stale, conn, errors } = useStockQuotes(
-    config.symbols,
-  );
+  const { quotes, history, provider, stale, conn, errors, lastUpdated, refresh } =
+    useStockQuotes(config.symbols);
 
   if (config.symbols.length === 0) {
     return (
@@ -37,6 +37,7 @@ export function StockExpandedView({ config }: ExpandedViewProps<StockConfig>) {
 
   return (
     <div className="flex flex-col gap-3">
+      <RefreshBar lastUpdated={lastUpdated} onRefresh={refresh} size="expanded" />
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>
           출처:{" "}

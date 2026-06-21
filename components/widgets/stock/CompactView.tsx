@@ -14,10 +14,13 @@ import type { CompactViewProps } from "@/lib/widgets/contract";
 import { resolveMeta } from "@/lib/api/stock/symbols";
 import { useStockQuotes } from "./useStockQuotes";
 import { QuoteRow } from "./QuoteRow";
+import { RefreshBar } from "./RefreshBar";
 import type { StockConfig } from "./types";
 
 export function StockCompactView({ config }: CompactViewProps<StockConfig>) {
-  const { quotes, history, stale, conn } = useStockQuotes(config.symbols);
+  const { quotes, history, stale, conn, lastUpdated, refresh } = useStockQuotes(
+    config.symbols,
+  );
 
   if (config.symbols.length === 0) {
     return (
@@ -29,6 +32,7 @@ export function StockCompactView({ config }: CompactViewProps<StockConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-1">
+      <RefreshBar lastUpdated={lastUpdated} onRefresh={refresh} size="compact" />
       <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
         {config.symbols.map((sym) => {
           const meta = resolveMeta(sym);

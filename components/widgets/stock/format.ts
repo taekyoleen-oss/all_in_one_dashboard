@@ -58,3 +58,17 @@ export function formatPct(value: number): string {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${Math.abs(value).toFixed(2)}%`;
 }
+
+/**
+ * "결과 시각" label for the last update — local wall-clock time (오후 3:24:10).
+ * Returns "—" when there's no result yet. Seconds are shown so a manual refresh
+ * is visibly reflected even within the same minute.
+ */
+export function formatUpdatedTime(ts: number | null): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}

@@ -102,7 +102,7 @@ function ConfigDialogBody({
           </IconButton>
         </header>
 
-        <div className="max-h-[60dvh] overflow-y-auto p-4">
+        <div className="max-h-[75dvh] overflow-y-auto p-4">
           {Editor ? (
             <Editor config={draft} onChange={setDraft} />
           ) : (

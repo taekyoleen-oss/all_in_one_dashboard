@@ -16,7 +16,13 @@
 import * as React from "react";
 import { LocateFixed, MapPin } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
-import { COMMON_CITIES, type WeatherConfig } from "./types";
+import { COMMON_CITIES, type WeatherConfig, type WeatherView } from "./types";
+
+const VIEW_OPTIONS: Array<{ value: WeatherView; label: string }> = [
+  { value: "current", label: "현재" },
+  { value: "hourly", label: "시간별" },
+  { value: "daily", label: "주간" },
+];
 
 export function WeatherConfigEditor({
   config,
@@ -44,6 +50,7 @@ export function WeatherConfigEditor({
           label: "현재 위치",
           lat: Number(pos.coords.latitude.toFixed(4)),
           lon: Number(pos.coords.longitude.toFixed(4)),
+          view: config.view,
         };
         setLabelInput(next.label);
         setLatInput(String(next.lat));
@@ -59,12 +66,12 @@ export function WeatherConfigEditor({
     );
   };
 
-  const pickCity = (city: WeatherConfig) => {
+  const pickCity = (city: { label: string; lat: number; lon: number }) => {
     setLabelInput(city.label);
     setLatInput(String(city.lat));
     setLonInput(String(city.lon));
     setErr(null);
-    onChange(city);
+    onChange({ ...city, view: config.view });
   };
 
   const applyManual = () => {
@@ -84,15 +91,48 @@ export function WeatherConfigEditor({
       return;
     }
     setErr(null);
-    onChange({ label, lat, lon });
+    onChange({ label, lat, lon, view: config.view });
   };
 
-  const isActiveCity = (city: WeatherConfig) =>
+  const isActiveCity = (city: { lat: number; lon: number }) =>
     Math.abs(city.lat - config.lat) < 1e-4 &&
     Math.abs(city.lon - config.lon) < 1e-4;
 
+  const view = config.view ?? "current";
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Tile view selector — 현재 / 시간별 / 주간 */}
+      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <legend className="px-1 text-xs font-medium text-muted-foreground">
+          표시 내용 (타일)
+        </legend>
+        <div className="grid grid-cols-3 gap-1.5">
+          {VIEW_OPTIONS.map((opt) => {
+            const active = view === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onChange({ ...config, view: opt.value })}
+                className={[
+                  "rounded-md border px-2 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                  active
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-foreground hover:bg-accent/40",
+                ].join(" ")}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          타일에 보여줄 내용을 선택하세요. ‘자세히’에서는 현재·시간별·주간을 모두 봅니다.
+        </p>
+      </fieldset>
+
       {/* Current location */}
       <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
         <legend className="px-1 text-xs font-medium text-muted-foreground">
@@ -115,9 +155,9 @@ export function WeatherConfigEditor({
       {/* City picker */}
       <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
         <legend className="px-1 text-xs font-medium text-muted-foreground">
-          도시 선택
+          지역 선택
         </legend>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {COMMON_CITIES.map((city) => {
             const active = isActiveCity(city);
             return (

@@ -45,6 +45,10 @@ export interface StockQuotesState {
   conn: ConnState;
   /** symbols the server could not resolve (show "—"). */
   errors: string[];
+  /** Epoch ms when the most recent quote was received (null until first data). */
+  lastUpdated: number | null;
+  /** Force an immediate snapshot fetch now (manual 새로고침). Resolves when done. */
+  refresh: () => Promise<void>;
 }
 
 /** Stable key for a symbol list (order-insensitive) to detect real changes. */
@@ -67,9 +71,15 @@ export function useStockQuotes(symbols: string[]): StockQuotesState {
   const [stale, setStale] = React.useState(false);
   const [conn, setConn] = React.useState<ConnState>("idle");
   const [errors, setErrors] = React.useState<string[]>([]);
+  const [lastUpdated, setLastUpdated] = React.useState<number | null>(null);
+
+  // The current effect's one-shot snapshot fetch, exposed so refresh() can call
+  // it from outside the effect (kept in a ref so its closure stays current).
+  const pollRef = React.useRef<null | (() => Promise<void>)>(null);
 
   // Apply one quote into both the latest-map and the rolling history.
   const applyQuote = React.useCallback((q: StockQuote) => {
+    setLastUpdated(Date.now());
     setQuotes((prev) => {
       const next = new Map(prev);
       next.set(q.symbol, q);
@@ -129,6 +139,9 @@ export function useStockQuotes(symbols: string[]): StockQuotesState {
       pollTimer = setInterval(() => void pollOnce(), POLL_MS);
     };
 
+    // Expose this run's one-shot fetch for manual refresh (cleared on teardown).
+    pollRef.current = pollOnce;
+
     // ---- SSE primary path ----
     const startSse = () => {
       setConn("connecting");
@@ -180,6 +193,7 @@ export function useStockQuotes(symbols: string[]): StockQuotesState {
 
     return () => {
       cancelled = true;
+      pollRef.current = null;
       es?.close();
       es = null;
       if (pollTimer) clearInterval(pollTimer);
@@ -189,7 +203,14 @@ export function useStockQuotes(symbols: string[]): StockQuotesState {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, applyQuote]);
 
-  return { quotes, history, provider, stale, conn, errors };
+  // Manual 새로고침: fetch a fresh snapshot now (no-op if nothing is subscribed).
+  // Reuses the cached KIS token server-side, so refreshing does NOT re-issue a
+  // token (no KakaoTalk push per refresh).
+  const refresh = React.useCallback(async () => {
+    await pollRef.current?.();
+  }, []);
+
+  return { quotes, history, provider, stale, conn, errors, lastUpdated, refresh };
 }
 
 /** Parse JSON, returning null on failure (defensive against malformed frames). */
