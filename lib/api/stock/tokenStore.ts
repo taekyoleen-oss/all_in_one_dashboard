@@ -11,9 +11,12 @@
  *  persist the issued value to disk and reuse it for its full validity across
  *  restarts (the same idea as the official token_cache.json sample).
  *
- *  Layering: an in-memory map (fast, per-process) over a single JSON file
- *  (survives restarts). Values are namespaced by `key` so one file holds both the
- *  access token and the realtime approval key.
+ *  Layering: in-memory (fast, per-process) → Supabase Storage (DURABLE + SHARED
+ *  across every instance/device/restart — the authoritative layer) → local JSON
+ *  file (offline fallback). Values are namespaced by `key` (access token +
+ *  realtime approval key). Because the Supabase layer is shared, the token is
+ *  issued ONCE per ~24h globally even with many processes — killing the repeated
+ *  KakaoTalk pushes regardless of deploy shape.
  *
  *  File location: $KIS_TOKEN_CACHE_FILE if set, else <project>/.cache/
  *  kis-token-cache.json (a STABLE, repo-local path that survives restarts — more
@@ -31,6 +34,7 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /** One cached secret + the epoch-ms instant after which it must be re-issued. */
 interface CacheEntry {
@@ -38,6 +42,60 @@ interface CacheEntry {
   expiresAt: number;
 }
 type CacheFile = Record<string, CacheEntry>;
+
+/* ------------------------- Supabase Storage layer ------------------------- */
+// Durable, SHARED cache: survives restarts/redeploys AND is the same across every
+// process/instance/device — so the token is issued ONCE per ~24h globally, not
+// once per server. Stored as a tiny JSON object in a private bucket (no DB
+// migration needed). Falls back silently to the file/memory cache when Supabase
+// is unreachable or unconfigured.
+const SB_BUCKET = "pb-cache";
+const SB_OBJECT = "kis-token-cache.json";
+let sbBucketEnsured = false;
+
+function adminClient() {
+  try {
+    return createAdminClient();
+  } catch {
+    return null; // env missing → skip the Supabase layer
+  }
+}
+
+async function readSupabase(): Promise<CacheFile | null> {
+  const sb = adminClient();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.storage.from(SB_BUCKET).download(SB_OBJECT);
+    if (error || !data) return null;
+    const text = await data.text();
+    const parsed = JSON.parse(text) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as CacheFile) : {};
+  } catch {
+    return null;
+  }
+}
+
+async function writeSupabase(data: CacheFile): Promise<boolean> {
+  const sb = adminClient();
+  if (!sb) return false;
+  try {
+    if (!sbBucketEnsured) {
+      // Create the private bucket once; ignore "already exists".
+      await sb.storage.createBucket(SB_BUCKET, { public: false }).catch(() => {});
+      sbBucketEnsured = true;
+    }
+    const body = Buffer.from(JSON.stringify(data), "utf8");
+    const { error } = await sb.storage
+      .from(SB_BUCKET)
+      .upload(SB_OBJECT, body, {
+        upsert: true,
+        contentType: "application/json",
+      });
+    return !error;
+  } catch {
+    return false;
+  }
+}
 
 /** Resolve the cache-file path once (env override → repo-local .cache default). */
 export const KIS_CACHE_FILE =
@@ -78,9 +136,16 @@ async function writeFile(data: CacheFile): Promise<void> {
   }
 }
 
+function valid(entry: CacheEntry | undefined, now: number): string | null {
+  return entry && typeof entry.token === "string" && now < entry.expiresAt
+    ? entry.token
+    : null;
+}
+
 /**
- * Return a still-valid cached secret for `key` (memory → file), or null when
- * absent/expired. A live file hit is promoted into memory for subsequent reads.
+ * Return a still-valid cached secret for `key`, or null. Order: memory →
+ * Supabase (shared/durable) → file. A hit is promoted into memory (and backfilled
+ * to the other layers) so the token is reused everywhere instead of re-issued.
  */
 export async function readCachedSecret(key: string): Promise<string | null> {
   const now = Date.now();
@@ -88,18 +153,28 @@ export async function readCachedSecret(key: string): Promise<string | null> {
   const mem = memory.get(key);
   if (mem && now < mem.expiresAt) return mem.token;
 
+  // Shared layer first so a token issued by ANY instance is reused here.
+  const sb = await readSupabase();
+  const sbHit = sb ? valid(sb[key], now) : null;
+  if (sb && sbHit) {
+    memory.set(key, sb[key]);
+    return sbHit;
+  }
+
   const file = await readFile();
-  const entry = file[key];
-  if (entry && typeof entry.token === "string" && now < entry.expiresAt) {
-    memory.set(key, entry); // promote to the fast path
-    return entry.token;
+  const fileHit = valid(file[key], now);
+  if (fileHit) {
+    memory.set(key, file[key]);
+    // Backfill the shared layer so other instances reuse it too.
+    if (sb) void writeSupabase({ ...sb, [key]: file[key] });
+    return fileHit;
   }
   return null;
 }
 
 /**
- * Persist `token` for `key` until `expiresAt` (epoch ms), updating both the
- * in-memory mirror and the file so a restart reuses it.
+ * Persist `token` for `key` until `expiresAt` (epoch ms) across ALL layers
+ * (memory + Supabase + file) so a restart / other instance reuses it.
  */
 export async function writeCachedSecret(
   key: string,
@@ -108,17 +183,25 @@ export async function writeCachedSecret(
 ): Promise<void> {
   const entry: CacheEntry = { token, expiresAt };
   memory.set(key, entry);
+  // Merge into the shared store (read-modify-write) so both keys coexist.
+  const sb = (await readSupabase()) ?? {};
+  await writeSupabase({ ...sb, [key]: entry });
   const file = await readFile();
   file[key] = entry;
   await writeFile(file);
 }
 
 /**
- * Forget a cached secret (memory + file). Used to self-heal a stale value — e.g.
- * an approval key that the realtime socket rejected — so the next call re-issues.
+ * Forget a cached secret across all layers. Used to self-heal a stale value —
+ * e.g. an approval key the realtime socket rejected — so the next call re-issues.
  */
 export async function invalidateCachedSecret(key: string): Promise<void> {
   memory.delete(key);
+  const sb = await readSupabase();
+  if (sb && sb[key]) {
+    delete sb[key];
+    await writeSupabase(sb);
+  }
   const file = await readFile();
   if (file[key]) {
     delete file[key];
