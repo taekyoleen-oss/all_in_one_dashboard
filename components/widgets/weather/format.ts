@@ -25,22 +25,29 @@ import type { WeatherCondition } from "@/output/api-shapes";
 interface ConditionMeta {
   Icon: LucideIcon;
   label: string;
+  /** Tailwind text-color for a COLORED icon (요구: 날씨 아이콘 컬러). */
+  color: string;
 }
 
 const CONDITION_META: Record<WeatherCondition, ConditionMeta> = {
-  clear: { Icon: Sun, label: "맑음" },
-  "partly-cloudy": { Icon: CloudSun, label: "구름 조금" },
-  cloudy: { Icon: Cloud, label: "흐림" },
-  rain: { Icon: CloudRain, label: "비" },
-  snow: { Icon: CloudSnow, label: "눈" },
-  sleet: { Icon: CloudHail, label: "진눈깨비" },
-  thunderstorm: { Icon: CloudLightning, label: "뇌우" },
-  fog: { Icon: CloudFog, label: "안개" },
-  unknown: { Icon: HelpCircle, label: "정보 없음" },
+  clear: { Icon: Sun, label: "맑음", color: "text-amber-400" },
+  "partly-cloudy": { Icon: CloudSun, label: "구름 조금", color: "text-amber-300" },
+  cloudy: { Icon: Cloud, label: "흐림", color: "text-slate-400" },
+  rain: { Icon: CloudRain, label: "비", color: "text-sky-500" },
+  snow: { Icon: CloudSnow, label: "눈", color: "text-sky-300" },
+  sleet: { Icon: CloudHail, label: "진눈깨비", color: "text-cyan-400" },
+  thunderstorm: { Icon: CloudLightning, label: "뇌우", color: "text-violet-400" },
+  fog: { Icon: CloudFog, label: "안개", color: "text-slate-300" },
+  unknown: { Icon: HelpCircle, label: "정보 없음", color: "text-muted-foreground" },
 };
 
 export function conditionLabel(condition: WeatherCondition): string {
   return CONDITION_META[condition].label;
+}
+
+/** Tailwind text-color class for a condition's colored icon. */
+export function conditionColor(condition: WeatherCondition): string {
+  return CONDITION_META[condition].color;
 }
 
 /**
@@ -52,10 +59,18 @@ export function conditionLabel(condition: WeatherCondition): string {
  */
 export function ConditionIcon({
   condition,
+  className,
   ...props
 }: { condition: WeatherCondition } & LucideProps): React.ReactElement {
-  const Icon = CONDITION_META[condition].Icon;
-  return React.createElement(Icon, props);
+  const meta = CONDITION_META[condition];
+  // Drop any caller-forced text color (e.g. text-foreground) and apply the
+  // condition color LAST so the colored icon always wins; keep layout classes.
+  const layout = (className ?? "")
+    .split(/\s+/)
+    .filter((c) => c && !c.startsWith("text-"))
+    .join(" ");
+  const cls = [layout, meta.color].join(" ").trim();
+  return React.createElement(meta.Icon, { ...props, className: cls });
 }
 
 /** Round to a whole degree and append °C (e.g. 21.4 → "21°"). */

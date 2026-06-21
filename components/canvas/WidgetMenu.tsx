@@ -43,6 +43,7 @@ import {
   MIN_SCALE,
   MAX_SCALE,
 } from "@/lib/utils/fontScale";
+import { usePersistedColor, PASTEL_COLORS } from "@/lib/utils/widgetColor";
 
 export interface WidgetMenuProps {
   /** This instance's id — keys the per-widget 글자 크기 (font scale). */
@@ -71,6 +72,7 @@ export function WidgetMenu({
   onEdit,
 }: WidgetMenuProps) {
   const { scale, inc, dec, reset } = usePersistedFontScale(instanceId);
+  const { color, setColor } = usePersistedColor(instanceId);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
@@ -125,6 +127,45 @@ export function WidgetMenu({
             >
               <Plus size={14} />
             </button>
+          </div>
+        </div>
+        <DropdownMenuSeparator />
+        {/* 앱 색 — 파스텔 스와치. Plain buttons (not menu items) so the menu stays
+            open while trying colors. Selected swatch gets a ring. */}
+        <div
+          role="group"
+          aria-label="앱 색"
+          data-pb-no-drag=""
+          className="flex flex-col gap-1.5 px-2 py-1.5"
+        >
+          <span className="text-sm text-popover-foreground">앱 색</span>
+          <div className="grid grid-cols-6 gap-1">
+            {PASTEL_COLORS.map((opt) => {
+              const selected = (color ?? null) === opt.value;
+              return (
+                <button
+                  key={opt.name}
+                  type="button"
+                  aria-label={opt.name}
+                  aria-pressed={selected}
+                  title={opt.name}
+                  onClick={() => setColor(opt.value)}
+                  style={
+                    opt.value ? { backgroundColor: opt.value } : undefined
+                  }
+                  className={[
+                    "size-6 rounded-full border outline-none transition-transform",
+                    "hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring",
+                    opt.value ? "border-black/10" : "border-border bg-card",
+                    selected ? "ring-2 ring-ring ring-offset-1 ring-offset-popover" : "",
+                  ].join(" ")}
+                >
+                  {!opt.value ? (
+                    <span className="text-[9px] text-muted-foreground">기본</span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
         <DropdownMenuSeparator />

@@ -41,6 +41,7 @@ import type { WidgetRegistry, Density } from "@/lib/widgets/contract";
 import { WidgetFrame } from "./WidgetFrame";
 import { getDragType, clearDragType } from "@/lib/utils/dragSource";
 import { usePersistedFontScale } from "@/lib/utils/fontScale";
+import { usePersistedColor, tintBackground } from "@/lib/utils/widgetColor";
 
 /* ------------------------------- public types ----------------------------- */
 
@@ -291,6 +292,9 @@ function CanvasCell({
   // so the tile re-scales live. Density (above) is measured on the UNZOOMED cell,
   // so the reflow bucket stays correct regardless of font scale.
   const { scale } = usePersistedFontScale(instance.instanceId);
+  // Per-instance 앱 색 (pastel tint blended over --card; readable in both themes).
+  const { color } = usePersistedColor(instance.instanceId);
+  const tint = tintBackground(color);
 
   React.useEffect(() => {
     const el = cellRef.current;
@@ -310,6 +314,7 @@ function CanvasCell({
         <WidgetFrame
           title={`알 수 없는 위젯: ${instance.type}`}
           actions={actions}
+          tint={tint}
         >
           <p className="text-xs text-muted-foreground">
             레지스트리에 등록되지 않은 타입입니다.
@@ -327,7 +332,7 @@ function CanvasCell({
 
   return (
     <div ref={cellRef} className="h-full w-full">
-      <WidgetFrame title={displayName} icon={icon} actions={actions}>
+      <WidgetFrame title={displayName} icon={icon} actions={actions} tint={tint}>
         {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +
             spacing). h-full keeps the height chain intact so fill-frame widgets
             still fill and list widgets keep their own inner scroll. */}

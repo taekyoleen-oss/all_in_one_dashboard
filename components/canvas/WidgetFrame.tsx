@@ -90,6 +90,8 @@ export interface WidgetFrameProps {
   children: React.ReactNode;
   /** Extra classes for the outer card. */
   className?: string;
+  /** Optional background tint (a CSS color/color-mix) — per-widget app color. */
+  tint?: string;
 }
 
 export function WidgetFrame({
@@ -98,9 +100,11 @@ export function WidgetFrame({
   actions,
   children,
   className,
+  tint,
 }: WidgetFrameProps) {
   return (
     <div
+      style={tint ? { backgroundColor: tint } : undefined}
       className={[
         // @container: internal reflow keys off this frame's inline size.
         "@container/widget",
