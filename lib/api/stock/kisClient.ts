@@ -194,8 +194,13 @@ async function fetchStock(
     symbol,
     name: o.hts_kor_isnm?.trim() || meta.name,
     price,
-    change: Number.isFinite(magnitude) ? magnitude * factor : 0,
-    changePct: Number.isFinite(pct) ? pct * (factor === 0 ? 1 : factor) : 0,
+    // KIS returns prdy_vrss/prdy_ctrt ALREADY SIGNED. Derive the sign solely from
+    // the authoritative sign code on the absolute magnitude — otherwise a signed
+    // value × the sign factor double-applies and FLIPS 상승/하락 (bug fix).
+    change: Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0,
+    changePct: Number.isFinite(pct)
+      ? Math.abs(pct) * (factor === 0 ? 1 : factor)
+      : 0,
     ts: Date.now(),
     currency: "KRW",
     isIndex: false,
@@ -241,8 +246,11 @@ async function fetchIndex(
     symbol,
     name: meta.name,
     price,
-    change: Number.isFinite(magnitude) ? magnitude * factor : 0,
-    changePct: Number.isFinite(pct) ? pct * (factor === 0 ? 1 : factor) : 0,
+    // Signed value × sign-code factor would double-apply → flip; use abs × factor.
+    change: Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0,
+    changePct: Number.isFinite(pct)
+      ? Math.abs(pct) * (factor === 0 ? 1 : factor)
+      : 0,
     ts: Date.now(),
     currency: "KRW",
     isIndex: true,

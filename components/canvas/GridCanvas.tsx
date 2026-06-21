@@ -511,20 +511,33 @@ export function GridCanvas({
   const clampHappenedRef = React.useRef(false);
   const promptTimerRef = React.useRef<number | null>(null);
   const promptShownRef = React.useRef<string | null>(null);
+  // Auto-push: fires when the user HOLDS the resize still for ~1s against a
+  // neighbor (요구: 드래그한 채 1초 가만히 있으면 옆 앱이 밀려가도록). applyPushRef
+  // always points at the latest applyPush so the timer pushes with current state.
+  const autoPushTimerRef = React.useRef<number | null>(null);
+  const applyPushRef = React.useRef<() => void>(() => {});
   const [pushPromptId, setPushPromptId] = React.useState<string | null>(null);
+
+  const clearAutoPush = React.useCallback(() => {
+    if (autoPushTimerRef.current != null) {
+      window.clearTimeout(autoPushTimerRef.current);
+      autoPushTimerRef.current = null;
+    }
+  }, []);
 
   const clearPushPrompt = React.useCallback(() => {
     if (promptTimerRef.current != null) {
       window.clearTimeout(promptTimerRef.current);
       promptTimerRef.current = null;
     }
+    clearAutoPush();
     desiredRef.current = null;
     clampHappenedRef.current = false;
     if (promptShownRef.current != null) {
       promptShownRef.current = null;
       setPushPromptId(null);
     }
-  }, []);
+  }, [clearAutoPush, setPushPromptId]);
 
   const schedulePushPrompt = React.useCallback((id: string) => {
     if (promptShownRef.current === id || promptTimerRef.current != null) return;
@@ -587,13 +600,25 @@ export function GridCanvas({
     // compact() (run just before this) set clampHappenedRef + desiredRef.
     if (resizingIdRef.current && clampHappenedRef.current) {
       schedulePushPrompt(resizingIdRef.current);
+      // AUTO-PUSH on hold: this fires only if no further onResize arrives for ~1s
+      // (the pointer is held still against the neighbor). Each move resets it.
+      if (autoPushTimerRef.current != null)
+        window.clearTimeout(autoPushTimerRef.current);
+      autoPushTimerRef.current = window.setTimeout(() => {
+        autoPushTimerRef.current = null;
+        applyPushRef.current();
+      }, 1000);
+    } else {
+      clearAutoPush();
     }
-  }, [schedulePushPrompt]);
+  }, [schedulePushPrompt, clearAutoPush]);
 
   const onResizeStop = React.useCallback(() => {
     resizingIdRef.current = null;
+    // Cancel a pending auto-push on release; the post-release button still works.
+    clearAutoPush();
     // Keep desiredRef + the prompt so the button stays clickable after release.
-  }, []);
+  }, [clearAutoPush]);
 
   // Apply the push: grow the tile to its desired size and shove colliders down.
   const applyPush = React.useCallback(() => {
@@ -613,6 +638,9 @@ export function GridCanvas({
     onLayoutChange?.(pushResolveDown([grown, ...others], d.id));
     clearPushPrompt();
   }, [layout, onLayoutChange, clearPushPrompt]);
+  // Keep the ref pointing at the latest applyPush so the auto-push timer (set in
+  // onResizeTick) always pushes using the current layout/desired state.
+  applyPushRef.current = applyPush;
 
   // Derive per-breakpoint layouts from the single persisted (lg) layout. lg keeps
   // the exact desktop x/y/w/h; md/sm are re-flowed to fill the narrower grid
@@ -746,11 +774,15 @@ export function GridCanvas({
     [onDropWidget, resetDwell],
   );
 
-  // Cleanup any pending dwell timer on unmount.
+  // Cleanup any pending dwell / prompt / auto-push timers on unmount.
   React.useEffect(() => {
     return () => {
       if (dwellTimerRef.current != null)
         window.clearTimeout(dwellTimerRef.current);
+      if (promptTimerRef.current != null)
+        window.clearTimeout(promptTimerRef.current);
+      if (autoPushTimerRef.current != null)
+        window.clearTimeout(autoPushTimerRef.current);
     };
   }, []);
 

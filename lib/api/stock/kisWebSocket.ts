@@ -178,8 +178,12 @@ export function parseTradeFrame(
   if (!Number.isFinite(price)) return null;
 
   const factor = signFactor(f[3]);
-  const change = Number.isFinite(magnitude) ? magnitude * factor : 0;
-  const changePct = Number.isFinite(pct) ? pct * (factor === 0 ? 1 : factor) : 0;
+  // PRDY_VRSS/PRDY_CTRT may arrive signed; derive sign from the code on the abs
+  // magnitude so 상승/하락 is never flipped (matches the REST path fix).
+  const change = Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0;
+  const changePct = Number.isFinite(pct)
+    ? Math.abs(pct) * (factor === 0 ? 1 : factor)
+    : 0;
 
   return {
     symbol,
