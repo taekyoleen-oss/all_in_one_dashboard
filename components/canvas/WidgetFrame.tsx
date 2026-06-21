@@ -105,15 +105,19 @@ export function WidgetFrame({
         // @container: internal reflow keys off this frame's inline size.
         "@container/widget",
         "group/widget flex h-full w-full flex-col overflow-hidden",
+        // Lift the tile off the canvas: stronger border + a layered shadow + a
+        // hairline ring so each app reads as a raised card against the bg (요구:
+        // 배경과 구분되게 약간 입체감).
         "rounded-[var(--radius)] border border-border bg-card text-card-foreground",
-        "shadow-sm transition-shadow duration-200 hover:shadow-md",
+        "shadow-md ring-1 ring-black/5 dark:ring-white/10",
+        "transition-shadow duration-200 hover:shadow-lg",
         className ?? "",
       ].join(" ")}
     >
       {/* Header — also the RGL drag handle (see GridCanvas dragConfig.handle). */}
       <header
         data-pb-drag-handle
-        className="flex shrink-0 cursor-grab items-center gap-2 border-b border-border px-[var(--density-pad)] py-2 active:cursor-grabbing"
+        className="flex shrink-0 cursor-grab items-center gap-2 border-b border-border px-[var(--density-pad)] py-1 active:cursor-grabbing"
       >
         {icon ? (
           <span className="flex size-4 items-center justify-center text-muted-foreground">

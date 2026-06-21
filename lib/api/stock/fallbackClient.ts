@@ -41,7 +41,9 @@ interface YahooChartMeta {
 async function fetchOne(symbol: StockSymbol): Promise<StockQuote | null> {
   const meta = resolveMeta(symbol);
   const yahoo = toYahooSymbol(symbol);
-  const url = `${YAHOO_BASE}/${encodeURIComponent(yahoo)}?interval=1d&range=1d`;
+  // range=5d (not 1d): with 1d Yahoo often omits `previousClose`, making the
+  // day change read 0. 5d reliably carries previousClose for a correct 등락.
+  const url = `${YAHOO_BASE}/${encodeURIComponent(yahoo)}?interval=1d&range=5d`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

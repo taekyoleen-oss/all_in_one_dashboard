@@ -61,6 +61,9 @@ const INDEX_PRICE_URL = `${KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-i
 const TR_STOCK = "FHKST01010100"; // 국내주식 현재가
 const TR_INDEX = "FHPUP02100000"; // 업종/지수 현재가  // VERIFY(kis)
 
+/** REST re-poll cadence for the live subscription (keeps quotes fresh w/o the WS). */
+const REST_POLL_MS = 15_000;
+
 /** KIS domestic index codes for the KR indices we support. */
 const KR_INDEX_CODE: Record<string, string> = {
   "^KS11": "0001", // 코스피
@@ -309,11 +312,25 @@ function subscribeImpl(symbols: StockSymbol[], onTick: OnTick): Unsubscribe {
     }
   }
 
-  // Seed everything once via REST so the widget paints immediately (indices too).
-  void getQuotesImpl(symbols).then(({ quotes }) => {
+  // Seed + KEEP POLLING via REST so prices stay current even when the realtime
+  // WebSocket is unavailable (the ws relay needs an approved app and often can't
+  // connect; without this, quotes would freeze at the seed → "현재가와 안 맞음").
+  // Emits only changed quotes to limit SSE frames. The socket below, when it does
+  // connect, layers faster tick updates on top.
+  const lastPrice = new Map<string, number>();
+  const pollOnce = async () => {
     if (stopped) return;
-    for (const q of quotes) onTick(q);
-  });
+    const { quotes } = await getQuotesImpl(symbols);
+    if (stopped) return;
+    for (const q of quotes) {
+      if (lastPrice.get(q.symbol) !== q.price) {
+        lastPrice.set(q.symbol, q.price);
+        onTick(q);
+      }
+    }
+  };
+  void pollOnce();
+  const pollId = setInterval(() => void pollOnce(), REST_POLL_MS);
 
   // Open the realtime socket for KR stocks (if any).
   if (codes.length > 0) {
@@ -342,6 +359,7 @@ function subscribeImpl(symbols: StockSymbol[], onTick: OnTick): Unsubscribe {
 
   return () => {
     stopped = true;
+    clearInterval(pollId);
     handle?.close();
     handle = null;
   };
