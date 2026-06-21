@@ -18,7 +18,7 @@ export const calculatorWidget: WidgetDefinition<CalculatorConfig> = {
   category: "core",
   defaultConfig: DEFAULT_CALCULATOR_CONFIG,
   defaultSize: { w: 3, h: 4 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 5, h: 6 },
   CompactView: CalculatorCompactView,
   ExpandedView: CalculatorExpandedView,

@@ -24,7 +24,7 @@ export const imageSliderWidget: WidgetDefinition<ImageSliderConfig> = {
   category: "core",
   defaultConfig: DEFAULT_IMAGE_SLIDER_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 8, h: 6 },
   CompactView: ImageSliderCompactView,
   ExpandedView: ImageSliderExpandedView,

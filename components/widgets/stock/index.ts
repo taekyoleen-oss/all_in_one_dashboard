@@ -21,7 +21,7 @@ export const stockWidget: WidgetDefinition<StockConfig> = {
   category: "core",
   defaultConfig: DEFAULT_STOCK_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: StockCompactView,
   ExpandedView: StockExpandedView,

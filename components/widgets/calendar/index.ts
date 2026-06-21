@@ -28,7 +28,7 @@ export const calendarWidget: WidgetDefinition<CalendarConfig> = {
   category: "extended",
   defaultConfig: DEFAULT_CALENDAR_CONFIG,
   defaultSize: { w: 3, h: 4 },
-  minSize: { w: 2, h: 3 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: CalendarCompactView,
   ExpandedView: CalendarExpandedView,

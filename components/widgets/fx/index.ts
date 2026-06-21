@@ -22,7 +22,7 @@ export const fxWidget: WidgetDefinition<FxConfig> = {
   category: "extended",
   defaultConfig: DEFAULT_FX_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: FxCompactView,
   ExpandedView: FxExpandedView,

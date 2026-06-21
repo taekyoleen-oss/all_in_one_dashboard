@@ -22,7 +22,7 @@ export const weatherWidget: WidgetDefinition<WeatherConfig> = {
   category: "core",
   defaultConfig: DEFAULT_WEATHER_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: WeatherCompactView,
   ExpandedView: WeatherExpandedView,

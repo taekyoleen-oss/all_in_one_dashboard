@@ -21,7 +21,7 @@ export const todoWidget: WidgetDefinition<TodoConfig> = {
   category: "extended",
   defaultConfig: DEFAULT_TODO_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: TodoCompactView,
   ExpandedView: TodoExpandedView,

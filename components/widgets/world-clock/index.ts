@@ -18,7 +18,7 @@ export const worldClockWidget: WidgetDefinition<WorldClockConfig> = {
   category: "extended",
   defaultConfig: DEFAULT_WORLD_CLOCK_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 6 },
   CompactView: WorldClockCompactView,
   ExpandedView: WorldClockExpandedView,

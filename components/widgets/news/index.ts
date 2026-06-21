@@ -22,7 +22,7 @@ export const newsWidget: WidgetDefinition<NewsConfig> = {
   category: "extended",
   defaultConfig: DEFAULT_NEWS_CONFIG,
   defaultSize: { w: 3, h: 4 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: NewsCompactView,
   ExpandedView: NewsExpandedView,

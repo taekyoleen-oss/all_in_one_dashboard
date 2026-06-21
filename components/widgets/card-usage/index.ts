@@ -26,7 +26,7 @@ export const cardUsageWidget: WidgetDefinition<CardUsageConfig> = {
   category: "core",
   defaultConfig: DEFAULT_CARD_USAGE_CONFIG,
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  minSize: { w: 2, h: 1 },
   maxSize: { w: 6, h: 8 },
   CompactView: CardUsageCompactView,
   ExpandedView: CardUsageExpandedView,
