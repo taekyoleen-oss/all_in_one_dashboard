@@ -710,10 +710,19 @@ export function GridCanvas({
     (_layout: Layout, item: LayoutItem | undefined) => {
       const type = getDragType();
       const fit = pendingFitRef.current;
+      // The cursor cell from the last dragover — where the user ACTUALLY pointed.
+      // Prefer it over RGL's placed item so the widget lands where you drop it,
+      // not beside the palette (요구: 마우스로 바로 원하는 위치에).
+      const cell = dwellCellRef.current;
       clearDragType();
       resetDwell();
-      if (!type || !item || !onDropWidget) return;
-      onDropWidget(type, { x: item.x, y: item.y, w: fit.w, h: fit.h });
+      if (!type || !onDropWidget) return;
+      const w = fit.w;
+      const rawX = cell?.x ?? item?.x ?? 0;
+      const rawY = cell?.y ?? item?.y ?? 0;
+      const x = Math.min(Math.max(0, rawX), Math.max(0, COLS.lg - w));
+      const y = Math.max(0, rawY);
+      onDropWidget(type, { x, y, w, h: fit.h });
     },
     [onDropWidget, resetDwell],
   );

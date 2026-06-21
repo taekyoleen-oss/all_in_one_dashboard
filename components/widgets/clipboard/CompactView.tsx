@@ -15,6 +15,7 @@ import type { CompactViewProps } from "@/lib/widgets/contract";
 import {
   useClipboardHistory,
   useCopyCapture,
+  useClipboardAutoCapture,
   copyText,
   readClipboardText,
 } from "./useClipboardHistory";
@@ -25,7 +26,10 @@ export function ClipboardCompactView({
   instanceId,
 }: CompactViewProps<ClipboardConfig>) {
   const { items, add } = useClipboardHistory(instanceId, config.maxItems);
-  useCopyCapture(config.captureOnCopy !== false, add);
+  const capture = config.captureOnCopy !== false;
+  useCopyCapture(capture, add);
+  // Auto-record OS clipboard when returning to the app (Ctrl+C elsewhere → here).
+  useClipboardAutoCapture(capture, add);
 
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const recopy = React.useCallback(async (id: string, text: string) => {

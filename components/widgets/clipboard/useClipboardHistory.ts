@@ -211,3 +211,49 @@ export async function readClipboardText(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Auto-capture the OS clipboard when the app REGAINS focus — the closest a web
+ * app can get to "Ctrl+C anywhere → shows up here": copy in another program,
+ * switch back to this tab, and the new text is recorded. Reads on window focus +
+ * tab-visible (both follow a user gesture, which browsers require for
+ * clipboard-read). Stops trying after repeated permission denials so it can't
+ * nag. Best-effort — never throws.
+ */
+export function useClipboardAutoCapture(
+  enabled: boolean,
+  onText: (text: string) => void,
+): void {
+  const ref = React.useRef(onText);
+  ref.current = onText;
+  React.useEffect(() => {
+    if (!enabled || typeof window === "undefined") return;
+    let denials = 0;
+    let busy = false;
+    const tryRead = async () => {
+      if (busy || denials >= 3 || document.hidden) return;
+      busy = true;
+      try {
+        const t = await navigator.clipboard.readText();
+        if (t && t.trim()) ref.current(t);
+        denials = 0;
+      } catch {
+        denials += 1; // permission denied / not focused — back off
+      } finally {
+        busy = false;
+      }
+    };
+    const onFocus = () => void tryRead();
+    const onVisible = () => {
+      if (!document.hidden) void tryRead();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    // One attempt on mount (the tile is already focused after the user added it).
+    void tryRead();
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [enabled]);
+}
