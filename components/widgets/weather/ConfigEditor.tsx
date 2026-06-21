@@ -14,7 +14,7 @@
  */
 
 import * as React from "react";
-import { LocateFixed, MapPin } from "lucide-react";
+import { LocateFixed, MapPin, Search } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import { COMMON_CITIES, type WeatherConfig, type WeatherView } from "./types";
 
@@ -23,6 +23,14 @@ const VIEW_OPTIONS: Array<{ value: WeatherView; label: string }> = [
   { value: "hourly", label: "시간별" },
   { value: "daily", label: "주간" },
 ];
+
+/** One geocode hit from /api/geocode (kept local so no server module is bundled). */
+interface GeoHit {
+  label: string;
+  detail: string;
+  lat: number;
+  lon: number;
+}
 
 export function WeatherConfigEditor({
   config,
@@ -35,6 +43,43 @@ export function WeatherConfigEditor({
     "idle" | "locating" | "error"
   >("idle");
   const [err, setErr] = React.useState<string | null>(null);
+
+  // 주소·장소 검색 상태 (동 단위 주소·골프장 등 → 좌표).
+  const [placeQuery, setPlaceQuery] = React.useState("");
+  const [places, setPlaces] = React.useState<GeoHit[]>([]);
+  const [searching, setSearching] = React.useState(false);
+  const [searchErr, setSearchErr] = React.useState<string | null>(null);
+
+  const runSearch = async () => {
+    const q = placeQuery.trim();
+    if (q.length < 2) {
+      setSearchErr("두 글자 이상 입력하세요.");
+      return;
+    }
+    setSearching(true);
+    setSearchErr(null);
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const json = (await res.json()) as { results?: GeoHit[] };
+      const list = Array.isArray(json.results) ? json.results : [];
+      setPlaces(list);
+      if (list.length === 0) setSearchErr("검색 결과가 없습니다.");
+    } catch {
+      setSearchErr("검색에 실패했습니다. 잠시 후 다시 시도하세요.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pickPlace = (p: GeoHit) => {
+    const lat = Number(p.lat.toFixed(4));
+    const lon = Number(p.lon.toFixed(4));
+    setLabelInput(p.label);
+    setLatInput(String(lat));
+    setLonInput(String(lon));
+    setErr(null);
+    onChange({ label: p.label, lat, lon, view: config.view });
+  };
 
   const useCurrentLocation = () => {
     setErr(null);
@@ -130,6 +175,78 @@ export function WeatherConfigEditor({
         </div>
         <p className="text-[11px] text-muted-foreground">
           타일에 보여줄 내용을 선택하세요. ‘자세히’에서는 현재·시간별·주간을 모두 봅니다.
+        </p>
+      </fieldset>
+
+      {/* Place / address search — 동 단위 주소·골프장 등 */}
+      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <legend className="px-1 text-xs font-medium text-muted-foreground">
+          주소·장소 검색
+        </legend>
+        <div className="flex gap-2">
+          <input
+            value={placeQuery}
+            onChange={(e) => {
+              setPlaceQuery(e.target.value);
+              setSearchErr(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void runSearch();
+              }
+            }}
+            placeholder="예: 역삼동, 스카이72 골프장, 분당구 정자동"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={() => void runSearch()}
+            disabled={searching}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <Search size={15} aria-hidden />
+            {searching ? "검색 중…" : "검색"}
+          </button>
+        </div>
+        {searchErr ? (
+          <p className="text-xs text-destructive">{searchErr}</p>
+        ) : null}
+        {places.length > 0 ? (
+          <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto pb-scroll">
+            {places.map((p, i) => {
+              const active =
+                Math.abs(p.lat - config.lat) < 1e-3 &&
+                Math.abs(p.lon - config.lon) < 1e-3;
+              return (
+                <li key={`${p.lat},${p.lon},${i}`}>
+                  <button
+                    type="button"
+                    onClick={() => pickPlace(p)}
+                    aria-pressed={active}
+                    className={[
+                      "flex w-full flex-col items-start gap-0.5 rounded-md border px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                      active
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-accent/40",
+                    ].join(" ")}
+                  >
+                    <span className="text-sm font-medium text-foreground">
+                      {p.label}
+                    </span>
+                    {p.detail ? (
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {p.detail}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        <p className="text-[11px] text-muted-foreground">
+          동 단위 주소나 골프장·건물 이름으로 검색해 정확한 위치를 지정할 수 있어요.
         </p>
       </fieldset>
 
