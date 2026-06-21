@@ -9,7 +9,12 @@
  */
 
 import * as React from "react";
-import { fxDirectionArrow, fxDirectionColorClass, formatRate } from "./format";
+import {
+  fxDirectionArrow,
+  fxDirectionColorClass,
+  formatRate,
+  formatFxPct,
+} from "./format";
 import type { FxRow } from "./useFxRates";
 
 export function FxRateRow({
@@ -41,21 +46,36 @@ export function FxRateRow({
         </span>
       </div>
 
-      <div className="flex shrink-0 items-baseline gap-1.5">
-        <span
-          className={[
-            "font-mono font-semibold tabular-nums text-foreground",
-            big ? "text-lg" : "text-sm @[240px]/widget:text-base",
-          ].join(" ")}
-        >
-          {formatRate(row.rate)}
-        </span>
-        <span
-          aria-hidden
-          className={["text-xs", fxDirectionColorClass(row.direction)].join(" ")}
-        >
-          {fxDirectionArrow(row.direction)}
-        </span>
+      <div className="flex shrink-0 flex-col items-end">
+        <div className="flex items-baseline gap-1.5">
+          <span
+            className={[
+              "font-mono font-semibold tabular-nums text-foreground",
+              big ? "text-lg" : "text-sm @[240px]/widget:text-base",
+            ].join(" ")}
+          >
+            {formatRate(row.rate)}
+          </span>
+          <span
+            aria-hidden
+            className={["text-xs", fxDirectionColorClass(row.direction)].join(" ")}
+          >
+            {fxDirectionArrow(row.direction)}
+          </span>
+        </div>
+        {/* 전일 대비 증감 (signed percent) — color + sign, never color-only. */}
+        {formatFxPct(row.changePct) ? (
+          <span
+            className={[
+              "font-mono tabular-nums",
+              big ? "text-xs" : "text-[10px]",
+              fxDirectionColorClass(row.direction),
+            ].join(" ")}
+          >
+            {formatFxPct(row.changePct)}
+            <span className="ml-1 text-muted-foreground">전일대비</span>
+          </span>
+        ) : null}
       </div>
     </li>
   );

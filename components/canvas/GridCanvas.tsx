@@ -24,6 +24,8 @@
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
+import { Expand } from "lucide-react";
 import {
   Responsive,
   useContainerWidth,
@@ -114,21 +116,10 @@ const CONTAINER_PADDING: [number, number] = [0, 0];
 /** RGL v2's external-drop placeholder id (must match its internal default). */
 const DROPPING_ITEM_ID = "__dropping-elem__";
 
-/**
- * Free placement WITH collision prevention. Two properties combine:
- *  • type:null / no-op compact → tiles never auto-compact (no float-up), so
- *    positions stay put on resize/zoom.
- *  • preventCollision:true → dragging/dropping a tile NEVER pushes existing
- *    tiles; a colliding move is blocked and the tile settles in free space
- *    instead (요구: 새 앱을 가져올 때 기존 앱을 밀지 않고 빈 공간으로 가도록).
- * The 재정렬(정리하기) button still packs everything via verticalCompactor.
- */
-const freePlaceCompactor: Compactor = {
-  type: null,
-  allowOverlap: false,
-  preventCollision: true,
-  compact: (layout) => cloneLayout(layout),
-};
+// Free placement is implemented by a per-component compactor (see GridCanvas):
+// type:null + no-op compact keep positions put on resize/zoom/drag, while a
+// resize-time clamp stops a growing tile from overlapping its neighbors. The
+// "다른 앱 밀기" button then pushes neighbors down to make room.
 
 /** Map a measured tile pixel-width to a coarse density bucket. */
 function densityForWidth(px: number): Density {
@@ -359,6 +350,103 @@ function CanvasCell({
   );
 }
 
+/* --------------------------- push-on-resize (밀기) ------------------------- */
+
+/**
+ * Anchor `anchorId` at its (grown) size and push every OTHER item that overlaps
+ * it straight down, cascading, until nothing overlaps. x positions are preserved
+ * (only y moves), so the board stays where the user put things — the resized tile
+ * just claims the room it needs and shoves the colliding tiles down by exactly
+ * the overlap. Used by the "다른 앱 밀기" button.
+ */
+function pushResolveDown(
+  items: CanvasLayoutItem[],
+  anchorId: string,
+): CanvasLayoutItem[] {
+  const anchor = items.find((i) => i.instanceId === anchorId);
+  if (!anchor) return items;
+  const rest = items
+    .filter((i) => i.instanceId !== anchorId)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed: CanvasLayoutItem[] = [{ ...anchor }];
+  for (const it of rest) {
+    const cur = { ...it };
+    let guard = 0;
+    let moved = true;
+    while (moved && guard < 2000) {
+      moved = false;
+      guard += 1;
+      for (const p of placed) {
+        if (rectsOverlap(cur, p)) {
+          cur.y = p.y + p.h;
+          moved = true;
+        }
+      }
+    }
+    placed.push(cur);
+  }
+  return placed;
+}
+
+/** Floating "다른 앱 밀기" button anchored to the resized tile's SE corner. */
+function PushPrompt({
+  containerRef,
+  instanceId,
+  onConfirm,
+  onDismiss,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  instanceId: string;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(
+    null,
+  );
+  React.useLayoutEffect(() => {
+    const place = () => {
+      const el = containerRef.current?.querySelector<HTMLElement>(
+        `[data-pb-instance="${instanceId}"]`,
+      );
+      const r = el?.getBoundingClientRect();
+      if (!r) return;
+      const margin = 8;
+      const top = Math.min(r.bottom - 6, window.innerHeight - 40);
+      const left = Math.min(r.right - 6, window.innerWidth - margin);
+      setPos({ top, left });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    // Auto-dismiss so a stale prompt never lingers.
+    const t = window.setTimeout(onDismiss, 8000);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      window.clearTimeout(t);
+    };
+  }, [containerRef, instanceId, onDismiss]);
+
+  if (!pos || typeof document === "undefined") return null;
+  return createPortal(
+    <button
+      type="button"
+      onClick={onConfirm}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        transform: "translate(-100%, 0)",
+      }}
+      className="z-[85] inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground shadow-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring motion-safe:animate-[pb-overlay-in_160ms_ease-out]"
+    >
+      <Expand size={13} aria-hidden />
+      다른 앱 밀기
+    </button>,
+    document.body,
+  );
+}
+
 /* -------------------------------- GridCanvas ------------------------------- */
 
 export function GridCanvas({
@@ -388,6 +476,125 @@ export function GridCanvas({
     activeBpRef.current = activeBp;
   }, [activeBp]);
 
+  /* ----------------------- push-on-resize (밀기) state ---------------------- */
+  // While a tile is being resized, the compactor CLAMPS it so it never overlaps a
+  // neighbor (clean "can't grow past" feel). We also stash the DESIRED (raw) size
+  // and, when a clamp happened, surface a "다른 앱 밀기" button; clicking it grows
+  // the tile to the desired size and pushes the colliding tiles down.
+  const resizingIdRef = React.useRef<string | null>(null);
+  const desiredRef = React.useRef<{
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const clampHappenedRef = React.useRef(false);
+  const promptTimerRef = React.useRef<number | null>(null);
+  const promptShownRef = React.useRef<string | null>(null);
+  const [pushPromptId, setPushPromptId] = React.useState<string | null>(null);
+
+  const clearPushPrompt = React.useCallback(() => {
+    if (promptTimerRef.current != null) {
+      window.clearTimeout(promptTimerRef.current);
+      promptTimerRef.current = null;
+    }
+    desiredRef.current = null;
+    clampHappenedRef.current = false;
+    if (promptShownRef.current != null) {
+      promptShownRef.current = null;
+      setPushPromptId(null);
+    }
+  }, []);
+
+  const schedulePushPrompt = React.useCallback((id: string) => {
+    if (promptShownRef.current === id || promptTimerRef.current != null) return;
+    // Short dwell so a quick/accidental clamp doesn't flash the button (요구: 늘려서 기다리면).
+    promptTimerRef.current = window.setTimeout(() => {
+      promptTimerRef.current = null;
+      promptShownRef.current = id;
+      setPushPromptId(id);
+    }, 450);
+  }, []);
+
+  // Collision-clamping compactor. type:null + allowOverlap:false keep free
+  // placement (no float-up, drag doesn't push — see §6.2). The custom compact:
+  //  • while resizing: shrink the resized tile so it can't overlap others (this
+  //    is RGL's rendered state, so the clamp shows live, not just on commit);
+  //  • otherwise: no-op clone (positions stay put on resize/zoom/drag).
+  const compactor = React.useMemo<Compactor>(
+    () => ({
+      type: null,
+      allowOverlap: false,
+      preventCollision: true,
+      compact: (lay: Layout) => {
+        const id = resizingIdRef.current;
+        if (!id) return cloneLayout(lay);
+        const item = lay.find((l) => l.i === id);
+        if (!item) return cloneLayout(lay);
+        const others = lay.filter((l) => l.i !== id);
+        // The item arrives here at the RAW dragged size → record it as desired.
+        desiredRef.current = { id, x: item.x, y: item.y, w: item.w, h: item.h };
+        const minW = item.minW ?? 1;
+        const minH = item.minH ?? 1;
+        const fits = (w: number, h: number) =>
+          !others.some((o) => rectsOverlap({ x: item.x, y: item.y, w, h }, o));
+        // Prefer keeping width (downward growth is the common case): shrink h
+        // first, then w if still colliding.
+        let h = item.h;
+        while (h > minH && !fits(item.w, h)) h -= 1;
+        let w = item.w;
+        while (w > minW && !fits(w, h)) w -= 1;
+        clampHappenedRef.current = w < item.w || h < item.h;
+        if (!clampHappenedRef.current) return cloneLayout(lay);
+        return cloneLayout(
+          lay.map((l) => (l.i === id ? { ...l, w, h } : l)),
+        );
+      },
+    }),
+    [],
+  );
+
+  const onResizeStart = React.useCallback(
+    (_lay: Layout, oldItem: LayoutItem | null) => {
+      clearPushPrompt();
+      resizingIdRef.current = oldItem?.i ?? null;
+      clampHappenedRef.current = false;
+    },
+    [clearPushPrompt],
+  );
+
+  const onResizeTick = React.useCallback(() => {
+    // compact() (run just before this) set clampHappenedRef + desiredRef.
+    if (resizingIdRef.current && clampHappenedRef.current) {
+      schedulePushPrompt(resizingIdRef.current);
+    }
+  }, [schedulePushPrompt]);
+
+  const onResizeStop = React.useCallback(() => {
+    resizingIdRef.current = null;
+    // Keep desiredRef + the prompt so the button stays clickable after release.
+  }, []);
+
+  // Apply the push: grow the tile to its desired size and shove colliders down.
+  const applyPush = React.useCallback(() => {
+    const d = desiredRef.current;
+    if (!d) {
+      clearPushPrompt();
+      return;
+    }
+    const others = layout.filter((i) => i.instanceId !== d.id);
+    const grown: CanvasLayoutItem = {
+      instanceId: d.id,
+      x: d.x,
+      y: d.y,
+      w: Math.min(d.w, COLS.lg - d.x),
+      h: d.h,
+    };
+    onLayoutChange?.(pushResolveDown([grown, ...others], d.id));
+    clearPushPrompt();
+  }, [layout, onLayoutChange, clearPushPrompt]);
+
   // Derive per-breakpoint layouts from the single persisted (lg) layout. lg keeps
   // the exact desktop x/y/w/h; md/sm are re-flowed to fill the narrower grid
   // (tablet = a few across, mobile = one per row). See toFlowLayout.
@@ -404,7 +611,12 @@ export function GridCanvas({
     () =>
       instances.map((instance) => (
         // The wrapping key must equal the LayoutItem `i` (instanceId).
-        <div key={instance.instanceId} className="overflow-hidden">
+        // data-pb-instance lets the "다른 앱 밀기" prompt anchor to this tile.
+        <div
+          key={instance.instanceId}
+          data-pb-instance={instance.instanceId}
+          className="overflow-hidden"
+        >
           <CanvasCell
             instance={instance}
             registry={registry}
@@ -645,10 +857,11 @@ export function GridCanvas({
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={CONTAINER_PADDING}
-          // Free placement + collision prevention (see freePlaceCompactor):
+          // Free placement + a resize-time collision CLAMP (see `compactor`):
           // existing tiles never move on resize/zoom OR when a new tile is
-          // dragged in — the new tile settles in free space. 재정렬 packs.
-          compactor={freePlaceCompactor}
+          // dragged in; a resized tile stops at its neighbor instead of
+          // overlapping. The "다른 앱 밀기" button then pushes neighbors to fit.
+          compactor={compactor}
           // v2 config objects (replaces v1 isDraggable / draggableHandle / isResizable):
           dragConfig={dragConfig}
           resizeConfig={resizeConfig}
@@ -658,9 +871,22 @@ export function GridCanvas({
           droppingItem={droppingItem}
           onDrop={droppable ? handleDrop : undefined}
           onLayoutChange={handleLayoutChange}
+          // Resize tracking for the push-to-fit affordance.
+          onDragStart={clearPushPrompt}
+          onResizeStart={onResizeStart}
+          onResize={onResizeTick}
+          onResizeStop={onResizeStop}
         >
           {children}
         </Responsive>
+      ) : null}
+      {pushPromptId ? (
+        <PushPrompt
+          containerRef={containerRef}
+          instanceId={pushPromptId}
+          onConfirm={applyPush}
+          onDismiss={clearPushPrompt}
+        />
       ) : null}
     </div>
   );

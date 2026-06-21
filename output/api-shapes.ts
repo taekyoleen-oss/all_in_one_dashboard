@@ -179,6 +179,12 @@ export type CurrencyCode = z.infer<typeof CurrencyCodeSchema>;
 export const FxRatesSchema = z.object({
   base: CurrencyCodeSchema,
   rates: z.record(z.string(), z.number()),
+  /**
+   * Day-over-day change per quote code, as a SIGNED percent (e.g. -0.42 = the
+   * rate fell 0.42% vs the previous business day). Optional — present when the
+   * source can supply a prior-day reference (Frankfurter timeseries).
+   */
+  changePct: z.record(z.string(), z.number()).optional(),
   date: z.string(),
   provider: z.enum(["frankfurter", "fx-api"]),
   stale: z.boolean(),

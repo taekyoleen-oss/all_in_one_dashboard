@@ -42,3 +42,16 @@ export function formatRate(value: number): string {
 export function pairLabel(base: string, quote: string, rate: number): string {
   return `1 ${base} = ${formatRate(rate)} ${quote}`;
 }
+
+/** Direction from a signed day-over-day percent. */
+export function fxDirectionFromPct(pct: number | undefined): FxDirection {
+  if (pct === undefined || pct === 0) return "flat";
+  return pct > 0 ? "up" : "down";
+}
+
+/** "+0.42%" / "-1.20%" 전일 대비 percent (null when unknown). */
+export function formatFxPct(pct: number | undefined): string | null {
+  if (typeof pct !== "number" || !Number.isFinite(pct)) return null;
+  const sign = pct > 0 ? "+" : pct < 0 ? "-" : "";
+  return `${sign}${Math.abs(pct).toFixed(2)}%`;
+}

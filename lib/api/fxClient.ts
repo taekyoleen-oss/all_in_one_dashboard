@@ -24,6 +24,8 @@ import type { FxRates } from "@/output/api-shapes";
 /** Per-request timeout so a slow upstream can't wedge the route. */
 const FETCH_TIMEOUT_MS = 8_000;
 const FRANKFURTER_BASE = "https://api.frankfurter.app/latest";
+/** Timeseries endpoint — used to read the latest + previous business day at once. */
+const FRANKFURTER_SERIES = "https://api.frankfurter.app";
 
 /** Default base + quote currencies when the request omits them. */
 export const DEFAULT_FX_BASE = "USD";
@@ -86,34 +88,50 @@ export async function fetchRates(
     };
   }
 
-  const url = `${FRANKFURTER_BASE}?from=${encodeURIComponent(
+  // Pull the last ~10 days as a timeseries so we get BOTH the latest rates and
+  // the previous business day in ONE call → day-over-day change (전일 대비 증감).
+  const since = new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10);
+  const seriesUrl = `${FRANKFURTER_SERIES}/${since}..?from=${encodeURIComponent(
     baseCode,
   )}&to=${encodeURIComponent(wanted.join(","))}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await fetch(seriesUrl, {
       signal: controller.signal,
       headers: { Accept: "application/json" },
       // Route-level caching governs freshness; avoid Next's default fetch cache here.
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    const json = (await res.json()) as FrankfurterLatest;
-    if (!json.rates || typeof json.rates !== "object") return null;
+    if (!res.ok) return await fetchLatestOnly(baseCode, wanted, controller);
+    const json = (await res.json()) as {
+      rates?: Record<string, Record<string, number>>;
+    };
+    const byDate = json.rates ?? {};
+    const dates = Object.keys(byDate).sort();
+    if (dates.length === 0) return await fetchLatestOnly(baseCode, wanted, controller);
+
+    const latest = byDate[dates[dates.length - 1]] ?? {};
+    const prev = dates.length > 1 ? byDate[dates[dates.length - 2]] : undefined;
 
     const rates: Record<string, number> = { [baseCode]: 1 };
-    for (const [code, value] of Object.entries(json.rates)) {
+    const changePct: Record<string, number> = { [baseCode]: 0 };
+    for (const [code, value] of Object.entries(latest)) {
       if (typeof value === "number" && Number.isFinite(value)) {
         rates[code] = value;
+        const p = prev?.[code];
+        if (typeof p === "number" && Number.isFinite(p) && p !== 0) {
+          changePct[code] = ((value - p) / p) * 100;
+        }
       }
     }
 
     return {
       base: baseCode,
       rates,
-      date: typeof json.date === "string" ? json.date : new Date().toISOString().slice(0, 10),
+      changePct,
+      date: dates[dates.length - 1],
       provider: "frankfurter",
       // ECB rates are daily reference rates, not live — flag as approximate.
       stale: true,
@@ -123,5 +141,43 @@ export async function fetchRates(
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Fallback to the /latest snapshot (no change data) if the timeseries fails. */
+async function fetchLatestOnly(
+  baseCode: string,
+  wanted: string[],
+  controller: AbortController,
+): Promise<FxRates | null> {
+  try {
+    const url = `${FRANKFURTER_BASE}?from=${encodeURIComponent(
+      baseCode,
+    )}&to=${encodeURIComponent(wanted.join(","))}`;
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as FrankfurterLatest;
+    if (!json.rates || typeof json.rates !== "object") return null;
+    const rates: Record<string, number> = { [baseCode]: 1 };
+    for (const [code, value] of Object.entries(json.rates)) {
+      if (typeof value === "number" && Number.isFinite(value)) rates[code] = value;
+    }
+    return {
+      base: baseCode,
+      rates,
+      date:
+        typeof json.date === "string"
+          ? json.date
+          : new Date().toISOString().slice(0, 10),
+      provider: "frankfurter",
+      stale: true,
+      ts: Date.now(),
+    };
+  } catch {
+    return null;
   }
 }

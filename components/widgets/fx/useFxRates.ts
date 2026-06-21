@@ -13,7 +13,7 @@
 import * as React from "react";
 import { FxRatesSchema, type FxRates } from "@/output/api-shapes";
 import { usePoll } from "@/components/widgets/shared/usePoll";
-import { fxDirection, type FxDirection } from "./format";
+import { fxDirection, fxDirectionFromPct, type FxDirection } from "./format";
 
 /** Poll cadence for FX (rates are daily; 60s keeps the badge/time fresh). */
 export const FX_REFRESH_MS = 60_000;
@@ -22,6 +22,8 @@ export interface FxRow {
   quote: string;
   rate: number;
   direction: FxDirection;
+  /** 전일 대비 percent (signed) when the source provides it. */
+  changePct?: number;
 }
 
 export interface FxRatesState {
@@ -66,16 +68,19 @@ export function useFxRates(base: string, quotes: string[]): FxRatesState {
   let rows = cache.rows;
   if (cache.key !== key) {
     const currentRates = (data as FxRates | null)?.rates ?? {};
+    const changePct = (data as FxRates | null)?.changePct;
     const out: FxRow[] = [];
     if (data) {
       for (const q of quotes) {
         const rate = currentRates[q];
         if (typeof rate !== "number") continue;
-        out.push({
-          quote: q,
-          rate,
-          direction: fxDirection(rate, cache.prevRates[q]),
-        });
+        const cp = changePct?.[q];
+        // Prefer the server's 전일 대비 change; fall back to poll-to-poll motion.
+        const direction =
+          typeof cp === "number"
+            ? fxDirectionFromPct(cp)
+            : fxDirection(rate, cache.prevRates[q]);
+        out.push({ quote: q, rate, direction, changePct: cp });
       }
     }
     rows = out;
