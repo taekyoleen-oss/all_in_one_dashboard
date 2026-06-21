@@ -300,6 +300,9 @@ export function BoardTabs({
                   ref={(el) => {
                     tabRefs.current[board.id] = el;
                   }}
+                  // 캔버스 위젯을 이 탭 위로 끌어다 놓으면 해당 보드로 이동시키기 위한
+                  // 히트테스트 마커 (GridCanvas onDrag/onDragStop가 elementFromPoint로 탐지).
+                  data-pb-board-tab={board.id}
                   role="tab"
                   aria-selected={active}
                   tabIndex={active ? 0 : -1}

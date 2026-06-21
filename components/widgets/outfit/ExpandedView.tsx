@@ -75,6 +75,9 @@ export function OutfitExpandedView({ config }: ExpandedViewProps<OutfitConfig>) 
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 시간대 선택 — 상단 */}
+      <PeriodPicker value={periodId} onChange={setPeriodId} size="expanded" />
+
       {/* 헤더: 위치 · 활동 · 시간대 · 체감 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-col">
@@ -105,9 +108,6 @@ export function OutfitExpandedView({ config }: ExpandedViewProps<OutfitConfig>) 
           </button>
         </div>
       </div>
-
-      {/* 시간대 선택 */}
-      <PeriodPicker value={periodId} onChange={setPeriodId} size="expanded" />
 
       {/* 위험 경고 */}
       {result.dangerReasons.length > 0 ? (

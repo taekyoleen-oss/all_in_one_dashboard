@@ -3,8 +3,9 @@
 /**
  * 외출옷 추천 · ConfigEditor — 위치·성별·활동·체감 보정·기본 시간대 설정.
  *
- *  위치는 날씨 위젯과 동일하게 /api/geocode 검색(동 주소·골프장 등) + 현재 위치 +
- *  도시 선택 + 직접 입력으로 지정한다. 성별/활동/체감 보정/기본 시간대를 선택한다.
+ *  위치는 기존 날씨 위젯과 동일한 방법(/api/geocode 검색: 동 주소·골프장·랜드마크 +
+ *  현재 위치 + 도시 선택 + 직접 입력)으로 지정한다. 위치를 가장 위에 두어 편집에서
+ *  바로 바꿀 수 있게 했다. 성별/활동/체감 보정/기본 시간대도 함께 선택한다.
  */
 
 import * as React from "react";
@@ -149,6 +150,164 @@ export function OutfitConfigEditor({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 현재 설정된 위치 */}
+      <div className="flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+        <MapPin size={16} aria-hidden className="shrink-0 text-primary" />
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[11px] text-muted-foreground">현재 위치</span>
+          <span className="truncate text-sm font-medium text-foreground">
+            {config.label}{" "}
+            <span className="text-[11px] font-normal text-muted-foreground">
+              ({config.lat.toFixed(3)}, {config.lon.toFixed(3)})
+            </span>
+          </span>
+        </div>
+      </div>
+
+      {/* 주소·장소 검색 — 동 주소·골프장 등 (기존 날씨 위젯과 동일 방법) */}
+      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <legend className="px-1 text-xs font-medium text-muted-foreground">
+          위치 — 주소·장소 검색
+        </legend>
+        <div className="flex gap-2">
+          <input
+            value={placeQuery}
+            onChange={(e) => {
+              setPlaceQuery(e.target.value);
+              setSearchErr(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void runSearch();
+              }
+            }}
+            placeholder="예: 역삼동, 스카이72 골프장, 정자동"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={() => void runSearch()}
+            disabled={searching}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <Search size={15} aria-hidden />
+            {searching ? "검색 중…" : "검색"}
+          </button>
+        </div>
+        {searchErr ? (
+          <p className="text-xs text-destructive">{searchErr}</p>
+        ) : null}
+        {places.length > 0 ? (
+          <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto pb-scroll">
+            {places.map((p, i) => {
+              const active =
+                Math.abs(p.lat - config.lat) < 1e-3 &&
+                Math.abs(p.lon - config.lon) < 1e-3;
+              return (
+                <li key={`${p.lat},${p.lon},${i}`}>
+                  <button
+                    type="button"
+                    onClick={() => pickPlace(p)}
+                    aria-pressed={active}
+                    className={[
+                      "flex w-full flex-col items-start gap-0.5 rounded-md border px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                      active
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-accent/40",
+                    ].join(" ")}
+                  >
+                    <span className="text-sm font-medium text-foreground">
+                      {p.label}
+                    </span>
+                    {p.detail ? (
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {p.detail}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        <p className="text-[11px] text-muted-foreground">
+          동 단위 주소나 골프장·건물 이름으로 검색해 정확한 위치를 지정할 수 있어요.
+        </p>
+      </fieldset>
+
+      {/* 현재 위치 / 지역 선택 / 직접 입력 */}
+      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <legend className="px-1 text-xs font-medium text-muted-foreground">
+          위치 — 현재 위치·지역·직접 입력
+        </legend>
+
+        <button
+          type="button"
+          onClick={useCurrentLocation}
+          disabled={geoState === "locating"}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <LocateFixed size={15} aria-hidden />
+          {geoState === "locating" ? "위치 확인 중…" : "현재 위치 사용"}
+        </button>
+
+        <div className="grid grid-cols-3 gap-1.5">
+          {COMMON_CITIES.map((city) => (
+            <button
+              key={city.label}
+              type="button"
+              aria-pressed={isActiveCity(city)}
+              onClick={() => setLocation(city)}
+              className={chipClass(isActiveCity(city))}
+            >
+              <MapPin size={14} aria-hidden className="shrink-0" />
+              <span className="truncate">{city.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          위치 이름
+          <input
+            value={labelInput}
+            onChange={(e) => setLabelInput(e.target.value)}
+            placeholder="우리집"
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            위도 (lat)
+            <input
+              value={latInput}
+              onChange={(e) => setLatInput(e.target.value)}
+              inputMode="decimal"
+              placeholder="37.5665"
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            경도 (lon)
+            <input
+              value={lonInput}
+              onChange={(e) => setLonInput(e.target.value)}
+              inputMode="decimal"
+              placeholder="126.978"
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        </div>
+        {err ? <p className="text-xs text-destructive">{err}</p> : null}
+        <button
+          type="button"
+          onClick={applyManual}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          위치 적용
+        </button>
+      </fieldset>
+
       {/* 성별 */}
       <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
         <legend className="px-1 text-xs font-medium text-muted-foreground">
@@ -249,158 +408,6 @@ export function OutfitConfigEditor({
             </button>
           ))}
         </div>
-      </fieldset>
-
-      {/* 주소·장소 검색 */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <legend className="px-1 text-xs font-medium text-muted-foreground">
-          주소·장소 검색
-        </legend>
-        <div className="flex gap-2">
-          <input
-            value={placeQuery}
-            onChange={(e) => {
-              setPlaceQuery(e.target.value);
-              setSearchErr(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void runSearch();
-              }
-            }}
-            placeholder="예: 역삼동, 스카이72 골프장, 정자동"
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <button
-            type="button"
-            onClick={() => void runSearch()}
-            disabled={searching}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-          >
-            <Search size={15} aria-hidden />
-            {searching ? "검색 중…" : "검색"}
-          </button>
-        </div>
-        {searchErr ? (
-          <p className="text-xs text-destructive">{searchErr}</p>
-        ) : null}
-        {places.length > 0 ? (
-          <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto pb-scroll">
-            {places.map((p, i) => {
-              const active =
-                Math.abs(p.lat - config.lat) < 1e-3 &&
-                Math.abs(p.lon - config.lon) < 1e-3;
-              return (
-                <li key={`${p.lat},${p.lon},${i}`}>
-                  <button
-                    type="button"
-                    onClick={() => pickPlace(p)}
-                    aria-pressed={active}
-                    className={[
-                      "flex w-full flex-col items-start gap-0.5 rounded-md border px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                      active
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:bg-accent/40",
-                    ].join(" ")}
-                  >
-                    <span className="text-sm font-medium text-foreground">
-                      {p.label}
-                    </span>
-                    {p.detail ? (
-                      <span className="truncate text-[11px] text-muted-foreground">
-                        {p.detail}
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-      </fieldset>
-
-      {/* 현재 위치 */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <legend className="px-1 text-xs font-medium text-muted-foreground">
-          현재 위치
-        </legend>
-        <button
-          type="button"
-          onClick={useCurrentLocation}
-          disabled={geoState === "locating"}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-        >
-          <LocateFixed size={15} aria-hidden />
-          {geoState === "locating" ? "위치 확인 중…" : "현재 위치 사용"}
-        </button>
-      </fieldset>
-
-      {/* 지역 선택 */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <legend className="px-1 text-xs font-medium text-muted-foreground">
-          지역 선택
-        </legend>
-        <div className="grid grid-cols-3 gap-1.5">
-          {COMMON_CITIES.map((city) => (
-            <button
-              key={city.label}
-              type="button"
-              aria-pressed={isActiveCity(city)}
-              onClick={() => setLocation(city)}
-              className={chipClass(isActiveCity(city))}
-            >
-              <MapPin size={14} aria-hidden className="shrink-0" />
-              <span className="truncate">{city.label}</span>
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      {/* 직접 입력 */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <legend className="px-1 text-xs font-medium text-muted-foreground">
-          직접 입력
-        </legend>
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          위치 이름
-          <input
-            value={labelInput}
-            onChange={(e) => setLabelInput(e.target.value)}
-            placeholder="우리집"
-            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            위도 (lat)
-            <input
-              value={latInput}
-              onChange={(e) => setLatInput(e.target.value)}
-              inputMode="decimal"
-              placeholder="37.5665"
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            경도 (lon)
-            <input
-              value={lonInput}
-              onChange={(e) => setLonInput(e.target.value)}
-              inputMode="decimal"
-              placeholder="126.978"
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </label>
-        </div>
-        {err ? <p className="text-xs text-destructive">{err}</p> : null}
-        <button
-          type="button"
-          onClick={applyManual}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          위치 적용
-        </button>
       </fieldset>
     </div>
   );

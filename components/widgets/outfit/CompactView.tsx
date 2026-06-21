@@ -68,6 +68,9 @@ export function OutfitCompactView({ config }: CompactViewProps<OutfitConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-1">
+      {/* 시간대 선택 — 상단 */}
+      <PeriodPicker value={periodId} onChange={setPeriodId} size="compact" />
+
       {/* 위치 · 활동 */}
       <div className="flex shrink-0 items-center justify-between gap-2">
         <p className="truncate text-xs text-muted-foreground">
@@ -102,7 +105,7 @@ export function OutfitCompactView({ config }: CompactViewProps<OutfitConfig>) {
           isNight={snap.isNight}
           calendarMonth={snap.calendarMonth}
           showLabel={false}
-          maxWidth={170}
+          maxWidth={220}
           className="min-h-0"
         />
       </div>
@@ -128,9 +131,6 @@ export function OutfitCompactView({ config }: CompactViewProps<OutfitConfig>) {
           ⚠ 야외활동 주의 — 자세히에서 확인
         </p>
       ) : null}
-
-      {/* 시간대 선택 */}
-      <PeriodPicker value={periodId} onChange={setPeriodId} size="compact" />
     </div>
   );
 }

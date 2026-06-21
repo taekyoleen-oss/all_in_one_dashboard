@@ -78,6 +78,8 @@ export interface UsePersistenceResult {
   updateActiveLayout: (next: CanvasLayoutItem[]) => void;
   addInstance: (instance: WidgetInstance, layoutItem: CanvasLayoutItem) => void;
   deleteInstance: (instanceId: string) => void;
+  /** Move an instance to another board (drag onto a tab). No-op if same board. */
+  moveInstanceToBoard: (instanceId: string, targetBoardId: string) => void;
   saveConfig: (instanceId: string, nextConfig: unknown) => void;
   compactActive: (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => void;
 
@@ -430,6 +432,58 @@ export function usePersistence(
     [activeId, markWidgetDeleted],
   );
 
+  const moveInstanceToBoard = React.useCallback(
+    (instanceId: string, targetBoardId: string) => {
+      setBoards((prev) => {
+        const src = prev.find((b) =>
+          b.instances.some((i) => i.instanceId === instanceId),
+        );
+        if (!src || src.meta.id === targetBoardId) return prev;
+        if (!prev.some((b) => b.meta.id === targetBoardId)) return prev;
+        const inst = src.instances.find((i) => i.instanceId === instanceId)!;
+        const lay =
+          src.layout.find((l) => l.instanceId === instanceId) ??
+          ({ instanceId, x: 0, y: 0, w: 6, h: 4 } as CanvasLayoutItem);
+        return prev.map((b) => {
+          if (b.meta.id === src.meta.id) {
+            // Remove from the source board.
+            return {
+              ...b,
+              instances: b.instances.filter(
+                (i) => i.instanceId !== instanceId,
+              ),
+              layout: b.layout.filter((l) => l.instanceId !== instanceId),
+            };
+          }
+          if (b.meta.id === targetBoardId) {
+            // Append below everything in the target board (x preserved, no overlap).
+            const maxY = b.layout.reduce(
+              (m, l) => Math.max(m, l.y + l.h),
+              0,
+            );
+            const placed: CanvasLayoutItem = {
+              instanceId,
+              x: Math.min(lay.x, Math.max(0, 24 - lay.w)),
+              y: maxY,
+              w: lay.w,
+              h: lay.h,
+            };
+            return {
+              ...b,
+              instances: [...b.instances, inst],
+              layout: [...b.layout, placed],
+            };
+          }
+          return b;
+        });
+      });
+      // Re-upsert the widget row: the flush re-derives its dashboard_id from the
+      // board that now holds it, so this single mark re-homes it (no delete needed).
+      markWidget(instanceId);
+    },
+    [markWidget],
+  );
+
   const saveConfig = React.useCallback(
     (instanceId: string, nextConfig: unknown) => {
       setBoards((prev) =>
@@ -612,6 +666,7 @@ export function usePersistence(
     updateActiveLayout,
     addInstance,
     deleteInstance,
+    moveInstanceToBoard,
     saveConfig,
     compactActive,
     addBoard,

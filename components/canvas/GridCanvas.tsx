@@ -108,6 +108,11 @@ export interface GridCanvasProps {
    */
   onFocusInstance?: (instanceId: string) => void;
   /**
+   * Move a widget to another board by dragging its tile onto that board's tab
+   * (요구: 상단 탭으로 끌어 이동). The shell moves the instance + switches to the tab.
+   */
+  onTransferInstance?: (instanceId: string, boardId: string) => void;
+  /**
    * Stable key (the board id) for device-local mobile/tablet layouts. md/sm edits
    * persist to localStorage under this key instead of the DB, so a phone keeps its
    * own arrangement without clobbering the desktop (lg) layout.
@@ -612,6 +617,7 @@ export function GridCanvas({
   dropItemSize,
   renderActions,
   onFocusInstance,
+  onTransferInstance,
   storageKey = "",
 }: GridCanvasProps) {
   const { width, containerRef, mounted } = useContainerWidth({
@@ -840,6 +846,60 @@ export function GridCanvas({
   const dragPushTimerRef = React.useRef<number | null>(null);
   const applyDragPushRef = React.useRef<() => void>(() => {});
 
+  /* ----------------- drag-onto-tab (다른 탭으로 이동) ---------------------- */
+  // While dragging a tile, if the pointer is over a board TAB (data-pb-board-tab),
+  // highlight it; on release there, move the widget to that board (onTransferInstance).
+  const hoveredTabRef = React.useRef<{ el: HTMLElement; boardId: string } | null>(
+    null,
+  );
+  // Suppresses the ONE handleLayoutChange RGL emits right after a transfer drop, so
+  // the dropped (now-removed) tile's stale position can't be written to the source.
+  const transferGuardRef = React.useRef(false);
+
+  const clearTabHover = React.useCallback(() => {
+    const cur = hoveredTabRef.current;
+    if (cur) {
+      cur.el.style.outline = "";
+      cur.el.style.outlineOffset = "";
+      cur.el.style.background = "";
+    }
+    hoveredTabRef.current = null;
+  }, []);
+
+  const setTabHover = React.useCallback(
+    (el: HTMLElement, boardId: string) => {
+      if (hoveredTabRef.current?.el === el) return;
+      clearTabHover();
+      el.style.outline = "2px solid var(--primary)";
+      el.style.outlineOffset = "2px";
+      el.style.background = "color-mix(in oklab, var(--primary) 16%, transparent)";
+      hoveredTabRef.current = { el, boardId };
+    },
+    [clearTabHover],
+  );
+
+  // Hit-test the pointer against board tabs by their bounding rects (robust even
+  // though the dragged tile sits under the cursor — elementFromPoint would hit it).
+  const tabAtPointer = React.useCallback(
+    (e: Event): { el: HTMLElement; boardId: string } | null => {
+      if (typeof document === "undefined") return null;
+      const me = e as MouseEvent & { touches?: TouchList };
+      const cx = me.touches?.[0]?.clientX ?? me.clientX;
+      const cy = me.touches?.[0]?.clientY ?? me.clientY;
+      if (typeof cx !== "number" || typeof cy !== "number") return null;
+      const tabs = document.querySelectorAll<HTMLElement>("[data-pb-board-tab]");
+      for (const t of tabs) {
+        const r = t.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
+          const boardId = t.getAttribute("data-pb-board-tab");
+          if (boardId) return { el: t, boardId };
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
   // Map a pointer event to the grid cell the dragged tile's TOP-LEFT should take,
   // centering the tile under the cursor (matches where the user is aiming).
   const pointerDragCell = React.useCallback(
@@ -896,7 +956,10 @@ export function GridCanvas({
   const onDragStart = React.useCallback(
     (_lay: Layout, oldItem: LayoutItem | null) => {
       clearPushPrompt();
-      if (activeBpRef.current !== "lg" || !oldItem) {
+      clearTabHover();
+      // Track the dragged id at EVERY breakpoint (drag-onto-tab works everywhere);
+      // the drag-push affordance is gated to lg separately, inside onDragTick.
+      if (!oldItem) {
         dragIdRef.current = null;
         return;
       }
@@ -904,13 +967,28 @@ export function GridCanvas({
       dragSizeRef.current = { w: oldItem.w, h: oldItem.h };
       dragCellRef.current = null;
     },
-    [clearPushPrompt],
+    [clearPushPrompt, clearTabHover],
   );
 
   const onDragTick = React.useCallback(
     (lay: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
       const id = dragIdRef.current;
-      if (!id || activeBpRef.current !== "lg") return;
+      if (!id) return;
+      // 1) Over a board tab? Highlight it and skip the drag-push (aiming to move).
+      if (onTransferInstance) {
+        const tab = tabAtPointer(e);
+        if (tab && tab.boardId !== storageKey) {
+          setTabHover(tab.el, tab.boardId);
+          if (dragPushTimerRef.current != null) {
+            window.clearTimeout(dragPushTimerRef.current);
+            dragPushTimerRef.current = null;
+          }
+          return;
+        }
+        clearTabHover();
+      }
+      // 2) Drag-push (rearrange) — desktop (lg) only.
+      if (activeBpRef.current !== "lg") return;
       const cell = pointerDragCell(e, dragSizeRef.current.w, dragSizeRef.current.h);
       if (!cell) return;
       const { w, h } = dragSizeRef.current;
@@ -944,22 +1022,45 @@ export function GridCanvas({
       }
       // Same cell + timer already running → let it ride (this is "멈춰 있음").
     },
-    [pointerDragCell],
+    [
+      pointerDragCell,
+      onTransferInstance,
+      tabAtPointer,
+      setTabHover,
+      clearTabHover,
+      storageKey,
+    ],
   );
 
   const onDragStop = React.useCallback(
-    (lay: Layout) => {
+    (lay: Layout, oldItem: LayoutItem | null) => {
       if (dragPushTimerRef.current != null) {
         window.clearTimeout(dragPushTimerRef.current);
         dragPushTimerRef.current = null;
       }
+      const id = dragIdRef.current ?? oldItem?.i ?? null;
       dragIdRef.current = null;
       dragCellRef.current = null;
+      // Dropped onto a board tab → move the widget to that board (요구: 다른 탭으로 이동).
+      const hover = hoveredTabRef.current;
+      clearTabHover();
+      if (hover && id && onTransferInstance) {
+        // RGL emits one more onLayoutChange right after this — suppress it so the
+        // just-moved (now-removed) tile can't be written back to the source board.
+        transferGuardRef.current = true;
+        // Safety: clear the guard next tick in case RGL emits no trailing change,
+        // so it can never swallow a later, legitimate layout persist.
+        window.setTimeout(() => {
+          transferGuardRef.current = false;
+        }, 0);
+        onTransferInstance(id, hover.boardId);
+        return;
+      }
       // md/sm: commit this device's arrangement locally (never the DB lg layout).
       const bp = activeBpRef.current;
       if (bp === "md" || bp === "sm") persistDeviceLayout(bp, lay);
     },
-    [persistDeviceLayout],
+    [persistDeviceLayout, onTransferInstance, clearTabHover],
   );
 
   // Derive per-breakpoint layouts from the single persisted (lg) layout. lg keeps
@@ -1001,6 +1102,13 @@ export function GridCanvas({
 
   const handleLayoutChange = React.useCallback(
     (current: Layout, all: ResponsiveLayouts<BreakpointKey>) => {
+      // After a drag-onto-tab transfer, RGL emits one trailing layout (still
+      // containing the moved tile). Swallow exactly that one so the moved widget
+      // isn't re-persisted to the source board.
+      if (transferGuardRef.current) {
+        transferGuardRef.current = false;
+        return;
+      }
       // Persist the DESKTOP (lg) layout ONLY (§5.4). Two guards (issue ①):
       //  1) Only persist while the ACTIVE breakpoint is lg. At md/sm, RGL clamps
       //     widths to 8/1 cols and would round-trip those clamped widths back
@@ -1112,6 +1220,13 @@ export function GridCanvas({
         window.clearTimeout(autoPushTimerRef.current);
       if (dragPushTimerRef.current != null)
         window.clearTimeout(dragPushTimerRef.current);
+      // Reset any leftover tab highlight (tabs outlive this component).
+      const tab = hoveredTabRef.current;
+      if (tab) {
+        tab.el.style.outline = "";
+        tab.el.style.outlineOffset = "";
+        tab.el.style.background = "";
+      }
     };
   }, []);
 

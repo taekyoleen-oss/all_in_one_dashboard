@@ -20,7 +20,9 @@ export const outfitWidget: WidgetDefinition<OutfitConfig> = {
   icon: Shirt,
   category: "extended",
   defaultConfig: DEFAULT_OUTFIT_CONFIG,
-  defaultSize: { w: 8, h: 10 },
+  // 캔버스에 추가 시 모든 내용(시간대·체감·일러스트·추천 아이템)이 보이도록 세로를
+  // 넉넉히. 격자 2배 해상도 기준 h:16 ≈ 858px 높이.
+  defaultSize: { w: 8, h: 16 },
   minSize: { w: 4, h: 6 },
   maxSize: { w: 16, h: 24 },
   CompactView: OutfitCompactView,

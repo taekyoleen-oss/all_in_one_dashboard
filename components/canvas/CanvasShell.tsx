@@ -140,6 +140,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     updateActiveLayout,
     addInstance,
     deleteInstance,
+    moveInstanceToBoard,
     saveConfig,
     compactActive,
     addBoard,
@@ -245,6 +246,16 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
       openOverlay(`focus:${instanceId}`);
     },
     [openOverlay],
+  );
+
+  /* ----- 위젯을 다른 보드 탭으로 드래그-이동 ----- */
+  const transferInstanceToBoard = React.useCallback(
+    (instanceId: string, boardId: string) => {
+      moveInstanceToBoard(instanceId, boardId);
+      // 옮긴 보드를 곧바로 선택해 위젯이 도착한 곳이 보이도록(요구: 다른 탭이 선택되도록).
+      setActiveId(boardId);
+    },
+    [moveInstanceToBoard, setActiveId],
   );
 
   const openEdit = React.useCallback(
@@ -370,6 +381,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               onDropWidget={addByDrop}
               renderActions={renderActions}
               onFocusInstance={openFocus}
+              onTransferInstance={transferInstanceToBoard}
               storageKey={activeId}
             />
           )}
