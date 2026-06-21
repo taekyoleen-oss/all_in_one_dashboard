@@ -143,6 +143,14 @@ const CONTAINER_PADDING: [number, number] = [0, 0];
 /** RGL v2's external-drop placeholder id (must match its internal default). */
 const DROPPING_ITEM_ID = "__dropping-elem__";
 
+// Drag-push (밀기) sensitivity: the dragged tile must be held STILL (pointer
+// within DRAG_PUSH_MOVE_PX) for DRAG_PUSH_DWELL_MS before colliding tiles slide
+// down. Any larger movement re-arms the dwell, so simply moving a tile around
+// never pushes others — only a deliberate pause does (요구: 조금 움직여선 안 밀리고,
+// 좀 더 오래 기다려야 작동).
+const DRAG_PUSH_DWELL_MS = 1200;
+const DRAG_PUSH_MOVE_PX = 8;
+
 // Free placement is implemented by a per-component compactor (see GridCanvas):
 // type:null + no-op compact keep positions put on resize/zoom/drag, while a
 // resize-time clamp stops a growing tile from overlapping its neighbors. The
@@ -845,6 +853,10 @@ export function GridCanvas({
   const dragCellRef = React.useRef<{ x: number; y: number } | null>(null);
   const dragPushTimerRef = React.useRef<number | null>(null);
   const applyDragPushRef = React.useRef<() => void>(() => {});
+  // Last pointer position where the push-dwell was (re)armed. Any real movement
+  // past DRAG_PUSH_MOVE_PX re-arms it, so the push fires only after the pointer
+  // has been held still for DRAG_PUSH_DWELL_MS — not while the user is dragging.
+  const dragStillPxRef = React.useRef<{ x: number; y: number } | null>(null);
 
   /* ----------------- drag-onto-tab (다른 탭으로 이동) ---------------------- */
   // While dragging a tile, if the pointer is over a board TAB (data-pb-board-tab),
@@ -966,6 +978,7 @@ export function GridCanvas({
       dragIdRef.current = oldItem.i;
       dragSizeRef.current = { w: oldItem.w, h: oldItem.h };
       dragCellRef.current = null;
+      dragStillPxRef.current = null;
     },
     [clearPushPrompt, clearTabHover],
   );
@@ -998,29 +1011,52 @@ export function GridCanvas({
         w,
         h,
       };
-      // Does any OTHER tile sit in the held space? (use the live RGL layout)
-      const blocked = lay.some(
-        (it) => it.i !== id && it.i !== DROPPING_ITEM_ID && rectsOverlap(anchor, it),
-      );
-      if (!blocked) {
+      dragCellRef.current = { x: anchor.x, y: anchor.y };
+
+      const me = e as MouseEvent & { touches?: TouchList };
+      const cx = me.touches?.[0]?.clientX ?? me.clientX;
+      const cy = me.touches?.[0]?.clientY ?? me.clientY;
+
+      const cancelTimer = () => {
         if (dragPushTimerRef.current != null) {
           window.clearTimeout(dragPushTimerRef.current);
           dragPushTimerRef.current = null;
         }
-        dragCellRef.current = cell;
+      };
+
+      // Nothing under the held footprint → never push; reset the dwell anchor so
+      // re-entering an occupied area starts a fresh hold.
+      const blocked = lay.some(
+        (it) => it.i !== id && it.i !== DROPPING_ITEM_ID && rectsOverlap(anchor, it),
+      );
+      if (!blocked) {
+        cancelTimer();
+        dragStillPxRef.current = null;
         return;
       }
-      const prev = dragCellRef.current;
-      if (!prev || prev.x !== anchor.x || prev.y !== anchor.y) {
-        // Cell moved → restart the dwell. Holding still ~500ms then pushes down.
-        dragCellRef.current = { x: anchor.x, y: anchor.y };
-        if (dragPushTimerRef.current != null)
-          window.clearTimeout(dragPushTimerRef.current);
+
+      // Over an occupied area: re-arm the dwell ONLY when the pointer actually
+      // moved (> DRAG_PUSH_MOVE_PX from where we last armed it). While the user
+      // keeps dragging, every move re-arms → the timer never elapses → other tiles
+      // stay put. When the pointer settles, no more moves arrive and the last-armed
+      // timer fires after DRAG_PUSH_DWELL_MS.
+      const still = dragStillPxRef.current;
+      const movedFar =
+        typeof cx !== "number" ||
+        typeof cy !== "number" ||
+        still == null ||
+        Math.hypot(cx - still.x, cy - still.y) > DRAG_PUSH_MOVE_PX;
+      if (movedFar) {
+        if (typeof cx === "number" && typeof cy === "number") {
+          dragStillPxRef.current = { x: cx, y: cy };
+        }
+        cancelTimer();
         dragPushTimerRef.current = window.setTimeout(() => {
           applyDragPushRef.current();
-        }, 500);
+        }, DRAG_PUSH_DWELL_MS);
       }
-      // Same cell + timer already running → let it ride (this is "멈춰 있음").
+      // Within the threshold of the armed point → let the running timer ride
+      // (this is the deliberate "멈춰 있음" hold).
     },
     [
       pointerDragCell,
