@@ -8,13 +8,14 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PaneBoard",
-    short_name: "PaneBoard",
-    description: "개인 모듈형 캔버스 대시보드",
+    name: "개인 Dashboard",
+    short_name: "개인 Dashboard",
+    description: "tkLeen · 개인 모듈형 캔버스 대시보드",
     start_url: "/",
     display: "standalone",
-    background_color: "#1B1D24",
-    theme_color: "#1B1D24",
+    // tkLeen 브랜드 Deep Navy(#1B2845) — 앱 아이콘 컨테이너 색과 통일
+    background_color: "#1B2845",
+    theme_color: "#1B2845",
     icons: [
       { src: "/icon.svg", type: "image/svg+xml", sizes: "any" },
       { src: "/apple-icon", type: "image/png", sizes: "180x180" },

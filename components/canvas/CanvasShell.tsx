@@ -43,6 +43,7 @@ import { FocusOverlay } from "@/components/canvas/FocusOverlay";
 import { ConfigDialog } from "@/components/canvas/ConfigDialog";
 import { WidgetMenu } from "@/components/canvas/WidgetMenu";
 import { AccountMenu } from "@/components/canvas/AccountMenu";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { ToastProvider } from "@/components/ui/Toaster";
 import { widgetRegistry } from "@/components/widgets/registry";
 import { useBackStack } from "@/lib/utils/useBackStack";
@@ -313,9 +314,13 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
             toolbar stay fixed (shrink-0); the tabs take the middle and scroll
             horizontally (min-w-0) so everything fits on ONE line at any width. */}
         <div className="mx-auto flex max-w-screen-2xl items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-6 lg:px-8">
-          <h1 className="shrink-0 text-base font-semibold tracking-tight text-foreground sm:text-lg">
-            PaneBoard
-          </h1>
+          {/* 왼쪽 상단 브랜드: tkLeen 마크 + 대시보드 제목 */}
+          <div className="flex shrink-0 items-center gap-2">
+            <BrandMark height={24} className="text-foreground" />
+            <h1 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+              개인 Dashboard
+            </h1>
+          </div>
           <div className="min-w-0 flex-1">
             <BoardTabs
               boards={boards.map((b) => ({

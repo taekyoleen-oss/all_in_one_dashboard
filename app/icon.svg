@@ -1,9 +1,16 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PaneBoard">
-  <!-- Dark canvas (matches --background) -->
-  <rect width="32" height="32" rx="7" fill="#1B1D24"/>
-  <rect x="0.6" y="0.6" width="30.8" height="30.8" rx="6.4" stroke="#34AECB" stroke-opacity="0.25" stroke-width="1.2"/>
-  <!-- Panes: one large active (teal) pane + two stacked panes — the modular board -->
-  <rect x="6" y="6" width="8" height="20" rx="2" fill="#34AECB"/>
-  <rect x="16" y="6" width="10" height="9" rx="2" fill="#E7ECF2"/>
-  <rect x="16" y="17" width="10" height="9" rx="2" fill="#4A5263"/>
+<svg width="32" height="32" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="개인 Dashboard — tkLeen">
+  <!-- tkLeen app icon: Navy 컨테이너(#1B2845) + reversed mark. K의 타일 픽셀
+       구성이 모듈형 대시보드(패널)를 환기한다 — 브랜드 가이드 §2.3 verbatim -->
+  <rect x="0" y="0" width="200" height="200" rx="44" fill="#1B2845"/>
+  <!-- T — Cream(다크 컨테이너용 reversed) -->
+  <rect x="40" y="40" width="80" height="20" fill="#FAFAF7"/>
+  <rect x="60" y="60" width="20" height="40" fill="#FAFAF7"/>
+  <!-- K — Sky Blue(잠금) -->
+  <rect x="60" y="100" width="20" height="60" fill="#4A90C2"/>
+  <rect x="80" y="100" width="20" height="20" fill="#4A90C2"/>
+  <rect x="100" y="80" width="20" height="20" fill="#4A90C2"/>
+  <rect x="120" y="60" width="20" height="20" fill="#4A90C2"/>
+  <rect x="80" y="120" width="20" height="20" fill="#4A90C2"/>
+  <rect x="100" y="140" width="20" height="20" fill="#4A90C2"/>
+  <rect x="120" y="160" width="20" height="20" fill="#4A90C2"/>
 </svg>

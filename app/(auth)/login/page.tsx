@@ -22,7 +22,8 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { setOwnerPassword } from "./actions";
-import { Lock, Loader2, AlertCircle, LogIn, KeyRound } from "lucide-react";
+import { Loader2, AlertCircle, LogIn, KeyRound } from "lucide-react";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 type Mode = "login" | "setup";
 type Status = "idle" | "working" | "error";
@@ -93,13 +94,13 @@ function LoginCard() {
   return (
     <div className="w-full max-w-sm">
       <div className="rounded-[var(--radius)] border border-border bg-card p-6 shadow-md sm:p-8">
-        {/* Brand */}
+        {/* Brand — tkLeen 마크 + 대시보드 제목 */}
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
-            <Lock size={22} />
+          <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-foreground">
+            <BrandMark height={26} />
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            PaneBoard
+            개인 Dashboard
           </h1>
           <p className="text-sm text-muted-foreground">
             {mode === "login"
