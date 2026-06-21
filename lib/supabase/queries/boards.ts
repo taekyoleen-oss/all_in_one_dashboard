@@ -27,7 +27,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { widgetRegistry } from "@/components/widgets/registry";
 import { createInstance } from "@/lib/utils/grid";
-import { layoutFromJson, type BoardState } from "@/lib/persistence/types";
+import {
+  layoutFromJson,
+  layoutToJson,
+  type BoardState,
+} from "@/lib/persistence/types";
 import type { Json, TablesInsert } from "@/types/database";
 import type { CanvasLayoutItem } from "@/components/canvas/GridCanvas";
 
@@ -144,7 +148,8 @@ async function bootstrapDefaultBoard(userId: string): Promise<BoardState[]> {
       user_id: userId,
       type: s.instance.type,
       config: (s.instance.config ?? {}) as Json,
-      layout: s.layout as unknown as Json,
+      // Stamp gv=2 so the freshly-seeded (already v2) coords are NOT re-scaled on load.
+      layout: layoutToJson(s.layout) as unknown as Json,
     }));
     // Best-effort: if seeding fails, return the empty board rather than failing.
     const { error: seedErr } = await supabase.from("pb_widgets").insert(rows);

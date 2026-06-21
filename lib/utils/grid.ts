@@ -20,8 +20,9 @@ import type {
   CanvasLayoutItem,
 } from "@/components/canvas/GridCanvas";
 
-/** Number of columns at the desktop (lg) breakpoint — mirrors GridCanvas COLS.lg. */
-export const LG_COLS = 12;
+/** Number of columns at the desktop (lg) breakpoint — mirrors GridCanvas COLS.lg.
+ *  v2 grid = 24 cols (finer placement/resize). */
+export const LG_COLS = 24;
 
 /**
  * Mint a real UUID for a widget instance. `pb_widgets.id` is a `uuid` column and

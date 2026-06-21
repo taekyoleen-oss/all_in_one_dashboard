@@ -54,7 +54,7 @@ import { WidgetPersistenceProvider } from "@/lib/widgets/persistence";
 import type { BoardState } from "@/lib/persistence/types";
 import { verticalCompactor, type Layout } from "react-grid-layout";
 
-const LG_COLS = 12;
+const LG_COLS = 24; // v2 grid: 24 columns (finer placement/resize)
 
 /** True iff `layout` describes exactly the instances in `instances` (same ids). */
 function sameInstanceSet(

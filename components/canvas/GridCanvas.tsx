@@ -111,9 +111,13 @@ export interface GridCanvasProps {
 // Only lg is persisted (handleLayoutChange), so phone/tablet reflows never
 // overwrite the desktop arrangement. The 재정렬 button re-packs lg (CanvasShell).
 const BREAKPOINTS: Record<BreakpointKey, number> = { lg: 1024, md: 640, sm: 0 };
-const COLS: Record<BreakpointKey, number> = { lg: 12, md: 6, sm: 1 };
-const ROW_HEIGHT = 96;
-const MARGIN: [number, number] = [12, 12];
+// v2 grid: DOUBLED resolution for finer placement/resize. COLS 12→24 and
+// ROW_HEIGHT 96→48; MARGIN halved 12→6 so a v2 tile (coords ×2) renders at the
+// SAME on-screen size as before — only the step granularity gets finer. Stored
+// layouts are migrated per-widget on read (see persistence/types.ts gv).
+const COLS: Record<BreakpointKey, number> = { lg: 24, md: 12, sm: 1 };
+const ROW_HEIGHT = 48;
+const MARGIN: [number, number] = [6, 6];
 const CONTAINER_PADDING: [number, number] = [0, 0];
 /** RGL v2's external-drop placeholder id (must match its internal default). */
 const DROPPING_ITEM_ID = "__dropping-elem__";
@@ -674,7 +678,7 @@ export function GridCanvas({
   const interactive = editable && activeBp === "lg";
   const droppable = interactive && !!onDropWidget;
   const dropDefault = React.useMemo(
-    () => dropItemSize ?? { w: 3, h: 2 },
+    () => dropItemSize ?? { w: 6, h: 4 }, // v2 default drop size (≈ old 3×2)
     [dropItemSize],
   );
 
