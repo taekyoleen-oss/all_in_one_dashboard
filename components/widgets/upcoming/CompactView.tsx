@@ -57,7 +57,11 @@ export function UpcomingCompactView({
   );
 }
 
-/** 타일 하단 빠른 추가: 제목 + 날짜. 제목 키워드(점심/아침/저녁)로 시간을 자동 설정. */
+/**
+ * 타일 하단 빠른 추가: 제목 + 날짜 + 시간(선택).
+ * 제목 키워드(점심/아침/저녁)는 시간이 비어 있을 때만 자동으로 채우고, 시간 칸에서
+ * 사용자가 직접 입력·수정할 수 있다.
+ */
 function UpcomingQuickAdd({
   config,
   instanceId,
@@ -68,10 +72,20 @@ function UpcomingQuickAdd({
   const save = useSaveWidgetConfig();
   const [title, setTitle] = React.useState("");
   const [date, setDate] = React.useState("");
+  const [time, setTime] = React.useState("");
+
+  // 제목 변경 시: 시간이 비어 있으면 키워드로 자동 채움(사용자가 넣은 시간은 유지).
+  const onTitleChange = (value: string) => {
+    setTitle(value);
+    if (!time) {
+      const suggested = suggestTimeFromTitle(value);
+      if (suggested) setTime(suggested);
+    }
+  };
+
   const add = () => {
     const t = title.trim();
     if (!t || !date) return;
-    const time = suggestTimeFromTitle(t) ?? "";
     save(instanceId, {
       ...config,
       events: [
@@ -80,7 +94,9 @@ function UpcomingQuickAdd({
       ],
     });
     setTitle("");
+    setTime("");
   };
+
   return (
     <QuickAdd label="일정 추가">
       {() => (
@@ -94,17 +110,24 @@ function UpcomingQuickAdd({
           <input
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             placeholder="제목 (예: 점심 약속)"
             className={`${quickInputClass} w-full`}
           />
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               aria-label="날짜"
-              className={`${quickInputClass} flex-1`}
+              className={`${quickInputClass} min-w-0 flex-1`}
+            />
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              aria-label="시간 (선택)"
+              className={`${quickInputClass} min-w-0 flex-1`}
             />
             <button
               type="submit"
