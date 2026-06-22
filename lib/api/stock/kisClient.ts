@@ -58,9 +58,13 @@ const TOKEN_URL = `${KIS_BASE}/oauth2/tokenP`;
 const STOCK_PRICE_URL = `${KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-price`;
 // VERIFY(kis): index-price path + tr_id. Confirm against the portal for your app.
 const INDEX_PRICE_URL = `${KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-index-price`;
+// 국내주식 시간외현재가[국내주식-076] — HTS [0230] 시간외 현재가 화면. Path/tr_id/필드명은
+// 공식 koreainvestment/open-trading-api 샘플(inquire_overtime_price)에서 확인됨.
+const OVERTIME_PRICE_URL = `${KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-overtime-price`;
 
 const TR_STOCK = "FHKST01010100"; // 국내주식 현재가
 const TR_INDEX = "FHPUP02100000"; // 업종/지수 현재가  // VERIFY(kis)
+const TR_OVERTIME = "FHPST02300000"; // 국내주식 시간외현재가(시간외 단일가)
 
 /** REST re-poll cadence for the live subscription (keeps quotes fresh w/o the WS). */
 const REST_POLL_MS = 15_000;
@@ -157,6 +161,63 @@ function signFactor(sign: string | undefined): number {
   return 0;
 }
 
+/**
+ * 시간외 단일가를 정규장 가격 위에 덧입힐 시간대인지(KST 기준). 정규장(09:00–16:00)에는
+ * 시간외 단일가가 아직 형성되지 않았거나 전일 값이라 쓰지 않는다. 시간외 단일가 매매는
+ * 16:00~18:00이며, 그 종가는 다음 개장 전까지 '최신 체결가'로 유효하므로 저녁·야간·새벽
+ * (16시 이후 또는 09시 이전)에만 조회·반영한다. (주말/휴장일엔 직전 거래일 시간외 종가가
+ * 그대로 노출될 수 있으나 모두 마지막 값이라 무방.)
+ */
+function inOvertimeWindowKst(nowMs: number): boolean {
+  const kstHour = new Date(nowMs + 9 * 3600 * 1000).getUTCHours();
+  return kstHour >= 16 || kstHour < 9;
+}
+
+/** 시간외 단일가 보정값(전일종가 대비, 정규장과 동일 기준). 미형성·실패 시 null. */
+async function fetchOvertime(
+  code: string,
+  token: string,
+): Promise<{ price: number; change: number; changePct: number } | null> {
+  const params = new URLSearchParams({
+    FID_COND_MRKT_DIV_CODE: "J",
+    FID_INPUT_ISCD: code,
+  });
+  const res = await fetch(`${OVERTIME_PRICE_URL}?${params}`, {
+    headers: quoteHeaders(token, TR_OVERTIME),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as {
+    output?: {
+      ovtm_untp_prpr?: string; // 시간외 단일가 현재가
+      ovtm_untp_prdy_vrss?: string; // 전일 대비
+      ovtm_untp_prdy_ctrt?: string; // 전일 대비율
+      ovtm_untp_prdy_vrss_sign?: string; // 전일 대비 부호
+      ovtm_untp_vol?: string; // 시간외 단일가 거래량
+    };
+  };
+  const o = json.output;
+  if (!o) return null;
+  const price = Number(o.ovtm_untp_prpr);
+  const vol = Number(o.ovtm_untp_vol ?? "0");
+  // 시간외 거래가 실제로 체결된 경우(vol>0)에만 반영한다. 거래가 없으면 KIS는
+  // ovtm_untp_prpr를 기준가(=정규장 종가)로 채우고 등락을 0으로 주므로, 그대로
+  // 쓰면 정규장의 실제 등락이 0으로 덮여버린다 → 정규장 시세를 유지하도록 null.
+  if (!Number.isFinite(price) || price <= 0) return null;
+  if (!Number.isFinite(vol) || vol <= 0) return null;
+  const factor = signFactor(o.ovtm_untp_prdy_vrss_sign);
+  const magnitude = Number(o.ovtm_untp_prdy_vrss ?? "0");
+  const pct = Number(o.ovtm_untp_prdy_ctrt ?? "0");
+  return {
+    price,
+    // 정규장과 동일하게 부호코드 × 절대값(이중부호 방지).
+    change: Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0,
+    changePct: Number.isFinite(pct)
+      ? Math.abs(pct) * (factor === 0 ? 1 : factor)
+      : 0,
+  };
+}
+
 /** Fetch one individual KR stock current price. */
 async function fetchStock(
   symbol: StockSymbol,
@@ -191,17 +252,35 @@ async function fetchStock(
   const magnitude = Number(o.prdy_vrss ?? "0");
   const pct = Number(o.prdy_ctrt ?? "0");
 
+  // KIS returns prdy_vrss/prdy_ctrt ALREADY SIGNED. Derive the sign solely from
+  // the authoritative sign code on the absolute magnitude — otherwise a signed
+  // value × the sign factor double-applies and FLIPS 상승/하락 (bug fix).
+  let outPrice = price;
+  let outChange = Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0;
+  let outPct = Number.isFinite(pct) ? Math.abs(pct) * (factor === 0 ? 1 : factor) : 0;
+
+  // 시간외 단일가 반영: 저녁·야간 시간대에만 조회해 정규장 가격 위에 덧입힌다(전일종가
+  // 대비라 기준 일관). 미형성·실패면 정규장 값을 그대로 둔다(시간외 조회 오류가 정규장
+  // 시세를 떨어뜨리지 않도록 격리).
+  if (inOvertimeWindowKst(Date.now())) {
+    try {
+      const ot = await fetchOvertime(code, token);
+      if (ot) {
+        outPrice = ot.price;
+        outChange = ot.change;
+        outPct = ot.changePct;
+      }
+    } catch {
+      /* keep regular quote */
+    }
+  }
+
   return {
     symbol,
     name: o.hts_kor_isnm?.trim() || meta.name,
-    price,
-    // KIS returns prdy_vrss/prdy_ctrt ALREADY SIGNED. Derive the sign solely from
-    // the authoritative sign code on the absolute magnitude — otherwise a signed
-    // value × the sign factor double-applies and FLIPS 상승/하락 (bug fix).
-    change: Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0,
-    changePct: Number.isFinite(pct)
-      ? Math.abs(pct) * (factor === 0 ? 1 : factor)
-      : 0,
+    price: outPrice,
+    change: outChange,
+    changePct: outPct,
     ts: Date.now(),
     currency: "KRW",
     isIndex: false,

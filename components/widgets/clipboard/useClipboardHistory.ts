@@ -16,6 +16,8 @@ import { clampMaxItems, type ClipItem } from "./types";
 
 const PREFIX = "pb:clipboard:";
 const EMPTY: ClipItem[] = [];
+/** Per-entry text cap — keeps one huge paste from blowing the localStorage quota. */
+const MAX_TEXT_LEN = 100_000;
 
 const keyOf = (id: string) => PREFIX + id;
 const listeners = new Map<string, Set<() => void>>();
@@ -64,13 +66,30 @@ function readItems(id: string): ClipItem[] {
 
 function writeItems(id: string, items: ClipItem[]): void {
   if (typeof window === "undefined") return;
-  const raw = JSON.stringify(items);
-  try {
-    window.localStorage.setItem(keyOf(id), raw);
-  } catch {
-    /* quota / privacy-mode — keep in-memory cache anyway */
+  // Persist immediately + DURABLY. A naive setItem that throws on quota (e.g. a
+  // huge pasted entry) used to be swallowed silently — the entry then lived only
+  // in the in-memory cache and vanished on window close ("기록이 사라짐"). Instead,
+  // on failure we progressively drop the OLDEST entries (newest are at the front)
+  // and retry, so the most recent records always reach disk and survive a reload.
+  let persisted = items;
+  for (let attempt = items.length; attempt >= 0; attempt--) {
+    const slice = items.slice(0, attempt);
+    try {
+      window.localStorage.setItem(keyOf(id), JSON.stringify(slice));
+      persisted = slice;
+      break;
+    } catch {
+      if (attempt === 0) {
+        // Even an empty array failed (privacy mode / disabled storage) — keep the
+        // in-memory cache so the session still works; nothing more we can do.
+        persisted = items;
+        break;
+      }
+      // else: shrink and retry
+    }
   }
-  cache.set(id, { raw, parsed: items });
+  const raw = JSON.stringify(persisted);
+  cache.set(id, { raw, parsed: persisted });
   listeners.get(id)?.forEach((l) => l());
 }
 
@@ -123,7 +142,7 @@ export function useClipboardHistory(
 
   const add = React.useCallback(
     (text: string) => {
-      const t = text.trim();
+      const t = text.trim().slice(0, MAX_TEXT_LEN);
       if (!t) return;
       const cur = readItems(instanceId);
       // Move an existing identical entry to the top instead of duplicating.
