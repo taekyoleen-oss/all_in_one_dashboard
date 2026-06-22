@@ -3,13 +3,14 @@
  *  GET /api/fx?base=USD&symbols=KRW,EUR,JPY — currency rates (설계서 §2.2)
  * ============================================================================
  *
- *  One-shot snapshot of FX rates relative to `base`, via the keyless Frankfurter
- *  source (ECB daily rates) — works today with no key. The response is validated
- *  against FxRatesSchema from output/api-shapes.ts (the anti-drift single source)
- *  before it leaves, and the upstream is never thrown raw to the client.
+ *  One-shot snapshot of FX rates relative to `base`. KRW 기준 요청은 네이버 고시환율
+ *  (준실시간), 실패 시 keyless Frankfurter(ECB 일별)로 강등 — 둘 다 키 불필요.
+ *  The response is validated against FxRatesSchema from output/api-shapes.ts (the
+ *  anti-drift single source) before it leaves; the upstream is never thrown raw.
  *
- *  Caching: a short shared TTL (revalidate + Cache-Control s-maxage) — rates are
- *  daily, so a 5-minute cache is plenty and shields the upstream from polling.
+ *  Caching: a short shared TTL (revalidate + Cache-Control s-maxage) aligned to
+ *  the widget's 3-minute poll — fresh enough for 고시회차 갱신, still shields the
+ *  upstream from bursts.
  *
  *  Route Handler (Next.js 16). Reads the request URL, so it is dynamic; caching
  *  is expressed via Cache-Control on the Response (CDN/proxy honor it).
@@ -25,12 +26,12 @@ import {
 } from "@/lib/api/fxClient";
 import { FxRatesSchema, type FxRates } from "@/output/api-shapes";
 
-/** Revalidate hint (seconds) for any cached fetches within this route. */
-export const revalidate = 300;
+/** Revalidate hint (seconds) — aligned to the widget's 3-minute poll cadence. */
+export const revalidate = 180;
 
 /** Short shared cache so repeated widget polls don't hammer the upstream. */
 const CACHE_HEADERS = {
-  "cache-control": "public, s-maxage=300, stale-while-revalidate=600",
+  "cache-control": "public, s-maxage=180, stale-while-revalidate=360",
 } as const;
 
 export async function GET(request: NextRequest) {

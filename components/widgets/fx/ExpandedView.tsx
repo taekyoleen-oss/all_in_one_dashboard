@@ -60,7 +60,11 @@ export function FxExpandedView({ config }: ExpandedViewProps<FxConfig>) {
       )}
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{stale ? "유럽중앙은행(ECB) 기준환율 · 일별 갱신" : "실시간"}</span>
+        <span>
+          {stale
+            ? "유럽중앙은행(ECB) 기준환율 · 일별 갱신"
+            : "하나은행 고시환율 · 네이버 금융"}
+        </span>
         <span>갱신: {formatTime(lastUpdated)}</span>
       </div>
     </div>

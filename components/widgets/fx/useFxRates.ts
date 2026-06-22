@@ -16,8 +16,8 @@ import { usePoll } from "@/components/widgets/shared/usePoll";
 import { fxDirectionFromPct, type FxDirection } from "./format";
 import { fxUnit, foreignCurrencies, type FxConfig } from "./types";
 
-/** Poll cadence for FX (rates are daily; 60s keeps the badge/time fresh). */
-export const FX_REFRESH_MS = 60_000;
+/** Poll cadence for FX. 네이버 고시환율은 장중 수시 갱신되므로 3분 주기면 충분하다. */
+export const FX_REFRESH_MS = 180_000;
 
 export interface FxRow {
   /** Foreign currency code (e.g. "USD", "JPY"). */

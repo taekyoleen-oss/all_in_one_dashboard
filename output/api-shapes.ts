@@ -186,7 +186,7 @@ export const FxRatesSchema = z.object({
    */
   changePct: z.record(z.string(), z.number()).optional(),
   date: z.string(),
-  provider: z.enum(["frankfurter", "fx-api"]),
+  provider: z.enum(["frankfurter", "fx-api", "naver"]),
   stale: z.boolean(),
   ts: z.number().int(),
 });
