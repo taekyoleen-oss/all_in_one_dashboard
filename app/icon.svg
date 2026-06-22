@@ -1,16 +1,14 @@
-<svg width="32" height="32" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="모두의 Dashboard — tkLeen">
-  <!-- tkLeen app icon: Navy 컨테이너(#1B2845) + reversed mark. K의 타일 픽셀
-       구성이 모듈형 대시보드(패널)를 환기한다 — 브랜드 가이드 §2.3 verbatim -->
-  <rect x="0" y="0" width="200" height="200" rx="44" fill="#1B2845"/>
-  <!-- T — Cream(다크 컨테이너용 reversed) -->
-  <rect x="40" y="40" width="80" height="20" fill="#FAFAF7"/>
-  <rect x="60" y="60" width="20" height="40" fill="#FAFAF7"/>
-  <!-- K — Sky Blue(잠금) -->
-  <rect x="60" y="100" width="20" height="60" fill="#4A90C2"/>
-  <rect x="80" y="100" width="20" height="20" fill="#4A90C2"/>
-  <rect x="100" y="80" width="20" height="20" fill="#4A90C2"/>
-  <rect x="120" y="60" width="20" height="20" fill="#4A90C2"/>
-  <rect x="80" y="120" width="20" height="20" fill="#4A90C2"/>
-  <rect x="100" y="140" width="20" height="20" fill="#4A90C2"/>
-  <rect x="120" y="160" width="20" height="20" fill="#4A90C2"/>
-</svg>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="모두의 Dashboard — tkLeen"><rect width="1024" height="1024" rx="230" fill="#1B2845"/><rect x="252" y="252" width="230" height="230" rx="44" fill="#FAFAF7"/>
+<circle cx="367" cy="367" r="60" fill="none" stroke="#DBE3EE" stroke-width="26"/>
+<path d="M 367 307 A 60 60 0 1 1 307 367" fill="none" stroke="#4A90C2" stroke-width="26" stroke-linecap="round"/>
+<rect x="542" y="252" width="230" height="230" rx="44" fill="#4A90C2"/>
+<rect x="588" y="372" width="36" height="60" rx="12" fill="#FFFFFF"/>
+<rect x="641" y="332" width="36" height="100" rx="12" fill="#FFFFFF"/>
+<rect x="694" y="300" width="36" height="132" rx="12" fill="#FFFFFF"/>
+<rect x="252" y="542" width="230" height="230" rx="44" fill="#FAFAF7"/>
+<rect x="300" y="602" width="134" height="22" rx="11" fill="#1B2845"/>
+<rect x="300" y="648" width="96" height="22" rx="11" fill="#CBD5E1"/>
+<rect x="300" y="694" width="116" height="22" rx="11" fill="#4A90C2"/>
+<rect x="542" y="542" width="230" height="230" rx="44" fill="#FAFAF7"/>
+<polyline points="584,714 636,658 690,686 732,598" fill="none" stroke="#4A90C2" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="732" cy="598" r="15" fill="#1B2845"/></svg>
