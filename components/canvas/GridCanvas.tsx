@@ -46,6 +46,7 @@ import { usePersistedTitle } from "@/lib/utils/widgetTitle";
 import {
   readMobileLayout,
   writeMobileLayout,
+  removeMobileLayout,
   type StoredLayout,
 } from "@/lib/utils/mobileLayout";
 
@@ -118,6 +119,14 @@ export interface GridCanvasProps {
    * own arrangement without clobbering the desktop (lg) layout.
    */
   storageKey?: string;
+  /**
+   * 재정렬 signal. CanvasShell increments this when the user taps 재정렬. On lg the
+   * shell compacts the persisted layout directly; here we ALSO clear the active
+   * mobile/tablet (md/sm) device-local layout so it re-derives a tidy flow-pack —
+   * otherwise a stored phone arrangement would ignore the re-pack and 재정렬 would
+   * appear to do nothing on mobile.
+   */
+  compactNonce?: number;
 }
 
 /* --------------------------------- config --------------------------------- */
@@ -627,6 +636,7 @@ export function GridCanvas({
   onFocusInstance,
   onTransferInstance,
   storageKey = "",
+  compactNonce,
 }: GridCanvasProps) {
   const { width, containerRef, mounted } = useContainerWidth({
     initialWidth: 1280,
@@ -662,6 +672,20 @@ export function GridCanvas({
       sm: readMobileLayout(storageKey, "sm"),
     });
   }, [storageKey]);
+
+  // 재정렬(모바일/태블릿): compactNonce가 바뀌면 현재 mobile breakpoint의 기기-로컬
+  // 레이아웃을 비워, 저장된 배치 대신 새 flow-pack(가까이 정돈)으로 다시 파생되게 한다.
+  // lg는 셸이 영속 레이아웃을 직접 컴팩트하므로 여기선 건드리지 않는다.
+  const compactNonceRef = React.useRef(compactNonce);
+  React.useEffect(() => {
+    if (compactNonce === compactNonceRef.current) return;
+    compactNonceRef.current = compactNonce;
+    const bp = activeBpRef.current;
+    if (bp === "md" || bp === "sm") {
+      removeMobileLayout(storageKey, bp);
+      setDeviceLayouts((prev) => ({ ...prev, [bp]: null }));
+    }
+  }, [compactNonce, storageKey]);
 
   // Snapshot a breakpoint's RGL layout into localStorage (per board+bp). Guarded
   // against RGL's transient/incomplete emissions: only persist when every current

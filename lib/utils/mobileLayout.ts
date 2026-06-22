@@ -63,3 +63,17 @@ export function writeMobileLayout(
     /* quota / private mode — fall back to derived layout silently. */
   }
 }
+
+/**
+ * Drop a board+breakpoint's device-local layout (best-effort). After this the
+ * breakpoint falls back to the freshly DERIVED flow layout — used by 재정렬 on
+ * mobile/tablet to re-pack tiles tidily (the mobile analog of lg compaction).
+ */
+export function removeMobileLayout(boardId: string, bp: string): void {
+  if (typeof window === "undefined" || !boardId) return;
+  try {
+    window.localStorage.removeItem(key(boardId, bp));
+  } catch {
+    /* private mode — ignore. */
+  }
+}

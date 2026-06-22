@@ -157,6 +157,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
   const [theme, setTheme] = usePersistedTheme();
   // Desktop palette collapsed flag — persisted in localStorage (SSR-safe hook).
   const [paletteCollapsed, setCollapsed] = usePaletteCollapsed();
+  // 재정렬 신호: 모바일/태블릿에서 GridCanvas가 기기-로컬 배치를 비우고 재파생하도록.
+  const [compactNonce, setCompactNonce] = React.useState(0);
 
   // Overlay ids edited/focused: track WHICH instance each overlay targets.
   const [focusId, setFocusId] = React.useState<string | null>(null);
@@ -268,7 +270,10 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
   );
 
   const compactActiveBoard = React.useCallback(() => {
+    // lg: 영속 레이아웃을 컴팩트. 동시에 nonce를 올려 모바일/태블릿(md/sm)에서는
+    // 기기-로컬 배치를 비우고 재파생(정돈)하게 한다(모바일 재정렬 동작).
     compactActive(compactLayout);
+    setCompactNonce((n) => n + 1);
   }, [compactActive]);
 
   /* ----- render-prop: per-instance widget menu in the frame header ----- */
@@ -388,6 +393,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               onFocusInstance={openFocus}
               onTransferInstance={transferInstanceToBoard}
               storageKey={activeId}
+              compactNonce={compactNonce}
             />
           )}
         </section>

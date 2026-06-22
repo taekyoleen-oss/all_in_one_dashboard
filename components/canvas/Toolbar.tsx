@@ -81,14 +81,18 @@ export function Toolbar({
             <Sparkles size={16} />
           </IconButton>
 
-          <IconButton
-            label={paletteCollapsed ? "팔레트 보이기" : "팔레트 숨기기"}
-            active={!paletteCollapsed}
-            onClick={onTogglePalette}
-            className="hidden lg:inline-flex"
-          >
-            <PanelLeft size={16} />
-          </IconButton>
+          {/* 데스크톱(lg+) 전용 — 모바일/태블릿은 팔레트 FAB을 쓴다. IconButton의
+              base `inline-flex`가 `hidden`을 이겨 모바일에서 토글이 새던 문제가 있어,
+              디스플레이 충돌이 없는 span으로 감싸 가시성을 제어한다(lg:contents). */}
+          <span className="hidden lg:contents">
+            <IconButton
+              label={paletteCollapsed ? "팔레트 보이기" : "팔레트 숨기기"}
+              active={!paletteCollapsed}
+              onClick={onTogglePalette}
+            >
+              <PanelLeft size={16} />
+            </IconButton>
+          </span>
 
           <IconButton
             label={theme === "dark" ? "라이트 모드" : "다크 모드"}

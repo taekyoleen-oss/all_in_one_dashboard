@@ -46,6 +46,7 @@ import { cardUsageWidget } from "./card-usage";
 import { calendarWidget } from "./calendar";
 import { clipboardWidget } from "./clipboard";
 import { outfitWidget } from "./outfit";
+import { upcomingWidget } from "./upcoming";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -76,6 +77,7 @@ const DEFINITIONS: WidgetDefinition[] = [
   // ── Extra utilities ──────────────────────────────────────
   clipboardWidget as WidgetDefinition,
   outfitWidget as WidgetDefinition,
+  upcomingWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */
