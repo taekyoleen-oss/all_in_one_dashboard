@@ -28,13 +28,10 @@ import {
 export function ContactsCompactView({
   config,
   instanceId,
-  density,
 }: CompactViewProps<ContactsConfig>) {
   const favorites = config.contacts.filter((c) => c.favorite);
+  // 전체를 렌더하고 넘치면 스크롤로 본다(잘라내지 않음).
   const list = favorites.length > 0 ? favorites : config.contacts;
-  const maxRows = density === "compact" ? 3 : density === "cozy" ? 5 : 8;
-  const shown = list.slice(0, maxRows);
-  const hidden = list.length - shown.length;
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
@@ -47,7 +44,7 @@ export function ContactsCompactView({
               즐겨찾기 연락처 없음 — 전체 목록
             </li>
           ) : null}
-          {shown.map((c) => (
+          {list.map((c) => (
             <li key={c.id} className="flex items-center gap-2">
               <span
                 aria-hidden
@@ -78,9 +75,6 @@ export function ContactsCompactView({
               ) : null}
             </li>
           ))}
-          {hidden > 0 ? (
-            <li className="text-xs text-muted-foreground">+{hidden}명 더</li>
-          ) : null}
         </ul>
       )}
 

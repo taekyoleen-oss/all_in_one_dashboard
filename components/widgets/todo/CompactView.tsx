@@ -21,13 +21,8 @@ import { computeProgress, type TodoConfig } from "./types";
 export function TodoCompactView({
   config,
   instanceId,
-  density,
 }: CompactViewProps<TodoConfig>) {
   const progress = computeProgress(config.items);
-  // Taller/wider tiles show more rows; compact shows fewer.
-  const maxRows = density === "compact" ? 3 : density === "cozy" ? 6 : 10;
-  const shown = config.items.slice(0, maxRows);
-  const hidden = config.items.length - shown.length;
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
@@ -59,7 +54,7 @@ export function TodoCompactView({
         <p className="text-sm text-muted-foreground">할 일이 없습니다.</p>
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-scroll">
-          {shown.map((it) => (
+          {config.items.map((it) => (
             <li key={it.id} className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -81,9 +76,6 @@ export function TodoCompactView({
               </span>
             </li>
           ))}
-          {hidden > 0 ? (
-            <li className="text-xs text-muted-foreground">+{hidden}개 더</li>
-          ) : null}
         </ul>
       )}
 

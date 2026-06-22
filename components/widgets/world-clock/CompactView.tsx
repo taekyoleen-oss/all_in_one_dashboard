@@ -34,7 +34,9 @@ export function WorldClockCompactView({
       {config.zones.length === 0 ? (
         <p className="text-sm text-muted-foreground">시간대가 없습니다.</p>
       ) : (
-        <ul className="flex min-h-0 flex-1 flex-col justify-center gap-1.5 overflow-y-auto pb-scroll">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-scroll">
+          {/* my-auto: 항목이 적으면 세로 가운데, 넘치면 위에서부터 스크롤(잘림 없음). */}
+          <ul className="my-auto flex flex-col gap-1.5">
           {config.zones.map((z) => {
             const r = formatZone(now, z.timeZone, config);
             return (
@@ -64,7 +66,8 @@ export function WorldClockCompactView({
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </div>
       )}
 
       <WorldClockQuickAdd config={config} instanceId={instanceId} />

@@ -51,6 +51,7 @@ import {
   writeCachedSecret,
   CACHE_KEY,
 } from "./tokenStore";
+import { fetchFallbackQuotes } from "./fallbackClient";
 
 const KIS_BASE = "https://openapi.koreainvestment.com:9443";
 const TOKEN_URL = `${KIS_BASE}/oauth2/tokenP`;
@@ -268,28 +269,33 @@ async function getQuotesImpl(
     return { quotes: [], errors: [...symbols] };
   }
 
-  const settled = await Promise.all(
-    symbols.map(async (symbol) => {
-      try {
-        if (isKrIndex(symbol)) {
-          const code = KR_INDEX_CODE[symbol];
-          return { symbol, q: code ? await fetchIndex(symbol, code, token) : null };
-        }
-        if (isUsIndex(symbol)) {
-          // VERIFY(kis): KIS exposes overseas indices via a different (해외) API
-          // surface. Until wired, US indices resolve via the fallback path.
+  // US (해외) indices have no domestic KIS quote — delegate them to the keyless
+  // Yahoo fallback so 다우·S&P·나스닥 show their latest/final value even on KIS.
+  const usIndices = symbols.filter((s) => isUsIndex(s));
+  const kisSymbols = symbols.filter((s) => !isUsIndex(s));
+
+  const [settled, usResult] = await Promise.all([
+    Promise.all(
+      kisSymbols.map(async (symbol) => {
+        try {
+          if (isKrIndex(symbol)) {
+            const code = KR_INDEX_CODE[symbol];
+            return { symbol, q: code ? await fetchIndex(symbol, code, token) : null };
+          }
+          const code = krCode(symbol);
+          return { symbol, q: code ? await fetchStock(symbol, code, token) : null };
+        } catch {
           return { symbol, q: null };
         }
-        const code = krCode(symbol);
-        return { symbol, q: code ? await fetchStock(symbol, code, token) : null };
-      } catch {
-        return { symbol, q: null };
-      }
-    }),
-  );
+      }),
+    ),
+    usIndices.length > 0
+      ? fetchFallbackQuotes(usIndices)
+      : Promise.resolve({ quotes: [] as StockQuote[], errors: [] as StockSymbol[] }),
+  ]);
 
-  const quotes: StockQuote[] = [];
-  const errors: StockSymbol[] = [];
+  const quotes: StockQuote[] = [...usResult.quotes];
+  const errors: StockSymbol[] = [...usResult.errors];
   for (const { symbol, q } of settled) {
     if (q) quotes.push(q);
     else errors.push(symbol);

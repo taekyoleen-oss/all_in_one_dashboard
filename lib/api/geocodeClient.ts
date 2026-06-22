@@ -7,8 +7,10 @@
  *  candidate locations with coordinates, so the weather widget can be pinned to a
  *  precise spot — not just a curated city.
  *
- *    • PRIMARY  : Kakao Local (keyword + address) when `KAKAO_REST_API_KEY` is set.
- *      Best for Korean POIs incl. 골프장 and 동-level addresses. Server-only key.
+ *    • PRIMARY  : Kakao Local (keyword + address) when a Kakao key is set —
+ *      `KAKAO_LOCAL_API_KEY` (preferred) or `KAKAO_REST_API_KEY` (legacy). Both
+ *      are the same Kakao Developers REST API 키. Best for Korean POIs incl. 골프장
+ *      and 동-level addresses. Server-only key.
  *    • FALLBACK : Nominatim (OpenStreetMap) — keyless, works today. Decent KR
  *      coverage incl. many golf courses; requires a descriptive User-Agent and
  *      light usage (this is a single-user personal app).
@@ -28,9 +30,21 @@ export interface GeoResult {
   lon: number;
 }
 
+/**
+ * The configured Kakao REST API 키, reading `KAKAO_LOCAL_API_KEY` first and
+ * falling back to the legacy `KAKAO_REST_API_KEY`. Returns "" when neither set.
+ */
+function kakaoKey(): string {
+  return (
+    process.env.KAKAO_LOCAL_API_KEY?.trim() ||
+    process.env.KAKAO_REST_API_KEY?.trim() ||
+    ""
+  );
+}
+
 /** True iff a Kakao REST key is configured (enables the richer KR provider). */
 export function hasKakaoKey(): boolean {
-  return Boolean(process.env.KAKAO_REST_API_KEY?.trim());
+  return Boolean(kakaoKey());
 }
 
 async function fetchJson(
@@ -75,7 +89,7 @@ function kakaoDocToResult(d: KakaoDoc): GeoResult | null {
 }
 
 async function searchKakao(query: string, limit: number): Promise<GeoResult[]> {
-  const key = process.env.KAKAO_REST_API_KEY?.trim();
+  const key = kakaoKey();
   if (!key) return [];
   const headers = { Authorization: `KakaoAK ${key}` };
   const enc = encodeURIComponent(query);
