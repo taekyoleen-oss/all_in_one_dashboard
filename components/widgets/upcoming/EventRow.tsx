@@ -20,7 +20,8 @@ export function EventRow({
 }) {
   const big = size === "expanded";
   const subtitle = eventSubtitle(readout.event);
-  const accent = "text-orange-500";
+  // 날짜 색: 주말(토·일) 빨강 / 평일 파랑.
+  const dateColor = readout.isWeekend ? "text-red-500" : "text-blue-500";
 
   return (
     <li
@@ -29,16 +30,16 @@ export function EventRow({
         big ? "px-4 py-3" : "px-3 py-2.5",
       ].join(" ")}
     >
-      {/* 왼쪽: 요일 + 날짜 숫자 */}
+      {/* 왼쪽: 요일 + 날짜 숫자 (주말 빨강 / 평일 파랑) */}
       <div className="flex w-9 shrink-0 flex-col items-center leading-none">
-        <span className={["text-[11px] font-medium", accent].join(" ")}>
+        <span className={["text-[11px] font-medium", dateColor].join(" ")}>
           {readout.weekday}
         </span>
         <span
           className={[
             "font-bold tabular-nums",
             big ? "text-2xl" : "text-xl",
-            accent,
+            dateColor,
           ].join(" ")}
         >
           {readout.day}

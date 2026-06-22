@@ -11,6 +11,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
+import { suggestTimeFromTitle } from "./compute";
 import { QUICK_EMOJIS, type ScheduleEvent, type UpcomingConfig } from "./types";
 
 function newEventId(): string {
@@ -30,6 +31,17 @@ export function UpcomingConfigEditor({
 
   const patch = (id: string, fields: Partial<ScheduleEvent>) =>
     setEvents(config.events.map((e) => (e.id === id ? { ...e, ...fields } : e)));
+
+  // 제목 변경 시: 종일이 아니고 시간이 비어 있으면 키워드(점심/아침/저녁)로 시간 자동 채움.
+  // 사용자가 이미 시간을 넣었으면 덮어쓰지 않는다.
+  const patchTitle = (e: ScheduleEvent, title: string) => {
+    const fields: Partial<ScheduleEvent> = { title };
+    if (!e.allDay && !e.time) {
+      const suggested = suggestTimeFromTitle(title);
+      if (suggested) fields.time = suggested;
+    }
+    patch(e.id, fields);
+  };
 
   const remove = (id: string) =>
     setEvents(config.events.filter((e) => e.id !== id));
@@ -75,8 +87,8 @@ export function UpcomingConfigEditor({
               />
               <input
                 value={e.title}
-                onChange={(ev) => patch(e.id, { title: ev.target.value })}
-                placeholder="제목 (예: 주말 등산크루)"
+                onChange={(ev) => patchTitle(e, ev.target.value)}
+                placeholder="제목 (예: 점심 약속)"
                 className={`${inputClass} flex-1`}
               />
               <button
@@ -107,7 +119,7 @@ export function UpcomingConfigEditor({
               </button>
             </div>
 
-            {/* 2줄: 날짜 + 시간(선택) + 장소(선택) */}
+            {/* 2줄: 날짜 + 종일 + 시간(선택) + 장소(선택) */}
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="date"
@@ -116,12 +128,28 @@ export function UpcomingConfigEditor({
                 aria-label="날짜"
                 className={inputClass}
               />
+              <label className="flex items-center gap-1.5 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={!!e.allDay}
+                  onChange={(ev) =>
+                    patch(e.id, {
+                      allDay: ev.target.checked,
+                      // 종일을 켜면 시간은 비운다.
+                      ...(ev.target.checked ? { time: "" } : {}),
+                    })
+                  }
+                  className="size-4 accent-[var(--primary)]"
+                />
+                종일
+              </label>
               <input
                 type="time"
                 value={e.time ?? ""}
+                disabled={!!e.allDay}
                 onChange={(ev) => patch(e.id, { time: ev.target.value })}
                 aria-label="시간 (선택)"
-                className={inputClass}
+                className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-40`}
               />
               <input
                 value={e.place ?? ""}

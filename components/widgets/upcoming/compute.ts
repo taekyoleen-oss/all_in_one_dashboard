@@ -28,8 +28,21 @@ export interface EventReadout {
   weekday: string;
   /** 날짜 숫자(1~31). */
   day: number;
+  /** 주말(토·일) 여부 — 날짜 색(주말 빨강 / 평일 파랑)에 사용. */
+  isWeekend: boolean;
   /** "오전 9시" / "오후 3시 30분" — 시간이 없거나 형식이 틀리면 null. */
   timeText: string | null;
+}
+
+/**
+ * 제목 키워드로 기본 시간을 제안한다(입력 편의). 점심→12:00, 저녁→18:00, 아침→09:00.
+ * 매칭이 없으면 null. ConfigEditor에서 시간이 비어 있을 때만 자동 채움.
+ */
+export function suggestTimeFromTitle(title: string): string | null {
+  if (title.includes("점심")) return "12:00";
+  if (title.includes("저녁")) return "18:00";
+  if (title.includes("아침")) return "09:00";
+  return null;
 }
 
 /** "09:00" → "오전 9시", "15:30" → "오후 3시 30분". 형식이 아니면 null. */
@@ -47,9 +60,13 @@ export function formatKoreanTime(time: string | undefined): string | null {
   return min === 0 ? `${period} ${h12}시` : `${period} ${h12}시 ${min}분`;
 }
 
-/** "오전 9시 · 북한산 우이역" — 시간/장소 중 있는 것만 ' · '로 연결(없으면 null). */
+/**
+ * "오전 9시 · 북한산 우이역" — 시간(또는 종일)/장소 중 있는 것만 ' · '로 연결.
+ * 종일이면 시간 자리에 "종일"을 쓴다. 모두 없으면 null.
+ */
 export function eventSubtitle(event: ScheduleEvent): string | null {
-  const parts = [formatKoreanTime(event.time), event.place?.trim() || null].filter(
+  const timeLabel = event.allDay ? "종일" : formatKoreanTime(event.time);
+  const parts = [timeLabel, event.place?.trim() || null].filter(
     (p): p is string => !!p,
   );
   return parts.length > 0 ? parts.join(" · ") : null;
@@ -61,13 +78,15 @@ function readEvent(event: ScheduleEvent, today: Date): EventReadout | null {
   if (!isValid(parsed)) return null;
   const target = startOfDay(parsed);
   const days = differenceInCalendarDays(target, today);
+  const dow = target.getDay();
   return {
     event,
     days,
     ddayLabel: days === 0 ? "D-DAY" : `D-${days}`,
     isToday: days === 0,
-    weekday: WEEKDAY_KO[target.getDay()],
+    weekday: WEEKDAY_KO[dow],
     day: target.getDate(),
+    isWeekend: dow === 0 || dow === 6,
     timeText: formatKoreanTime(event.time),
   };
 }
@@ -90,8 +109,9 @@ export function upcomingEvents(
   });
   return (readouts as (EventReadout & { _i: number })[]).sort((a, b) => {
     if (a.days !== b.days) return a.days - b.days;
-    const ta = a.event.time ?? "99:99";
-    const tb = b.event.time ?? "99:99";
+    // 같은 날: 종일 먼저("") → 시간순 → 시간없음 마지막("99:99").
+    const ta = a.event.allDay ? "" : a.event.time ?? "99:99";
+    const tb = b.event.allDay ? "" : b.event.time ?? "99:99";
     if (ta !== tb) return ta < tb ? -1 : 1;
     return a._i - b._i;
   });

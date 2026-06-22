@@ -19,6 +19,8 @@ export interface ScheduleEvent {
   place?: string;
   /** 이모지 한 글자 (선택). 예: "🥾". */
   emoji?: string;
+  /** 종일 일정 여부 (선택). true면 시간 대신 "종일"로 표시하고 time은 무시한다. */
+  allDay?: boolean;
 }
 
 export interface UpcomingConfig {
