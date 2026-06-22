@@ -13,15 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "개인 Dashboard",
-  description: "tkLeen · 개인 모듈형 캔버스 대시보드",
-  applicationName: "개인 Dashboard",
+  title: "모두의 Dashboard",
+  description: "tkLeen · 모두의 모듈형 캔버스 대시보드",
+  applicationName: "모두의 Dashboard",
   // Icons + manifest are wired automatically via app/icon.svg, app/apple-icon.tsx
   // and app/manifest.ts (file conventions). appleWebApp makes the iOS home-screen
   // launch open standalone (no Safari chrome) with the app name.
   appleWebApp: {
     capable: true,
-    title: "개인 Dashboard",
+    title: "모두의 Dashboard",
     statusBarStyle: "black-translucent",
   },
 };

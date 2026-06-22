@@ -5,7 +5,7 @@
  *  WidgetPalette — available widget types (설계서 §3 팔레트, §6.2 반응형)
  * ============================================================================
  *
- *  Desktop (≥768): a FLOATING, MOVABLE overlay panel (position: fixed, high
+ *  Desktop (≥1024 / lg): a FLOATING, MOVABLE overlay panel (position: fixed, high
  *  z-index). It is rendered OUTSIDE the document flow, so opening/closing/moving
  *  it NEVER changes the canvas container width — the GridCanvas stays full-width
  *  and stable, so placed widgets never shift (issue ⑧/①). The panel:
@@ -13,7 +13,11 @@
  *    • drags by its header (pointer drag, clamped to the viewport);
  *    • persists its open state + position in localStorage (survives reloads).
  *
- *  Mobile  (<768): a bottom SHEET opened by a floating `+` FAB. The sheet uses
+ *  Touch (<1024 / phone·tablet): a bottom SHEET opened by a floating `+` FAB. This
+ *  boundary matches the canvas's own touch/desktop breakpoint (GridCanvas lg=1024)
+ *  so tablets and phones-in-landscape get the always-visible FAB instead of the
+ *  collapse-able desktop panel — whose only reopen affordance (bottom-left) sits
+ *  under the AccountMenu and would otherwise be unreachable. The sheet uses
  *  the shared Back-Stack guard (useBackStack) keyed `palette:sheet`, so Android /
  *  PWA Back closes the sheet instead of the app (§6.3). Unchanged.
  *
@@ -246,7 +250,7 @@ export function WidgetPalette({
 
   return (
     <>
-      {/* ---------- Desktop: floating, movable overlay panel (≥768) ---------- */}
+      {/* ---------- Desktop: floating, movable overlay panel (≥1024) ---------- */}
       {/* Rendered OUTSIDE document flow ⇒ canvas width is unaffected by it. */}
       {!collapsed && (
         <aside
@@ -254,7 +258,7 @@ export function WidgetPalette({
           aria-label="위젯 팔레트"
           style={{ left: position.x, top: position.y, width: PANEL_WIDTH }}
           className={[
-            "hidden md:flex md:flex-col",
+            "hidden lg:flex lg:flex-col",
             "fixed z-40 max-h-[min(70dvh,32rem)]",
             "rounded-[var(--radius)] border border-border bg-card text-card-foreground",
             "shadow-2xl ring-1 ring-black/5",
@@ -305,7 +309,7 @@ export function WidgetPalette({
           aria-label="위젯 팔레트 열기"
           onClick={() => onCollapsedChange(false)}
           className={[
-            "hidden md:inline-flex fixed bottom-5 left-5 z-40 size-11 items-center justify-center",
+            "hidden lg:inline-flex fixed bottom-5 right-5 z-40 size-11 items-center justify-center",
             "rounded-full border border-border bg-card text-card-foreground shadow-lg outline-none",
             "transition-transform hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring active:scale-95",
           ].join(" ")}
@@ -314,13 +318,13 @@ export function WidgetPalette({
         </button>
       )}
 
-      {/* ---------- Mobile: FAB + bottom sheet (<768) ---------- */}
+      {/* ---------- Touch: FAB + bottom sheet (<1024) ---------- */}
       <button
         type="button"
         aria-label="위젯 추가"
         onClick={() => openOverlay(SHEET_ID)}
         className={[
-          "md:hidden fixed bottom-5 right-5 z-40 flex size-14 items-center justify-center",
+          "lg:hidden fixed bottom-5 right-5 z-40 flex size-14 items-center justify-center",
           "rounded-full bg-primary text-primary-foreground shadow-lg outline-none",
           "transition-transform focus-visible:ring-2 focus-visible:ring-ring active:scale-95",
         ].join(" ")}
@@ -329,7 +333,7 @@ export function WidgetPalette({
       </button>
 
       {sheetOpen && (
-        <div className="md:hidden fixed inset-0 z-50">
+        <div className="lg:hidden fixed inset-0 z-50">
           {/* Scrim — tap closes the top overlay (the sheet). */}
           <button
             type="button"

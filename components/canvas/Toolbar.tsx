@@ -85,7 +85,7 @@ export function Toolbar({
             label={paletteCollapsed ? "팔레트 보이기" : "팔레트 숨기기"}
             active={!paletteCollapsed}
             onClick={onTogglePalette}
-            className="hidden md:inline-flex"
+            className="hidden lg:inline-flex"
           >
             <PanelLeft size={16} />
           </IconButton>

@@ -8,9 +8,9 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "개인 Dashboard",
-    short_name: "개인 Dashboard",
-    description: "tkLeen · 개인 모듈형 캔버스 대시보드",
+    name: "모두의 Dashboard",
+    short_name: "모두의 Dashboard",
+    description: "tkLeen · 모두의 모듈형 캔버스 대시보드",
     start_url: "/",
     display: "standalone",
     // tkLeen 브랜드 Deep Navy(#1B2845) — 앱 아이콘 컨테이너 색과 통일

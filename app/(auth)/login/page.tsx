@@ -100,7 +100,7 @@ function LoginCard() {
             <BrandMark height={26} />
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            개인 Dashboard
+            모두의 Dashboard
           </h1>
           <p className="text-sm text-muted-foreground">
             {mode === "login"

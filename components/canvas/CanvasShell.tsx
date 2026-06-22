@@ -318,7 +318,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
           <div className="flex shrink-0 items-center gap-2">
             <BrandMark height={24} className="text-foreground" />
             <h1 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
-              개인 Dashboard
+              모두의 Dashboard
             </h1>
           </div>
           <div className="min-w-0 flex-1">
