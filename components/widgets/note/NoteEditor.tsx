@@ -18,6 +18,7 @@ import * as React from "react";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { Toolbar } from "./Toolbar";
 import { Attachments } from "./Attachments";
+import { ImageResizer } from "./ImageResizer";
 import { sanitizeHtml } from "./sanitize";
 import { imageToDataUrl } from "./media";
 import * as RT from "./richText";
@@ -49,6 +50,7 @@ export function NoteEditor({
 }) {
   const save = useSaveWidgetConfig();
   const editorRef = React.useRef<HTMLDivElement | null>(null);
+  const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const imageInputRef = React.useRef<HTMLInputElement | null>(null);
   const configRef = React.useRef(config);
   configRef.current = config;
@@ -174,35 +176,42 @@ export function NoteEditor({
         onPickImage={() => imageInputRef.current?.click()}
       />
 
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-multiline="true"
-        aria-label="노트 본문"
-        spellCheck
-        data-pb-no-drag=""
-        onInput={() => {
-          persist(true);
-          refresh();
-        }}
-        onBlur={() => persist(false)}
-        onKeyUp={refresh}
-        onMouseUp={refresh}
-        onPaste={onPaste}
-        onDrop={onDrop}
-        onDragOver={(e) => {
-          if (Array.from(e.dataTransfer?.items ?? []).some((i) => i.kind === "file"))
-            e.preventDefault();
-        }}
-        className={[
-          "min-h-40 flex-1 overflow-y-auto pb-scroll rounded-md border border-border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground [&:empty]:before:italic",
-          NOTE_PROSE_CLASS,
-        ].join(" ")}
-        data-placeholder="여기에 강의 내용을 기록하세요… (붙여넣기·이미지·표 지원)"
-      />
+      <div ref={wrapperRef} className="relative min-h-40 flex-1">
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          role="textbox"
+          aria-multiline="true"
+          aria-label="노트 본문"
+          spellCheck
+          data-pb-no-drag=""
+          onInput={() => {
+            persist(true);
+            refresh();
+          }}
+          onBlur={() => persist(false)}
+          onKeyUp={refresh}
+          onMouseUp={refresh}
+          onPaste={onPaste}
+          onDrop={onDrop}
+          onDragOver={(e) => {
+            if (Array.from(e.dataTransfer?.items ?? []).some((i) => i.kind === "file"))
+              e.preventDefault();
+          }}
+          className={[
+            "h-full w-full overflow-y-auto pb-scroll rounded-md border border-border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground [&:empty]:before:italic",
+            NOTE_PROSE_CLASS,
+          ].join(" ")}
+          data-placeholder="여기에 강의 내용을 기록하세요… (붙여넣기·이미지·표·이미지 크기조절 지원)"
+        />
+        <ImageResizer
+          editorRef={editorRef}
+          containerRef={wrapperRef}
+          onChange={() => persist(false)}
+        />
+      </div>
 
       <input
         ref={imageInputRef}
