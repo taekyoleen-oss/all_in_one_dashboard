@@ -24,8 +24,15 @@ import {
   computeTotals,
   formatMoney,
 } from "./compute";
-import { CURRENCY_SYMBOL } from "./types";
-import type { SubscriptionsConfig } from "./types";
+import { CURRENCY_SYMBOL, CYCLE_LABEL } from "./types";
+import type {
+  SubscriptionsConfig,
+  SubCurrency,
+  BillingCycle,
+} from "./types";
+
+const CURRENCIES: SubCurrency[] = ["KRW", "USD", "EUR", "JPY"];
+const CYCLES: BillingCycle[] = ["weekly", "monthly", "yearly"];
 
 function dueBadge(daysUntil: number): { text: string; cls: string } {
   if (daysUntil <= 0) return { text: "오늘", cls: "text-positive" };
@@ -99,10 +106,14 @@ function SubQuickAdd({
   const save = useSaveWidgetConfig();
   const [name, setName] = React.useState("");
   const [amount, setAmount] = React.useState("");
+  const [currency, setCurrency] = React.useState<SubCurrency>(config.baseCurrency);
+  const [cycle, setCycle] = React.useState<BillingCycle>("monthly");
+  const [date, setDate] = React.useState(() => format(new Date(), "yyyy-MM-dd"));
+
   const add = () => {
     const n = name.trim();
     const a = Number(amount);
-    if (!n || !Number.isFinite(a) || a <= 0) return;
+    if (!n || !Number.isFinite(a) || a <= 0 || !date) return;
     save(instanceId, {
       ...config,
       entries: [
@@ -111,17 +122,19 @@ function SubQuickAdd({
           id: newItemId("sub"),
           name: n,
           amount: a,
-          currency: config.baseCurrency,
-          cycle: "monthly" as const,
-          anchorDate: format(new Date(), "yyyy-MM-dd"),
+          currency,
+          cycle,
+          anchorDate: date,
           category: "",
           active: true,
         },
       ],
     });
+    // Keep the cycle/currency/date for quick consecutive adds; clear name/amount.
     setName("");
     setAmount("");
   };
+
   return (
     <QuickAdd label="구독 추가">
       {() => (
@@ -130,25 +143,66 @@ function SubQuickAdd({
             e.preventDefault();
             add();
           }}
-          className="flex items-center gap-1.5"
+          className="flex flex-col gap-1.5"
         >
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="이름"
-            className={`${quickInputClass} min-w-0 flex-1`}
-          />
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
-            placeholder="월 금액"
-            className={`${quickInputClass} w-20`}
-          />
-          <button type="submit" disabled={!name.trim() || !amount} className={quickBtnClass}>
-            추가
-          </button>
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="이름"
+              className={`${quickInputClass} min-w-0 flex-1`}
+            />
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              placeholder="금액"
+              className={`${quickInputClass} w-20`}
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={cycle}
+              onChange={(e) => setCycle(e.target.value as BillingCycle)}
+              aria-label="결제 주기"
+              className={`${quickInputClass} flex-1`}
+            >
+              {CYCLES.map((c) => (
+                <option key={c} value={c}>
+                  {CYCLE_LABEL[c]}
+                </option>
+              ))}
+            </select>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as SubCurrency)}
+              aria-label="화폐 단위"
+              className={`${quickInputClass} w-20`}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              aria-label="결제일자"
+              className={`${quickInputClass} min-w-0 flex-1`}
+            />
+            <button
+              type="submit"
+              disabled={!name.trim() || !amount || !date}
+              className={quickBtnClass}
+            >
+              추가
+            </button>
+          </div>
         </form>
       )}
     </QuickAdd>
