@@ -50,6 +50,7 @@ import { useBackStack } from "@/lib/utils/useBackStack";
 import { useClipboard } from "@/lib/utils/clipboard";
 import { createInstance } from "@/lib/utils/grid";
 import { usePersistedTheme } from "@/lib/utils/theme";
+import { usePersistedEditable } from "@/lib/utils/lock";
 import { usePersistence } from "@/lib/persistence/usePersistence";
 import { WidgetPersistenceProvider } from "@/lib/widgets/persistence";
 import type { BoardState } from "@/lib/persistence/types";
@@ -151,7 +152,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     reorderBoards,
   } = persistence;
 
-  const [editable, setEditable] = React.useState(true);
+  // 편집/잠금 상태는 앱을 다시 시작해도 유지(localStorage). 기본=편집 가능.
+  const [editable, setEditable] = usePersistedEditable();
   // Theme persists across reloads (localStorage). data-theme is also set pre-paint
   // by an inline script in app/layout.tsx so there is no flash on load.
   const [theme, setTheme] = usePersistedTheme();
@@ -345,7 +347,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
           <div className="shrink-0">
             <Toolbar
               editable={editable}
-              onToggleEditable={() => setEditable((v) => !v)}
+              onToggleEditable={() => setEditable(!editable)}
               onCompact={compactActiveBoard}
               paletteCollapsed={paletteCollapsed}
               onTogglePalette={() => setCollapsed(!paletteCollapsed)}

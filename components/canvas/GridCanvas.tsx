@@ -152,19 +152,15 @@ const CONTAINER_PADDING: [number, number] = [0, 0];
 /** RGL v2's external-drop placeholder id (must match its internal default). */
 const DROPPING_ITEM_ID = "__dropping-elem__";
 
-// Drag-push (밀기) sensitivity: the dragged tile must be held STILL (pointer
-// within DRAG_PUSH_MOVE_PX) for DRAG_PUSH_DWELL_MS before colliding tiles slide
-// down. Any larger movement re-arms the dwell, so simply moving a tile around
-// never pushes others — only a deliberate pause does (요구: 조금 움직여선 안 밀리고,
-// 좀 더 오래 기다려야 작동).
-const DRAG_PUSH_DWELL_MS = 1200;
-const DRAG_PUSH_MOVE_PX = 8;
+// Drag onto another tile SWAPs their positions (요구: 다른 앱 위로 옮기면 자리 맞바꾸기).
+// The target is the tile under the pointer; on drop the two tiles exchange x/y.
+// Works at every breakpoint (lg → DB layout, md/sm → device-local).
 
 // Free placement is implemented by a per-component compactor (see GridCanvas):
-// type:null + no-op compact keep positions put on resize/zoom/drag. On lg the
-// compactor lets a resized tile grow OVER its neighbors (overlapResizeMode); the
-// 1s-hold / release / "다른 앱 밀기" button then pushes those neighbors down to make
-// room. On md/sm it instead clamps the tile so it can't overlap.
+// type:null + no-op compact keep positions put on resize/zoom/drag. While a tile
+// is resized the compactor lets it grow OVER its neighbors (overlapResizeMode);
+// on release the colliding tiles are pushed down to make room (lg via
+// handleLayoutChange, md/sm via onResizeStop) — at every breakpoint.
 
 /** Map a measured tile pixel-width to a coarse density bucket. */
 function densityForWidth(px: number): Density {
@@ -538,40 +534,70 @@ function hasOverlap(items: CanvasLayoutItem[]): boolean {
 }
 
 /**
- * Push every item that overlaps `anchor` (a virtual rect) straight DOWN, cascading,
- * until nothing overlaps it — while keeping `keepId` (the tile being dragged) put.
- * Used by the drag-dwell (요구: 드래그하여 멈춰있으면 그 공간의 앱 + 연속된 앱들이
- * 아래로 이동). Only y moves (x preserved), so columns stay where the user set them.
+ * Swap the grid POSITIONS (x,y) of two instances in the (lg / DB) layout, keeping
+ * each tile's own size (요구: 다른 앱 위로 옮기면 자리 맞바꾸기). Returns null if either
+ * id is missing. Both tiles' current positions come from the SAME layout, so this
+ * is a clean exchange (the dragged tile hasn't been persisted yet at drop time).
  */
-function pushBelowRect(
+function swapPositions(
   items: CanvasLayoutItem[],
-  anchor: GridRect,
-  keepId: string,
-): CanvasLayoutItem[] {
-  const kept = items.find((i) => i.instanceId === keepId);
-  const movable = items
-    .filter((i) => i.instanceId !== keepId)
-    .sort((a, b) => a.y - b.y || a.x - b.x);
-  const blocks: GridRect[] = [{ ...anchor }];
-  const out: CanvasLayoutItem[] = [];
-  for (const it of movable) {
-    const cur = { ...it };
-    let guard = 0;
-    let moved = true;
-    while (moved && guard < 4000) {
-      moved = false;
-      guard += 1;
-      for (const b of blocks) {
-        if (rectsOverlap(cur, b)) {
-          cur.y = b.y + b.h;
-          moved = true;
-        }
-      }
-    }
-    out.push(cur);
-    blocks.push({ x: cur.x, y: cur.y, w: cur.w, h: cur.h });
-  }
-  return kept ? [kept, ...out] : out;
+  aId: string,
+  bId: string,
+): CanvasLayoutItem[] | null {
+  const a = items.find((i) => i.instanceId === aId);
+  const b = items.find((i) => i.instanceId === bId);
+  if (!a || !b) return null;
+  return items.map((it) =>
+    it.instanceId === aId
+      ? { ...it, x: b.x, y: b.y }
+      : it.instanceId === bId
+        ? { ...it, x: a.x, y: a.y }
+        : it,
+  );
+}
+
+/**
+ * Swap positions inside an RGL `Layout` (md/sm device-local). The dragged tile `aId`
+ * sits at its DROPPED position in `lay`, so its pre-drag slot is passed in as
+ * `aOld`: the target `bId` takes `aOld`, the dragged tile takes the target's slot.
+ */
+function swapInLay(
+  lay: Layout,
+  aId: string,
+  bId: string,
+  aOld: { x: number; y: number } | null,
+): Layout | null {
+  const b = lay.find((it) => it.i === bId);
+  if (!b || !aOld) return null;
+  const bx = b.x;
+  const by = b.y;
+  return lay.map((it) =>
+    it.i === aId
+      ? { ...it, x: bx, y: by }
+      : it.i === bId
+        ? { ...it, x: aOld.x, y: aOld.y }
+        : it,
+  );
+}
+
+/**
+ * Resolve overlaps inside an RGL `Layout` by pushing colliding tiles down, anchored
+ * on `anchorId` (the just-resized tile) — the md/sm counterpart of handleLayoutChange's
+ * lg normalization (요구: 모바일에서도 키우면 다른 앱이 아래로 이동). Idempotent: a
+ * non-overlapping layout is returned unchanged.
+ */
+function resolveLayOverlap(lay: Layout, anchorId: string | null): Layout {
+  if (!anchorId) return lay;
+  const items = lay
+    .filter((it) => it.i !== DROPPING_ITEM_ID)
+    .map((it) => ({ instanceId: it.i, x: it.x, y: it.y, w: it.w, h: it.h }));
+  if (!hasOverlap(items)) return lay;
+  const resolved = pushResolveDown(items, anchorId);
+  const byId = new Map(resolved.map((r) => [r.instanceId, r]));
+  return lay.map((it) => {
+    const r = byId.get(it.i);
+    return r ? { ...it, x: r.x, y: r.y } : it;
+  });
 }
 
 /** Floating "다른 앱 밀기" button anchored to the resized tile's SE corner. */
@@ -785,12 +811,10 @@ export function GridCanvas({
   }, []);
 
   // Free-placement compactor (type:null → no float-up; positions stay put on
-  // resize/zoom/drag). allowOverlap/preventCollision flip per gesture:
-  //  • lg resize (overlapResizeMode): allowOverlap → the tile grows OVER neighbors
-  //    (no clamp). compact records the desired size + whether it overlaps, so the
-  //    1s-hold / release push knows there's room to make.
-  //  • drag + md/sm resize: preventCollision → non-overlapping. compact CLAMPS a
-  //    resized tile (md/sm) so it can't overlap (the clamp shows live).
+  // resize/zoom/drag). While resizing (overlapResizeMode), allowOverlap lets the
+  // tile grow OVER its neighbors at EVERY breakpoint; compact records the desired
+  // size + whether it overlaps so the release push knows there's room to make.
+  // Otherwise (drag, idle) preventCollision keeps placement non-overlapping.
   const compactor = React.useMemo<Compactor>(
     () => ({
       type: null,
@@ -804,29 +828,12 @@ export function GridCanvas({
         const others = lay.filter((l) => l.i !== id);
         // The item arrives here at the RAW dragged size → record it as desired.
         desiredRef.current = { id, x: item.x, y: item.y, w: item.w, h: item.h };
-        if (overlapResizeMode) {
-          // lg: don't clamp — let the tile overlap. Just note whether it does so
-          // onResize/onResizeStop know there's a push to perform.
-          overlapHappenedRef.current = others.some((o) =>
-            rectsOverlap({ x: item.x, y: item.y, w: item.w, h: item.h }, o),
-          );
-          return cloneLayout(lay);
-        }
-        // md/sm: shrink the resized tile so it can't overlap others. Prefer keeping
-        // width (downward growth is the common case): shrink h first, then w.
-        const minW = item.minW ?? 1;
-        const minH = item.minH ?? 1;
-        const fits = (w: number, h: number) =>
-          !others.some((o) => rectsOverlap({ x: item.x, y: item.y, w, h }, o));
-        let h = item.h;
-        while (h > minH && !fits(item.w, h)) h -= 1;
-        let w = item.w;
-        while (w > minW && !fits(w, h)) w -= 1;
-        overlapHappenedRef.current = false;
-        if (w >= item.w && h >= item.h) return cloneLayout(lay);
-        return cloneLayout(
-          lay.map((l) => (l.i === id ? { ...l, w, h } : l)),
+        // Don't clamp — let the tile overlap. Just note whether it does so
+        // onResize/onResizeStop know there's a push to perform.
+        overlapHappenedRef.current = others.some((o) =>
+          rectsOverlap({ x: item.x, y: item.y, w: item.w, h: item.h }, o),
         );
+        return cloneLayout(lay);
       },
     }),
     [overlapResizeMode],
@@ -838,17 +845,18 @@ export function GridCanvas({
       resizingIdRef.current = oldItem?.i ?? null;
       resizeAnchorRef.current = oldItem?.i ?? null;
       overlapHappenedRef.current = false;
-      // lg: let the tile overlap neighbors while resizing (so it can grow over
-      // them); md/sm keep the non-overlapping clamp.
-      setOverlapResizeMode(activeBpRef.current === "lg");
+      // Every breakpoint: let the tile overlap neighbors while resizing so it can
+      // grow over them; on release the overlap is resolved by pushing the others
+      // down (lg → handleLayoutChange, md/sm → onResizeStop).
+      setOverlapResizeMode(true);
     },
     [clearPushPrompt],
   );
 
   const onResizeTick = React.useCallback(() => {
-    // The push affordance operates on the DB (lg) layout, so it only runs on
-    // desktop. On md/sm the compactor CLAMPS (no overlap) and the resize just
-    // commits device-local on release.
+    // The "다른 앱 밀기" hint button anchors to a DB (lg) tile, so it only runs on
+    // desktop. On md/sm the overlap is still resolved on release (onResizeStop),
+    // just without the hint button.
     if (activeBpRef.current !== "lg") return;
     // compact() (run just before this) set overlapHappenedRef + desiredRef. While
     // the grown tile overlaps a neighbor, surface the "다른 앱 밀기" button as an
@@ -869,10 +877,12 @@ export function GridCanvas({
       clearPushPrompt();
       // Turn RGL's overlap allowance back off now the gesture is done.
       setOverlapResizeMode(false);
-      // md/sm: commit the resized arrangement device-local (never the DB lg layout).
+      // md/sm: resolve any overlap (push colliding tiles down, anchored on the
+      // resized tile) then commit device-local (never the DB lg layout) — so a
+      // grown tile pushes its neighbors on mobile too (요구: 모바일에서도 동작).
       const bp = activeBpRef.current;
       if (bp === "md" || bp === "sm") {
-        persistDeviceLayout(bp, lay);
+        persistDeviceLayout(bp, resolveLayOverlap(lay, resizeAnchorRef.current));
         return;
       }
       // lg: RGL now emits the (possibly overlapping) layout via onLayoutChange →
@@ -905,22 +915,18 @@ export function GridCanvas({
   // onResizeTick) always pushes using the current layout/desired state.
   applyPushRef.current = applyPush;
 
-  /* ------------------------ drag-dwell push-down (②) ----------------------- */
-  // 요구: 개별 앱을 드래그하여 어떤 공간 위에서 ~멈춰 있으면~, 그 공간의 앱 + 그 아래로
-  // 연속된 앱들이 아래로 밀려난다. Free placement + preventCollision means the dragged
-  // tile would normally just snap to the nearest gap; instead we read the POINTER's
-  // target cell, and when it's held still over occupied cells, push those tiles
-  // (cascading) down so the dragged tile can land where the user is pointing. Only
-  // on desktop (lg) — the DB layout — where free placement needs this.
+  /* ----------------------- drag-onto-tile SWAP (자리 맞바꾸기) -------------- */
+  // 요구: 개별 앱을 다른 앱 위로 드래그하면 두 앱의 자리를 맞바꾼다. The target tile is
+  // the one under the pointer (rect hit-test, bp-agnostic); on drop the dragged tile
+  // and the target exchange positions (lg → DB layout, md/sm → device-local).
   const dragIdRef = React.useRef<string | null>(null);
-  const dragSizeRef = React.useRef<{ w: number; h: number }>({ w: 1, h: 1 });
-  const dragCellRef = React.useRef<{ x: number; y: number } | null>(null);
-  const dragPushTimerRef = React.useRef<number | null>(null);
-  const applyDragPushRef = React.useRef<() => void>(() => {});
-  // Last pointer position where the push-dwell was (re)armed. Any real movement
-  // past DRAG_PUSH_MOVE_PX re-arms it, so the push fires only after the pointer
-  // has been held still for DRAG_PUSH_DWELL_MS — not while the user is dragging.
-  const dragStillPxRef = React.useRef<{ x: number; y: number } | null>(null);
+  // The dragged tile's pre-drag grid slot (for md/sm, where `lay` already holds its
+  // DROPPED slot — the swap target needs this original slot).
+  const dragOldPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  // The instanceId of the tile currently under the pointer (the swap target), or null.
+  const swapTargetRef = React.useRef<string | null>(null);
+  // Highlighted swap-target element (cleared on tick/stop).
+  const swapHoverElRef = React.useRef<HTMLElement | null>(null);
 
   /* ----------------- drag-onto-tab (다른 탭으로 이동) ---------------------- */
   // While dragging a tile, if the pointer is over a board TAB (data-pb-board-tab),
@@ -931,6 +937,10 @@ export function GridCanvas({
   // Suppresses the ONE handleLayoutChange RGL emits right after a transfer drop, so
   // the dropped (now-removed) tile's stale position can't be written to the source.
   const transferGuardRef = React.useRef(false);
+  // Same one-shot swallow for a SWAP drop (lg): we persist the swapped layout
+  // ourselves in onDragStop, so RGL's trailing "tile at dropped pos" emission must
+  // not overwrite it.
+  const swapGuardRef = React.useRef(false);
 
   const clearTabHover = React.useCallback(() => {
     const cur = hoveredTabRef.current;
@@ -976,171 +986,116 @@ export function GridCanvas({
     [],
   );
 
-  // Map a pointer event to the grid cell the dragged tile's TOP-LEFT should take,
-  // centering the tile under the cursor (matches where the user is aiming).
-  const pointerDragCell = React.useCallback(
-    (e: Event, w: number, h: number): { x: number; y: number } | null => {
-      const gridEl = containerRef.current?.querySelector<HTMLElement>(
-        ".react-grid-layout",
-      );
-      if (!gridEl) return null;
+  // The instanceId of the tile under the pointer (excluding the dragged tile),
+  // by bounding-rect hit-test — robust at every breakpoint even though the dragged
+  // tile sits under the cursor (elementFromPoint would hit IT). This is the swap
+  // target: dropping here exchanges the two tiles' positions.
+  const tileAtPointer = React.useCallback(
+    (e: Event, excludeId: string): string | null => {
+      const root = containerRef.current;
+      if (!root) return null;
       const me = e as MouseEvent & { touches?: TouchList };
       const cx = me.touches?.[0]?.clientX ?? me.clientX;
       const cy = me.touches?.[0]?.clientY ?? me.clientY;
       if (typeof cx !== "number" || typeof cy !== "number") return null;
-      const cols = COLS.lg;
-      const colWidth = (width - MARGIN[0] * (cols - 1)) / cols;
-      const rect = gridEl.getBoundingClientRect();
-      const tileWpx = w * colWidth + (w - 1) * MARGIN[0];
-      // Horizontally center the tile under the cursor; vertically the user grabs
-      // the HEADER (top), so track the cursor's row (offset by ~half a row), which
-      // matches where the dragged tile visually sits.
-      const left = Math.max(0, cx - rect.left - tileWpx / 2);
-      const top = Math.max(0, cy - rect.top - ROW_HEIGHT / 2);
-      const positionParams = {
-        cols,
-        margin: MARGIN,
-        maxRows: Infinity,
-        rowHeight: ROW_HEIGHT,
-        containerWidth: width,
-        containerPadding: CONTAINER_PADDING,
-      } as const;
-      return calcXY(positionParams, top, left, w, h);
+      const tiles = root.querySelectorAll<HTMLElement>("[data-pb-instance]");
+      for (const t of tiles) {
+        const tid = t.getAttribute("data-pb-instance");
+        if (!tid || tid === excludeId) continue;
+        const r = t.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
+          return tid;
+        }
+      }
+      return null;
     },
-    [containerRef, width],
+    [containerRef],
   );
 
-  // Push the occupiers below the held cell (keeps the dragged tile put). Reads the
-  // latest layout via layoutRef so the timer never pushes stale state.
-  const applyDragPush = React.useCallback(() => {
-    const id = dragIdRef.current;
-    const cell = dragCellRef.current;
-    if (!id || !cell) return;
-    const { w, h } = dragSizeRef.current;
-    const anchor: GridRect = {
-      x: Math.min(Math.max(0, cell.x), Math.max(0, COLS.lg - w)),
-      y: Math.max(0, cell.y),
-      w,
-      h,
-    };
-    const next = pushBelowRect(layoutRef.current, anchor, id);
-    onLayoutChange?.(next);
-    dragPushTimerRef.current = null;
-  }, [onLayoutChange]);
-  applyDragPushRef.current = applyDragPush;
+  const clearSwapHover = React.useCallback(() => {
+    const el = swapHoverElRef.current;
+    if (el) {
+      el.style.outline = "";
+      el.style.outlineOffset = "";
+    }
+    swapHoverElRef.current = null;
+  }, []);
+
+  const setSwapHover = React.useCallback(
+    (instanceId: string) => {
+      const el = containerRef.current?.querySelector<HTMLElement>(
+        `[data-pb-instance="${instanceId}"]`,
+      );
+      if (!el || swapHoverElRef.current === el) return;
+      clearSwapHover();
+      el.style.outline = "2px dashed var(--primary)";
+      el.style.outlineOffset = "-2px";
+      swapHoverElRef.current = el;
+    },
+    [clearSwapHover, containerRef],
+  );
 
   const onDragStart = React.useCallback(
     (_lay: Layout, oldItem: LayoutItem | null) => {
       clearPushPrompt();
       clearTabHover();
-      // Track the dragged id at EVERY breakpoint (drag-onto-tab works everywhere);
-      // the drag-push affordance is gated to lg separately, inside onDragTick.
+      clearSwapHover();
+      swapTargetRef.current = null;
+      // Track the dragged id + its pre-drag slot at EVERY breakpoint (swap + the
+      // drag-onto-tab move both work everywhere).
       if (!oldItem) {
         dragIdRef.current = null;
+        dragOldPosRef.current = null;
         return;
       }
       dragIdRef.current = oldItem.i;
-      dragSizeRef.current = { w: oldItem.w, h: oldItem.h };
-      dragCellRef.current = null;
-      dragStillPxRef.current = null;
+      dragOldPosRef.current = { x: oldItem.x, y: oldItem.y };
     },
-    [clearPushPrompt, clearTabHover],
+    [clearPushPrompt, clearTabHover, clearSwapHover],
   );
 
   const onDragTick = React.useCallback(
-    (lay: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
+    (_lay: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
       const id = dragIdRef.current;
       if (!id) return;
-      // 1) Over a board tab? Highlight it and skip the drag-push (aiming to move).
+      // 1) Over a board tab? Highlight it (moving to that board takes priority over
+      //    a swap) and clear any swap target.
       if (onTransferInstance) {
         const tab = tabAtPointer(e);
         if (tab && tab.boardId !== storageKey) {
           setTabHover(tab.el, tab.boardId);
-          if (dragPushTimerRef.current != null) {
-            window.clearTimeout(dragPushTimerRef.current);
-            dragPushTimerRef.current = null;
-          }
+          clearSwapHover();
+          swapTargetRef.current = null;
           return;
         }
         clearTabHover();
       }
-      // 2) Drag-push (rearrange) — desktop (lg) only.
-      if (activeBpRef.current !== "lg") return;
-      const cell = pointerDragCell(e, dragSizeRef.current.w, dragSizeRef.current.h);
-      if (!cell) return;
-      const { w, h } = dragSizeRef.current;
-      const anchor: GridRect = {
-        x: Math.min(Math.max(0, cell.x), Math.max(0, COLS.lg - w)),
-        y: Math.max(0, cell.y),
-        w,
-        h,
-      };
-      dragCellRef.current = { x: anchor.x, y: anchor.y };
-
-      const me = e as MouseEvent & { touches?: TouchList };
-      const cx = me.touches?.[0]?.clientX ?? me.clientX;
-      const cy = me.touches?.[0]?.clientY ?? me.clientY;
-
-      const cancelTimer = () => {
-        if (dragPushTimerRef.current != null) {
-          window.clearTimeout(dragPushTimerRef.current);
-          dragPushTimerRef.current = null;
-        }
-      };
-
-      // Nothing under the held footprint → never push; reset the dwell anchor so
-      // re-entering an occupied area starts a fresh hold.
-      const blocked = lay.some(
-        (it) => it.i !== id && it.i !== DROPPING_ITEM_ID && rectsOverlap(anchor, it),
-      );
-      if (!blocked) {
-        cancelTimer();
-        dragStillPxRef.current = null;
-        return;
-      }
-
-      // Over an occupied area: re-arm the dwell ONLY when the pointer actually
-      // moved (> DRAG_PUSH_MOVE_PX from where we last armed it). While the user
-      // keeps dragging, every move re-arms → the timer never elapses → other tiles
-      // stay put. When the pointer settles, no more moves arrive and the last-armed
-      // timer fires after DRAG_PUSH_DWELL_MS.
-      const still = dragStillPxRef.current;
-      const movedFar =
-        typeof cx !== "number" ||
-        typeof cy !== "number" ||
-        still == null ||
-        Math.hypot(cx - still.x, cy - still.y) > DRAG_PUSH_MOVE_PX;
-      if (movedFar) {
-        if (typeof cx === "number" && typeof cy === "number") {
-          dragStillPxRef.current = { x: cx, y: cy };
-        }
-        cancelTimer();
-        dragPushTimerRef.current = window.setTimeout(() => {
-          applyDragPushRef.current();
-        }, DRAG_PUSH_DWELL_MS);
-      }
-      // Within the threshold of the armed point → let the running timer ride
-      // (this is the deliberate "멈춰 있음" hold).
+      // 2) Over another tile? Mark it as the swap target and highlight it.
+      const target = tileAtPointer(e, id);
+      swapTargetRef.current = target;
+      if (target) setSwapHover(target);
+      else clearSwapHover();
     },
     [
-      pointerDragCell,
       onTransferInstance,
       tabAtPointer,
       setTabHover,
       clearTabHover,
+      tileAtPointer,
+      setSwapHover,
+      clearSwapHover,
       storageKey,
     ],
   );
 
   const onDragStop = React.useCallback(
     (lay: Layout, oldItem: LayoutItem | null) => {
-      if (dragPushTimerRef.current != null) {
-        window.clearTimeout(dragPushTimerRef.current);
-        dragPushTimerRef.current = null;
-      }
       const id = dragIdRef.current ?? oldItem?.i ?? null;
+      const aOld = dragOldPosRef.current;
+      const target = swapTargetRef.current;
       dragIdRef.current = null;
-      dragCellRef.current = null;
+      swapTargetRef.current = null;
+      clearSwapHover();
       // Dropped onto a board tab → move the widget to that board (요구: 다른 탭으로 이동).
       const hover = hoveredTabRef.current;
       clearTabHover();
@@ -1156,11 +1111,40 @@ export function GridCanvas({
         onTransferInstance(id, hover.boardId);
         return;
       }
-      // md/sm: commit this device's arrangement locally (never the DB lg layout).
       const bp = activeBpRef.current;
+      // Dropped onto another tile → SWAP their positions (요구: 자리 맞바꾸기).
+      if (id && target && target !== id) {
+        if (bp === "lg") {
+          const swapped = swapPositions(layoutRef.current, id, target);
+          if (swapped) {
+            // We persist the swap directly; swallow RGL's trailing "tile at dropped
+            // position" emission so it can't clobber it.
+            swapGuardRef.current = true;
+            window.setTimeout(() => {
+              swapGuardRef.current = false;
+            }, 0);
+            onLayoutChange?.(swapped);
+            return;
+          }
+        } else {
+          const swappedLay = swapInLay(lay, id, target, aOld);
+          if (swappedLay) {
+            persistDeviceLayout(bp, swappedLay);
+            return;
+          }
+        }
+      }
+      // Otherwise (dropped on empty space): commit normally. lg flows through RGL's
+      // own onLayoutChange; md/sm commit this device's arrangement locally.
       if (bp === "md" || bp === "sm") persistDeviceLayout(bp, lay);
     },
-    [persistDeviceLayout, onTransferInstance, clearTabHover],
+    [
+      persistDeviceLayout,
+      onTransferInstance,
+      clearTabHover,
+      clearSwapHover,
+      onLayoutChange,
+    ],
   );
 
   // Derive per-breakpoint layouts from the single persisted (lg) layout. lg keeps
@@ -1207,6 +1191,12 @@ export function GridCanvas({
       // isn't re-persisted to the source board.
       if (transferGuardRef.current) {
         transferGuardRef.current = false;
+        return;
+      }
+      // After a SWAP drop we persisted the swapped layout ourselves; swallow RGL's
+      // one trailing emission (tile at dropped pos) so it can't overwrite it.
+      if (swapGuardRef.current) {
+        swapGuardRef.current = false;
         return;
       }
       // Persist the DESKTOP (lg) layout ONLY (§5.4). Two guards (issue ①):
@@ -1327,8 +1317,6 @@ export function GridCanvas({
         window.clearTimeout(promptTimerRef.current);
       if (autoPushTimerRef.current != null)
         window.clearTimeout(autoPushTimerRef.current);
-      if (dragPushTimerRef.current != null)
-        window.clearTimeout(dragPushTimerRef.current);
       // Reset any leftover tab highlight (tabs outlive this component).
       const tab = hoveredTabRef.current;
       if (tab) {
