@@ -161,9 +161,10 @@ const DRAG_PUSH_DWELL_MS = 1200;
 const DRAG_PUSH_MOVE_PX = 8;
 
 // Free placement is implemented by a per-component compactor (see GridCanvas):
-// type:null + no-op compact keep positions put on resize/zoom/drag, while a
-// resize-time clamp stops a growing tile from overlapping its neighbors. The
-// "다른 앱 밀기" button then pushes neighbors down to make room.
+// type:null + no-op compact keep positions put on resize/zoom/drag. On lg the
+// compactor lets a resized tile grow OVER its neighbors (overlapResizeMode); the
+// 1s-hold / release / "다른 앱 밀기" button then pushes those neighbors down to make
+// room. On md/sm it instead clamps the tile so it can't overlap.
 
 /** Map a measured tile pixel-width to a coarse density bucket. */
 function densityForWidth(px: number): Density {
@@ -526,6 +527,16 @@ function pushResolveDown(
   return placed;
 }
 
+/** Does any pair of items in the layout overlap? */
+function hasOverlap(items: CanvasLayoutItem[]): boolean {
+  for (let i = 0; i < items.length; i += 1) {
+    for (let j = i + 1; j < items.length; j += 1) {
+      if (rectsOverlap(items[i], items[j])) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Push every item that overlaps `anchor` (a virtual rect) straight DOWN, cascading,
  * until nothing overlaps it — while keeping `keepId` (the tile being dragged) put.
@@ -706,10 +717,11 @@ export function GridCanvas({
   );
 
   /* ----------------------- push-on-resize (밀기) state ---------------------- */
-  // While a tile is being resized, the compactor CLAMPS it so it never overlaps a
-  // neighbor (clean "can't grow past" feel). We also stash the DESIRED (raw) size
-  // and, when a clamp happened, surface a "다른 앱 밀기" button; clicking it grows
-  // the tile to the desired size and pushes the colliding tiles down.
+  // On lg a tile may now be GROWN over its neighbors (요구: 겹쳐 있어도 크기 키우기):
+  // the compactor lets it overlap freely while resizing, and holding the size still
+  // for ~1s (or releasing) pushes the overlapping tiles down to make room. md/sm
+  // keep the old "can't grow past" clamp. We stash the DESIRED (raw) size and, while
+  // it overlaps, surface a "다른 앱 밀기" button for an explicit early push.
   const resizingIdRef = React.useRef<string | null>(null);
   const desiredRef = React.useRef<{
     id: string;
@@ -718,7 +730,20 @@ export function GridCanvas({
     w: number;
     h: number;
   } | null>(null);
-  const clampHappenedRef = React.useRef(false);
+  // True while an lg resize has the tile overlapping ≥1 neighbor (so the hold/
+  // release push has work to do). Replaces the old clamp flag — on lg we no longer
+  // clamp; the tile grows over neighbors and the push makes room.
+  const overlapHappenedRef = React.useRef(false);
+  // While a tile is resized on lg, RGL is told to ALLOW overlap so the tile can
+  // visibly grow over its neighbors. Off otherwise, so drag + md/sm resize keep
+  // their non-overlapping behavior. State (not a ref) so the <Responsive> compactor
+  // (allowOverlap/preventCollision) re-derives when it toggles.
+  const [overlapResizeMode, setOverlapResizeMode] = React.useState(false);
+  // The id of the most-recently-resized tile. handleLayoutChange anchors overlap
+  // resolution on it: a tile grown over its neighbors emits an overlapping lg
+  // layout, which we normalize (push the others down, keep this tile put) before
+  // persisting — robust to RGL's emission timing (no swallowing/guarding).
+  const resizeAnchorRef = React.useRef<string | null>(null);
   const promptTimerRef = React.useRef<number | null>(null);
   const promptShownRef = React.useRef<string | null>(null);
   // Auto-push: fires when the user HOLDS the resize still for ~1s against a
@@ -742,7 +767,7 @@ export function GridCanvas({
     }
     clearAutoPush();
     desiredRef.current = null;
-    clampHappenedRef.current = false;
+    overlapHappenedRef.current = false;
     if (promptShownRef.current != null) {
       promptShownRef.current = null;
       setPushPromptId(null);
@@ -751,7 +776,7 @@ export function GridCanvas({
 
   const schedulePushPrompt = React.useCallback((id: string) => {
     if (promptShownRef.current === id || promptTimerRef.current != null) return;
-    // Short dwell so a quick/accidental clamp doesn't flash the button (요구: 늘려서 기다리면).
+    // Short dwell so a quick/accidental overlap doesn't flash the button (요구: 늘려서 기다리면).
     promptTimerRef.current = window.setTimeout(() => {
       promptTimerRef.current = null;
       promptShownRef.current = id;
@@ -759,16 +784,18 @@ export function GridCanvas({
     }, 450);
   }, []);
 
-  // Collision-clamping compactor. type:null + allowOverlap:false keep free
-  // placement (no float-up, drag doesn't push — see §6.2). The custom compact:
-  //  • while resizing: shrink the resized tile so it can't overlap others (this
-  //    is RGL's rendered state, so the clamp shows live, not just on commit);
-  //  • otherwise: no-op clone (positions stay put on resize/zoom/drag).
+  // Free-placement compactor (type:null → no float-up; positions stay put on
+  // resize/zoom/drag). allowOverlap/preventCollision flip per gesture:
+  //  • lg resize (overlapResizeMode): allowOverlap → the tile grows OVER neighbors
+  //    (no clamp). compact records the desired size + whether it overlaps, so the
+  //    1s-hold / release push knows there's room to make.
+  //  • drag + md/sm resize: preventCollision → non-overlapping. compact CLAMPS a
+  //    resized tile (md/sm) so it can't overlap (the clamp shows live).
   const compactor = React.useMemo<Compactor>(
     () => ({
       type: null,
-      allowOverlap: false,
-      preventCollision: true,
+      allowOverlap: overlapResizeMode,
+      preventCollision: !overlapResizeMode,
       compact: (lay: Layout) => {
         const id = resizingIdRef.current;
         if (!id) return cloneLayout(lay);
@@ -777,70 +804,83 @@ export function GridCanvas({
         const others = lay.filter((l) => l.i !== id);
         // The item arrives here at the RAW dragged size → record it as desired.
         desiredRef.current = { id, x: item.x, y: item.y, w: item.w, h: item.h };
+        if (overlapResizeMode) {
+          // lg: don't clamp — let the tile overlap. Just note whether it does so
+          // onResize/onResizeStop know there's a push to perform.
+          overlapHappenedRef.current = others.some((o) =>
+            rectsOverlap({ x: item.x, y: item.y, w: item.w, h: item.h }, o),
+          );
+          return cloneLayout(lay);
+        }
+        // md/sm: shrink the resized tile so it can't overlap others. Prefer keeping
+        // width (downward growth is the common case): shrink h first, then w.
         const minW = item.minW ?? 1;
         const minH = item.minH ?? 1;
         const fits = (w: number, h: number) =>
           !others.some((o) => rectsOverlap({ x: item.x, y: item.y, w, h }, o));
-        // Prefer keeping width (downward growth is the common case): shrink h
-        // first, then w if still colliding.
         let h = item.h;
         while (h > minH && !fits(item.w, h)) h -= 1;
         let w = item.w;
         while (w > minW && !fits(w, h)) w -= 1;
-        clampHappenedRef.current = w < item.w || h < item.h;
-        if (!clampHappenedRef.current) return cloneLayout(lay);
+        overlapHappenedRef.current = false;
+        if (w >= item.w && h >= item.h) return cloneLayout(lay);
         return cloneLayout(
           lay.map((l) => (l.i === id ? { ...l, w, h } : l)),
         );
       },
     }),
-    [],
+    [overlapResizeMode],
   );
 
   const onResizeStart = React.useCallback(
     (_lay: Layout, oldItem: LayoutItem | null) => {
       clearPushPrompt();
       resizingIdRef.current = oldItem?.i ?? null;
-      clampHappenedRef.current = false;
+      resizeAnchorRef.current = oldItem?.i ?? null;
+      overlapHappenedRef.current = false;
+      // lg: let the tile overlap neighbors while resizing (so it can grow over
+      // them); md/sm keep the non-overlapping clamp.
+      setOverlapResizeMode(activeBpRef.current === "lg");
     },
     [clearPushPrompt],
   );
 
   const onResizeTick = React.useCallback(() => {
-    // The "다른 앱 밀기" push affordance operates on the DB (lg) layout, so it only
-    // runs on desktop. On md/sm the compactor still CLAMPS (no overlap); the resize
-    // just commits device-local on release.
-    if (activeBpRef.current !== "lg") {
-      clearAutoPush();
-      return;
-    }
-    // compact() (run just before this) set clampHappenedRef + desiredRef.
-    if (resizingIdRef.current && clampHappenedRef.current) {
+    // The push affordance operates on the DB (lg) layout, so it only runs on
+    // desktop. On md/sm the compactor CLAMPS (no overlap) and the resize just
+    // commits device-local on release.
+    if (activeBpRef.current !== "lg") return;
+    // compact() (run just before this) set overlapHappenedRef + desiredRef. While
+    // the grown tile overlaps a neighbor, surface the "다른 앱 밀기" button as an
+    // explicit early push. The automatic push otherwise happens on RELEASE: RGL
+    // gates its prop→layout resync during an active gesture, so pushing the
+    // neighbors mid-resize wouldn't render (and churns a setState feedback loop) —
+    // the tile visibly grows over them now, and they drop down when you let go.
+    if (resizingIdRef.current && overlapHappenedRef.current) {
       schedulePushPrompt(resizingIdRef.current);
-      // AUTO-PUSH on hold: this fires only if no further onResize arrives for ~1s
-      // (the pointer is held still against the neighbor). Each move resets it.
-      if (autoPushTimerRef.current != null)
-        window.clearTimeout(autoPushTimerRef.current);
-      autoPushTimerRef.current = window.setTimeout(() => {
-        autoPushTimerRef.current = null;
-        applyPushRef.current();
-      }, 1000);
-    } else {
-      clearAutoPush();
     }
-  }, [schedulePushPrompt, clearAutoPush]);
+  }, [schedulePushPrompt]);
 
   const onResizeStop = React.useCallback(
     (lay: Layout) => {
       resizingIdRef.current = null;
-      // Cancel a pending auto-push on release; the post-release button still works.
       clearAutoPush();
+      // Dismiss the "다른 앱 밀기" hint; the release commit resolves overlap itself.
+      clearPushPrompt();
+      // Turn RGL's overlap allowance back off now the gesture is done.
+      setOverlapResizeMode(false);
       // md/sm: commit the resized arrangement device-local (never the DB lg layout).
       const bp = activeBpRef.current;
-      if (bp === "md" || bp === "sm") persistDeviceLayout(bp, lay);
-      // Keep desiredRef + the prompt so the button stays clickable after release (lg).
+      if (bp === "md" || bp === "sm") {
+        persistDeviceLayout(bp, lay);
+        return;
+      }
+      // lg: RGL now emits the (possibly overlapping) layout via onLayoutChange →
+      // handleLayoutChange, which pushes the colliding tiles down (anchored on this
+      // resized tile) before persisting (요구: 키워서 겹친 앱들이 아래로 이동). Nothing
+      // more to do here.
     },
-    [clearAutoPush, persistDeviceLayout],
+    [clearAutoPush, clearPushPrompt, persistDeviceLayout],
   );
 
   // Apply the push: grow the tile to its desired size and shove colliders down.
@@ -1178,17 +1218,26 @@ export function GridCanvas({
       if (activeBpRef.current !== "lg") return;
       const source = all.lg ?? current;
       if (!source) return;
-      onLayoutChange?.(
-        source
-          .filter((it) => it.i !== DROPPING_ITEM_ID)
-          .map((it) => ({
-            instanceId: it.i,
-            x: it.x,
-            y: it.y,
-            w: it.w,
-            h: it.h,
-          })),
-      );
+      let items = source
+        .filter((it) => it.i !== DROPPING_ITEM_ID)
+        .map((it) => ({
+          instanceId: it.i,
+          x: it.x,
+          y: it.y,
+          w: it.w,
+          h: it.h,
+        }));
+      // A tile grown over its neighbors during resize emits an OVERLAPPING lg
+      // layout (free placement + allowOverlap while resizing). Normalize it before
+      // persisting: push the colliding tiles straight down, keeping the just-resized
+      // tile anchored (요구: 키운 앱은 그대로, 겹친 앱들은 모두 아래로 이동). Idempotent —
+      // a non-overlapping layout passes through unchanged, so drag/drop commits and
+      // ordinary resizes into empty space are unaffected.
+      const anchor = resizeAnchorRef.current;
+      if (anchor && hasOverlap(items)) {
+        items = pushResolveDown(items, anchor);
+      }
+      onLayoutChange?.(items);
     },
     [onLayoutChange],
   );
