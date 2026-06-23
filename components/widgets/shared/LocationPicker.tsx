@@ -49,6 +49,39 @@ export const LOCATION_CITIES: ReadonlyArray<LocationValue> = [
   { label: "뉴욕", lat: 40.7128, lon: -74.006 },
 ];
 
+/** 세계 주요 도시(서로 다른 시간대·반구) — 일출/일몰·달처럼 전 지구적 위젯에서 사용.
+ *  도쿄·뉴욕은 LOCATION_CITIES에 이미 있어 중복 제외. */
+export const WORLD_CITIES: ReadonlyArray<LocationValue> = [
+  { label: "베이징", lat: 39.9042, lon: 116.4074 },
+  { label: "상하이", lat: 31.2304, lon: 121.4737 },
+  { label: "홍콩", lat: 22.3193, lon: 114.1694 },
+  { label: "타이베이", lat: 25.033, lon: 121.5654 },
+  { label: "싱가포르", lat: 1.3521, lon: 103.8198 },
+  { label: "방콕", lat: 13.7563, lon: 100.5018 },
+  { label: "하노이", lat: 21.0278, lon: 105.8342 },
+  { label: "마닐라", lat: 14.5995, lon: 120.9842 },
+  { label: "뉴델리", lat: 28.6139, lon: 77.209 },
+  { label: "두바이", lat: 25.2048, lon: 55.2708 },
+  { label: "이스탄불", lat: 41.0082, lon: 28.9784 },
+  { label: "모스크바", lat: 55.7558, lon: 37.6173 },
+  { label: "런던", lat: 51.5074, lon: -0.1278 },
+  { label: "파리", lat: 48.8566, lon: 2.3522 },
+  { label: "베를린", lat: 52.52, lon: 13.405 },
+  { label: "로마", lat: 41.9028, lon: 12.4964 },
+  { label: "마드리드", lat: 40.4168, lon: -3.7038 },
+  { label: "LA", lat: 34.0522, lon: -118.2437 },
+  { label: "샌프란시스코", lat: 37.7749, lon: -122.4194 },
+  { label: "시카고", lat: 41.8781, lon: -87.6298 },
+  { label: "토론토", lat: 43.6532, lon: -79.3832 },
+  { label: "밴쿠버", lat: 49.2827, lon: -123.1207 },
+  { label: "멕시코시티", lat: 19.4326, lon: -99.1332 },
+  { label: "상파울루", lat: -23.5505, lon: -46.6333 },
+  { label: "시드니", lat: -33.8688, lon: 151.2093 },
+  { label: "오클랜드", lat: -36.8485, lon: 174.7633 },
+  { label: "호놀룰루", lat: 21.3069, lon: -157.8583 },
+  { label: "카이로", lat: 30.0444, lon: 31.2357 },
+];
+
 /** /api/geocode 한 건(서버 모듈을 번들하지 않도록 로컬 타입). */
 interface GeoHit {
   label: string;
@@ -60,9 +93,13 @@ interface GeoHit {
 export function LocationPicker({
   value,
   onPick,
+  cities = LOCATION_CITIES,
 }: {
   value: LocationValue;
   onPick: (next: LocationValue) => void;
+  /** Quick-pick city list. Defaults to Korean cities; widgets that span the
+   *  globe (e.g. 일출/일몰·달) can pass `[...LOCATION_CITIES, ...WORLD_CITIES]`. */
+  cities?: ReadonlyArray<LocationValue>;
 }) {
   const [labelInput, setLabelInput] = React.useState(value.label);
   const [latInput, setLatInput] = React.useState(String(value.lat));
@@ -253,7 +290,7 @@ export function LocationPicker({
           지역 선택
         </legend>
         <div className="grid grid-cols-3 gap-1.5">
-          {LOCATION_CITIES.map((city) => (
+          {cities.map((city) => (
             <button
               key={city.label}
               type="button"

@@ -82,9 +82,9 @@ export function VehicleManager({
         emptyText="주유 기록이 없습니다."
       />
 
-      {/* Maintenance */}
+      {/* Maintenance / events */}
       <Section
-        title="정비 기록"
+        title="정비·이벤트 기록 (오일교환 등)"
         items={config.maintLogs}
         onAdd={() =>
           set({
@@ -256,14 +256,24 @@ function MaintRow({
         type="date"
         value={log.date}
         onChange={(e) => onChange({ ...log, date: e.target.value })}
-        aria-label="정비 날짜"
+        aria-label="일자"
         className={inputCls}
       />
       <input
         value={log.label}
         onChange={(e) => onChange({ ...log, label: e.target.value })}
-        placeholder="내용 (예: 엔진오일)"
-        className={`${inputCls} flex-1`}
+        placeholder="내용 (예: 오일교환, 주행거리)"
+        className={`${inputCls} min-w-32 flex-1`}
+      />
+      <input
+        type="number"
+        value={log.odo ?? ""}
+        onChange={(e) =>
+          onChange({ ...log, odo: e.target.value === "" ? undefined : Number(e.target.value) })
+        }
+        placeholder="주행 km (선택)"
+        aria-label="주행거리"
+        className={`${inputCls} w-28`}
       />
       <input
         type="number"
@@ -271,10 +281,11 @@ function MaintRow({
         onChange={(e) =>
           onChange({ ...log, cost: e.target.value === "" ? undefined : Number(e.target.value) })
         }
-        placeholder="금액 ₩"
+        placeholder="금액 ₩ (선택)"
+        aria-label="금액"
         className={`${inputCls} w-24`}
       />
-      <RemoveBtn onRemove={onRemove} label="정비 기록 삭제" />
+      <RemoveBtn onRemove={onRemove} label="기록 삭제" />
     </li>
   );
 }

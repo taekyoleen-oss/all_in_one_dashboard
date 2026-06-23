@@ -98,16 +98,17 @@ export function VehicleExpandedView({ config }: ExpandedViewProps<VehicleConfig>
         </section>
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-muted-foreground">최근 정비</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">최근 정비·이벤트</h3>
           {recentMaint.length === 0 ? (
-            <p className="text-xs text-muted-foreground">정비 기록이 없습니다.</p>
+            <p className="text-xs text-muted-foreground">기록이 없습니다.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-border rounded-[var(--radius)] border border-border">
               {recentMaint.map((m) => (
                 <li key={m.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate text-foreground">{m.label || "정비"}</span>
+                  <span className="min-w-0 truncate text-foreground">{m.label || "기록"}</span>
                   <span className="shrink-0 text-muted-foreground">
                     {fmtDate(m.date)}
+                    {m.odo !== undefined ? ` · ${m.odo.toLocaleString("ko-KR")}km` : ""}
                     {m.cost !== undefined ? ` · ${formatKrw(m.cost)}` : ""}
                   </span>
                 </li>

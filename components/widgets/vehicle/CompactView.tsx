@@ -82,7 +82,7 @@ export function VehicleCompactView({
         <div className="min-h-0 flex-1" />
       )}
 
-      <FuelQuickAdd config={config} instanceId={instanceId} />
+      <EventQuickAdd config={config} instanceId={instanceId} />
     </div>
   );
 }
@@ -98,7 +98,11 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FuelQuickAdd({
+/**
+ * 이벤트 기록 빠른추가 — 일자 + 내용(오일교환 등) + 필요시 주행거리(km).
+ * maintLogs에 기록하며, 주행거리를 넣으면 상단 '주행거리' 통계에도 반영된다.
+ */
+function EventQuickAdd({
   config,
   instanceId,
 }: {
@@ -106,66 +110,69 @@ function FuelQuickAdd({
   instanceId: string;
 }) {
   const save = useSaveWidgetConfig();
+  const [label, setLabel] = React.useState("");
+  const [date, setDate] = React.useState(() => format(new Date(), "yyyy-MM-dd"));
   const [odo, setOdo] = React.useState("");
-  const [liters, setLiters] = React.useState("");
-  const [cost, setCost] = React.useState("");
   const add = () => {
+    const l = label.trim();
+    if (!l || !date) return;
     const o = Number(odo);
-    const l = Number(liters);
-    const c = Number(cost);
-    if (!Number.isFinite(o) || o <= 0) return;
     save(instanceId, {
       ...config,
-      fuelLogs: [
-        ...config.fuelLogs,
+      maintLogs: [
+        ...config.maintLogs,
         {
-          id: newItemId("fuel"),
-          date: format(new Date(), "yyyy-MM-dd"),
-          odo: o,
-          liters: Number.isFinite(l) ? l : 0,
-          cost: Number.isFinite(c) ? c : 0,
+          id: newItemId("evt"),
+          date,
+          label: l,
+          odo: odo.trim() !== "" && Number.isFinite(o) && o > 0 ? o : undefined,
         },
       ],
     });
+    // 연속 입력 편의: 일자는 유지, 내용·주행거리만 비움.
+    setLabel("");
     setOdo("");
-    setLiters("");
-    setCost("");
   };
   return (
-    <QuickAdd label="주유 기록">
+    <QuickAdd label="기록 추가">
       {() => (
         <form
           onSubmit={(e) => {
             e.preventDefault();
             add();
           }}
-          className="flex items-center gap-1.5"
+          className="flex flex-col gap-1.5"
         >
           <input
             autoFocus
-            value={odo}
-            onChange={(e) => setOdo(e.target.value)}
-            inputMode="numeric"
-            placeholder="주행 km"
-            className={`${quickInputClass} w-20`}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="내용 (예: 오일교환, 주행거리)"
+            className={`${quickInputClass} w-full`}
           />
-          <input
-            value={liters}
-            onChange={(e) => setLiters(e.target.value)}
-            inputMode="decimal"
-            placeholder="L"
-            className={`${quickInputClass} w-14`}
-          />
-          <input
-            value={cost}
-            onChange={(e) => setCost(e.target.value)}
-            inputMode="numeric"
-            placeholder="₩"
-            className={`${quickInputClass} w-20`}
-          />
-          <button type="submit" disabled={!odo} className={quickBtnClass}>
-            추가
-          </button>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              aria-label="일자"
+              className={`${quickInputClass} min-w-0 flex-1`}
+            />
+            <input
+              value={odo}
+              onChange={(e) => setOdo(e.target.value)}
+              inputMode="numeric"
+              placeholder="주행 km (선택)"
+              className={`${quickInputClass} w-24`}
+            />
+            <button
+              type="submit"
+              disabled={!label.trim() || !date}
+              className={quickBtnClass}
+            >
+              추가
+            </button>
+          </div>
         </form>
       )}
     </QuickAdd>
