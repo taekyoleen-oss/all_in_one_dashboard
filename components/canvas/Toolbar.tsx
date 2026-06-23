@@ -24,6 +24,7 @@ import {
   PanelLeft,
   Sun,
   Moon,
+  Settings,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
@@ -43,6 +44,8 @@ export interface ToolbarProps {
   /** Current theme + setter (applied to <html data-theme>). */
   theme: ThemeMode;
   onToggleTheme: () => void;
+  /** Open the settings dialog (앱 표시 / 계정). */
+  onOpenSettings: () => void;
 }
 
 export function Toolbar({
@@ -53,6 +56,7 @@ export function Toolbar({
   onTogglePalette,
   theme,
   onToggleTheme,
+  onOpenSettings,
 }: ToolbarProps) {
   const [open, setOpen] = React.useState(true);
 
@@ -99,6 +103,10 @@ export function Toolbar({
             onClick={onToggleTheme}
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </IconButton>
+
+          <IconButton label="설정 (앱 표시·계정)" onClick={onOpenSettings}>
+            <Settings size={16} />
           </IconButton>
         </>
       )}

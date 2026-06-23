@@ -43,9 +43,12 @@ import { FocusOverlay } from "@/components/canvas/FocusOverlay";
 import { ConfigDialog } from "@/components/canvas/ConfigDialog";
 import { WidgetMenu } from "@/components/canvas/WidgetMenu";
 import { AccountMenu } from "@/components/canvas/AccountMenu";
+import { SettingsDialog } from "@/components/canvas/SettingsDialog";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { ToastProvider } from "@/components/ui/Toaster";
 import { widgetRegistry } from "@/components/widgets/registry";
+import { useHiddenWidgets } from "@/lib/utils/paletteVisibility";
+import type { WidgetRegistry } from "@/lib/widgets/contract";
 import { useBackStack } from "@/lib/utils/useBackStack";
 import { useClipboard } from "@/lib/utils/clipboard";
 import { createInstance } from "@/lib/utils/grid";
@@ -159,6 +162,18 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
   const [theme, setTheme] = usePersistedTheme();
   // Desktop palette collapsed flag — persisted in localStorage (SSR-safe hook).
   const [paletteCollapsed, setCollapsed] = usePaletteCollapsed();
+  // 설정 다이얼로그(앱 표시·계정) + 팔레트에서 숨긴 위젯 타입(기기별 localStorage).
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const { hidden: hiddenWidgets } = useHiddenWidgets();
+  // 팔레트에만 적용되는 필터 — 캔버스/포커스/편집은 전체 registry로 기존 인스턴스를 렌더.
+  const paletteRegistry = React.useMemo<WidgetRegistry>(() => {
+    if (hiddenWidgets.size === 0) return widgetRegistry;
+    const out: WidgetRegistry = {};
+    for (const [type, def] of Object.entries(widgetRegistry)) {
+      if (!hiddenWidgets.has(type)) out[type] = def;
+    }
+    return out;
+  }, [hiddenWidgets]);
   // 재정렬 신호: 모바일/태블릿에서 GridCanvas가 기기-로컬 배치를 비우고 재파생하도록.
   const [compactNonce, setCompactNonce] = React.useState(0);
 
@@ -355,6 +370,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               onToggleTheme={() =>
                 setTheme(theme === "dark" ? "light" : "dark")
               }
+              onOpenSettings={() => setSettingsOpen(true)}
             />
           </div>
         </div>
@@ -366,7 +382,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         canvas's measured width — placed widgets stay put (issue ⑧/①).
       */}
       <WidgetPalette
-        registry={widgetRegistry}
+        registry={paletteRegistry}
         onAdd={addByType}
         collapsed={paletteCollapsed}
         onCollapsedChange={setCollapsed}
@@ -403,6 +419,13 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
 
       {/* Account control — bottom-left avatar → email + 로그아웃 */}
       <AccountMenu email={userEmail} />
+
+      {/* 설정 — 팔레트 앱 표시 토글 + 계정(비밀번호 변경) */}
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        email={userEmail}
+      />
 
       {/* Overlays — share ONE back-stack LIFO with the mobile palette sheet. */}
       <FocusOverlay
