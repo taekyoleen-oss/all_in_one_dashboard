@@ -56,6 +56,14 @@
 
 **Batch 4 공용 추가**: `components/widgets/shared/LocationPicker.tsx`(위치 설정 4-방법 — 검색/현재위치/지역/직접입력, 대기질·일출달 공용). 신규 라우트 `/api/air-quality`·`/api/translate`, 클라이언트 `lib/api/airQualityClient.ts`·`translateClient.ts`. api-shapes 추가: `AirQualitySchema`·`TranslateSchema`. 모두 키리스 즉시동작.
 
+## Batch 5 (노트 — 리치 텍스트 다기능 위젯)
+
+| type | displayName | category | dataMode | copyBehavior | 비고 |
+|------|-------------|----------|----------|--------------|------|
+| `note` | 노트 | extended | static(config) | config | 강의 기록용 리치 텍스트 노트. 굵게·기울임·밑줄·취소선·글자색·형광펜·글자크기(px)·제목(H2/H3)·글머리/번호목록·정렬·인용·구분선·링크·**이미지(자동축소)**·**표(삽입+행/열 추가삭제)**·**파일 첨부**(인라인 base64, ≤5MB). `contentEditable`+execCommand 엔진(의존성 0). 붙여넣기/드롭 HTML·이미지 **살균**(allowlist sanitizer — script/onerror/javascript: 제거) 후 저장·렌더. CompactView=읽기전용 미리보기(하이드레이션 가드), ExpandedView=전체 에디터. 본문·첨부 모두 config jsonb. |
+
+**Batch 5 파일**: `note/{types,sanitize,media,richText,Toolbar,NoteEditor,Attachments,CompactView,ExpandedView,ConfigEditor,index}`. 살균기는 SSR 폴백(정규식 strip) + 클라 DOMParser allowlist 2중. 첨부는 인라인 저장(사용자 선택), Storage 업로드는 향후 업그레이드 여지.
+
 ## 불변 규칙 (모든 위젯)
 - **인스턴스 격리**: 모든 상태/구독은 `instanceId`로 키. 같은 종류 2개는 독립 config·독립 구독.
 - **shape import**: API 연동 위젯(Batch 3)은 응답 타입을 `output/api-shapes.ts`에서 import(로컬 재선언 금지).

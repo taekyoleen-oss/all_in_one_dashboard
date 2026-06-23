@@ -54,6 +54,7 @@ import { timerWidget } from "./timer";
 import { sunMoonWidget } from "./sun-moon";
 import { translateWidget } from "./translate";
 import { vehicleWidget } from "./vehicle";
+import { noteWidget } from "./note";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -94,6 +95,9 @@ const DEFINITIONS: WidgetDefinition[] = [
   sunMoonWidget as WidgetDefinition,
   translateWidget as WidgetDefinition,
   vehicleWidget as WidgetDefinition,
+
+  // ── Batch 5 (노트 — 리치 텍스트 + 이미지 + 표 + 첨부) ──
+  noteWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */
