@@ -42,6 +42,20 @@
 |------|-------------|----------|----------|-----------|------------------|------|
 | `clipboard` | 클립보드 기록 | extended | static(local) | – | – | 페이지 복사 자동 기록(`copy` 이벤트) + 수동 추가(readText/붙여넣기). 항목 클릭 시 재복사. 기록은 기기 localStorage(인스턴스별). OS 전역 감시는 브라우저 한계로 불가. |
 
+## Batch 4 (추가 위젯 7종)
+
+| type | displayName | category | dataMode | refreshInterval | sensitive | 비고 |
+|------|-------------|----------|----------|-----------------|-----------|------|
+| `air-quality` | 대기질 | extended | poll | 30분 | – | Open-Meteo Air-Quality(키리스). PM2.5/PM10/O₃/NO₂/SO₂/CO + EU/US AQI. 환경부 4등급(좋음·보통·나쁨·매우나쁨). 위치=LocationPicker 공용. |
+| `subscriptions` | 구독 관리 | extended | static(config) | – | – | 정기결제 + 다음 결제일(앵커→롤포워드) + 월/연 합계(추정환율). 항목은 config jsonb. |
+| `unit-converter` | 단위 변환 | extended | static | – | – | 길이·무게·온도·넓이·부피·속도·시간·데이터 + 한국단위(평·근·돈·되). 타일 즉시 변환, 확장 시 전체 환산표. |
+| `timer` | 타이머 | extended | static(local) | – | – | 타이머/스톱워치/뽀모도로. 절대시각 기반(드리프트 無), 런타임은 instance별 localStorage. 종료 시 비프(WebAudio)+브라우저 알림(선택). |
+| `sun-moon` | 일출·일몰/달 | extended | static | – | – | 순수 로컬 천문계산: 일출/일몰(NOAA)·낮길이·달 위상(삭망월). 위치=LocationPicker. API 無(오프라인 동작). |
+| `translate` | 번역기 | extended | static(on-demand) | – | – | /api/translate. 키리스(Google gtx→MyMemory), DEEPL_API_KEY 시 DeepL 전환. auto 감지·언어 스왑·복사. |
+| `vehicle` | 차량 관리 | extended | static(config) | – | – | 주유(연비 km/L 자동)·정비·갱신만기(D-day). 항목은 config jsonb. |
+
+**Batch 4 공용 추가**: `components/widgets/shared/LocationPicker.tsx`(위치 설정 4-방법 — 검색/현재위치/지역/직접입력, 대기질·일출달 공용). 신규 라우트 `/api/air-quality`·`/api/translate`, 클라이언트 `lib/api/airQualityClient.ts`·`translateClient.ts`. api-shapes 추가: `AirQualitySchema`·`TranslateSchema`. 모두 키리스 즉시동작.
+
 ## 불변 규칙 (모든 위젯)
 - **인스턴스 격리**: 모든 상태/구독은 `instanceId`로 키. 같은 종류 2개는 독립 config·독립 구독.
 - **shape import**: API 연동 위젯(Batch 3)은 응답 타입을 `output/api-shapes.ts`에서 import(로컬 재선언 금지).

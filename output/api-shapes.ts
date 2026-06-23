@@ -542,3 +542,75 @@ export const CalendarFeedSchema = z.object({
   ts: z.number().int(),
 });
 export type CalendarFeed = z.infer<typeof CalendarFeedSchema>;
+
+/* ===========================================================================
+ *  AIR QUALITY — 대기질·미세먼지  (dataMode: 'poll')
+ * ===========================================================================
+ *
+ *  GET /api/air-quality?lat=&lon=&label= → current pollutant levels for one
+ *  location. Source is the **keyless** Open-Meteo Air-Quality API (works today,
+ *  no key). Concentrations are µg/m³; `aqi` fields are the European/US AQI
+ *  indices when the provider supplies them. The widget grades PM₂.₅/PM₁₀ with
+ *  the Korean (환경부) 4-tier standard locally (icon + label — never color-only).
+ */
+export const AirPollutantsSchema = z.object({
+  /** 초미세먼지 PM₂.₅, µg/m³. */
+  pm25: z.number().optional(),
+  /** 미세먼지 PM₁₀, µg/m³. */
+  pm10: z.number().optional(),
+  /** 오존 O₃, µg/m³. */
+  o3: z.number().optional(),
+  /** 이산화질소 NO₂, µg/m³. */
+  no2: z.number().optional(),
+  /** 아황산가스 SO₂, µg/m³. */
+  so2: z.number().optional(),
+  /** 일산화탄소 CO, µg/m³. */
+  co: z.number().optional(),
+  /** European AQI (0–100+), when provided. */
+  euAqi: z.number().optional(),
+  /** US AQI (0–500), when provided. */
+  usAqi: z.number().optional(),
+});
+export type AirPollutants = z.infer<typeof AirPollutantsSchema>;
+
+/** Snapshot response of `GET /api/air-quality`. */
+export const AirQualitySchema = z.object({
+  location: z.object({
+    label: z.string(),
+    lat: z.number(),
+    lon: z.number(),
+  }),
+  current: AirPollutantsSchema,
+  /** Observation time for the reading (epoch ms). */
+  observedAt: z.number().int(),
+  provider: z.literal("open-meteo"),
+  /** true when served from the keyless fallback / cache. */
+  stale: z.boolean(),
+  ts: z.number().int(),
+});
+export type AirQuality = z.infer<typeof AirQualitySchema>;
+
+/* ===========================================================================
+ *  TRANSLATE — 번역기  (on-demand, not poll)
+ * ===========================================================================
+ *
+ *  GET /api/translate?q=&source=&target= → a single translation. Source is the
+ *  **keyless** MyMemory API (works today, no key); DeepL is used instead when
+ *  DEEPL_API_KEY is present. `source` may be "auto" (let the provider detect);
+ *  `detectedSource` reports what it resolved to. Plain text in/out.
+ */
+export const TranslateSchema = z.object({
+  /** The translated text. */
+  translatedText: z.string(),
+  /** The requested source language ("auto" or an ISO code). */
+  source: z.string(),
+  /** The requested target language (ISO code). */
+  target: z.string(),
+  /** Language the provider detected for the input (ISO code), when known. */
+  detectedSource: z.string().optional(),
+  /** "mymemory" (keyless) or "deepl" (keyed). */
+  provider: z.enum(["mymemory", "deepl"]),
+  /** Optional soft notice (e.g. quota warning) — never carries secret detail. */
+  note: z.string().optional(),
+});
+export type Translate = z.infer<typeof TranslateSchema>;

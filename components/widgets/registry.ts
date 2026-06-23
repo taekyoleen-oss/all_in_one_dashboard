@@ -47,6 +47,13 @@ import { calendarWidget } from "./calendar";
 import { clipboardWidget } from "./clipboard";
 import { outfitWidget } from "./outfit";
 import { upcomingWidget } from "./upcoming";
+import { airQualityWidget } from "./air-quality";
+import { subscriptionsWidget } from "./subscriptions";
+import { unitConverterWidget } from "./unit-converter";
+import { timerWidget } from "./timer";
+import { sunMoonWidget } from "./sun-moon";
+import { translateWidget } from "./translate";
+import { vehicleWidget } from "./vehicle";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -78,6 +85,15 @@ const DEFINITIONS: WidgetDefinition[] = [
   clipboardWidget as WidgetDefinition,
   outfitWidget as WidgetDefinition,
   upcomingWidget as WidgetDefinition,
+
+  // ── Batch 4 (대기질·구독·단위변환·타이머·일출달·번역·차량) ──
+  airQualityWidget as WidgetDefinition,
+  subscriptionsWidget as WidgetDefinition,
+  unitConverterWidget as WidgetDefinition,
+  timerWidget as WidgetDefinition,
+  sunMoonWidget as WidgetDefinition,
+  translateWidget as WidgetDefinition,
+  vehicleWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */
