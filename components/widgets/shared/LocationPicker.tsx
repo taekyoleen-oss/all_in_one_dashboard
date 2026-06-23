@@ -24,8 +24,8 @@ export interface LocationValue {
   lon: number;
 }
 
-/** 직접 입력/현재위치가 없을 때 빠르게 고를 수 있는 도시(구·도 단위). */
-export const LOCATION_CITIES: ReadonlyArray<LocationValue> = [
+/** 국내 도시(구·도 단위) — 직접 입력/현재위치 없이 빠르게 고를 때. */
+export const KOREA_CITIES: ReadonlyArray<LocationValue> = [
   { label: "서울", lat: 37.5665, lon: 126.978 },
   { label: "부산", lat: 35.1796, lon: 129.0756 },
   { label: "인천", lat: 37.4563, lon: 126.7052 },
@@ -45,13 +45,19 @@ export const LOCATION_CITIES: ReadonlyArray<LocationValue> = [
   { label: "포항", lat: 36.019, lon: 129.3435 },
   { label: "창원", lat: 35.2278, lon: 128.6817 },
   { label: "제주", lat: 33.4996, lon: 126.5312 },
+];
+
+/** 기본 빠른선택 목록(국내 + 도쿄·뉴욕) — air-quality 등 단일 목록 위젯의 기본값. */
+export const LOCATION_CITIES: ReadonlyArray<LocationValue> = [
+  ...KOREA_CITIES,
   { label: "도쿄", lat: 35.6762, lon: 139.6503 },
   { label: "뉴욕", lat: 40.7128, lon: -74.006 },
 ];
 
-/** 세계 주요 도시(서로 다른 시간대·반구) — 일출/일몰·달처럼 전 지구적 위젯에서 사용.
- *  도쿄·뉴욕은 LOCATION_CITIES에 이미 있어 중복 제외. */
+/** 세계 주요 도시(서로 다른 시간대·반구) — 일출/일몰·달처럼 전 지구적 위젯의 '해외' 탭. */
 export const WORLD_CITIES: ReadonlyArray<LocationValue> = [
+  { label: "도쿄", lat: 35.6762, lon: 139.6503 },
+  { label: "뉴욕", lat: 40.7128, lon: -74.006 },
   { label: "베이징", lat: 39.9042, lon: 116.4074 },
   { label: "상하이", lat: 31.2304, lon: 121.4737 },
   { label: "홍콩", lat: 22.3193, lon: 114.1694 },
@@ -90,17 +96,28 @@ interface GeoHit {
   lon: number;
 }
 
+export interface CityGroup {
+  label: string;
+  cities: ReadonlyArray<LocationValue>;
+}
+
 export function LocationPicker({
   value,
   onPick,
   cities = LOCATION_CITIES,
+  cityGroups,
 }: {
   value: LocationValue;
   onPick: (next: LocationValue) => void;
-  /** Quick-pick city list. Defaults to Korean cities; widgets that span the
-   *  globe (e.g. 일출/일몰·달) can pass `[...LOCATION_CITIES, ...WORLD_CITIES]`. */
+  /** Single quick-pick city list (default). Ignored when `cityGroups` is set. */
   cities?: ReadonlyArray<LocationValue>;
+  /** Tabbed quick-pick groups (e.g. 국내/해외). First group is the default tab. */
+  cityGroups?: CityGroup[];
 }) {
+  const [activeGroup, setActiveGroup] = React.useState(0);
+  const shownCities = cityGroups
+    ? cityGroups[activeGroup]?.cities ?? []
+    : cities;
   const [labelInput, setLabelInput] = React.useState(value.label);
   const [latInput, setLatInput] = React.useState(String(value.lat));
   const [lonInput, setLonInput] = React.useState(String(value.lon));
@@ -289,8 +306,31 @@ export function LocationPicker({
         <legend className="px-1 text-xs font-medium text-muted-foreground">
           지역 선택
         </legend>
+        {cityGroups ? (
+          <div className="flex gap-1">
+            {cityGroups.map((g, i) => {
+              const active = i === activeGroup;
+              return (
+                <button
+                  key={g.label}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setActiveGroup(i)}
+                  className={[
+                    "rounded-md border px-3 py-1 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border text-muted-foreground hover:bg-accent/40",
+                  ].join(" ")}
+                >
+                  {g.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         <div className="grid grid-cols-3 gap-1.5">
-          {cities.map((city) => (
+          {shownCities.map((city) => (
             <button
               key={city.label}
               type="button"

@@ -11,13 +11,17 @@ import * as React from "react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import {
   LocationPicker,
-  LOCATION_CITIES,
+  KOREA_CITIES,
   WORLD_CITIES,
+  type CityGroup,
 } from "@/components/widgets/shared/LocationPicker";
 import type { SunMoonConfig } from "./types";
 
-/** 일출/일몰·달은 전 지구적 정보라 국내 + 세계 주요 도시를 함께 제공한다. */
-const SUN_MOON_CITIES = [...LOCATION_CITIES, ...WORLD_CITIES];
+/** 일출/일몰·달은 전 지구적 정보라 국내(기본)·해외 탭으로 도시를 나눠 제공한다. */
+const SUN_MOON_CITY_GROUPS: CityGroup[] = [
+  { label: "국내", cities: KOREA_CITIES },
+  { label: "해외", cities: WORLD_CITIES },
+];
 
 export function SunMoonConfigEditor({
   config,
@@ -27,7 +31,7 @@ export function SunMoonConfigEditor({
     <LocationPicker
       value={{ label: config.label, lat: config.lat, lon: config.lon }}
       onPick={(loc) => onChange({ label: loc.label, lat: loc.lat, lon: loc.lon })}
-      cities={SUN_MOON_CITIES}
+      cityGroups={SUN_MOON_CITY_GROUPS}
     />
   );
 }
