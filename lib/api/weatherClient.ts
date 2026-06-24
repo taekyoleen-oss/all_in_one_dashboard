@@ -103,6 +103,8 @@ export function wmoToCondition(code: number): WeatherCondition {
 }
 
 interface OpenMeteoResponse {
+  /** Seconds the location's local time is ahead of UTC (from `timezone=auto`). */
+  utc_offset_seconds?: number;
   current?: {
     time?: string;
     temperature_2m?: number;
@@ -169,6 +171,13 @@ export async function fetchOpenMeteo(
     if (!cur || typeof cur.temperature_2m !== "number") return null;
 
     const now = Date.now();
+    // `timezone=auto` returns LOCAL wall-clock strings with NO offset suffix, so
+    // Date.parse() would read them in the SERVER's timezone (e.g. UTC on Vercel),
+    // shifting every point by the zone offset (KST → +9h). That made the hourly
+    // strip render forecast points ~9h in the past (dawn temps → "too low").
+    // Convert with the response's utc_offset_seconds → a correct UTC instant,
+    // independent of where the server runs.
+    const offsetSec = numOr(json.utc_offset_seconds, 0);
 
     // ---- hourly: keep the next HOURLY_KEEP points from "now" ----
     const hourly: WeatherHour[] = [];
@@ -177,7 +186,7 @@ export async function fetchOpenMeteo(
     const hcode = json.hourly?.weather_code ?? [];
     const hpop = json.hourly?.precipitation_probability ?? [];
     for (let i = 0; i < ht.length; i++) {
-      const ts = Date.parse(ht[i]);
+      const ts = localTimeToEpoch(ht[i], offsetSec);
       if (Number.isNaN(ts)) continue;
       if (ts < now - 3_600_000) continue; // drop hours already well past
       hourly.push({
@@ -215,7 +224,7 @@ export async function fetchOpenMeteo(
         humidity: optNum(cur.relative_humidity_2m),
         windSpeed: optNum(cur.wind_speed_10m),
         pop: optNum(cur.precipitation_probability),
-        ts: cur.time ? orNow(Date.parse(cur.time)) : now,
+        ts: cur.time ? orNow(localTimeToEpoch(cur.time, offsetSec)) : now,
       },
       hourly,
       daily,
@@ -444,6 +453,19 @@ function normalizeKma(
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+/**
+ * Convert an Open-Meteo `timezone=auto` local wall-clock string ("YYYY-MM-DDTHH:mm",
+ * no offset) to a true UTC epoch (ms) using the response's utc_offset_seconds.
+ * Parses the components as if UTC, then subtracts the zone offset — so the instant
+ * is correct regardless of the SERVER's own timezone. Returns NaN on a bad string.
+ */
+function localTimeToEpoch(local: string | undefined, offsetSec: number): number {
+  if (!local) return NaN;
+  const asUtc = Date.parse(`${local}Z`);
+  if (Number.isNaN(asUtc)) return NaN;
+  return asUtc - offsetSec * 1000;
 }
 
 /** "yyyymmddHHmm" (KST) → epoch ms. */

@@ -55,6 +55,7 @@ import { sunMoonWidget } from "./sun-moon";
 import { translateWidget } from "./translate";
 import { vehicleWidget } from "./vehicle";
 import { noteWidget } from "./note";
+import { credentialsWidget } from "./credentials";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -98,6 +99,9 @@ const DEFINITIONS: WidgetDefinition[] = [
 
   // ── Batch 5 (노트 — 리치 텍스트 + 이미지 + 표 + 첨부) ──
   noteWidget as WidgetDefinition,
+
+  // ── 비밀번호 금고 (암호화 로그인 저장 — 마스터 비번 잠금) ──
+  credentialsWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */

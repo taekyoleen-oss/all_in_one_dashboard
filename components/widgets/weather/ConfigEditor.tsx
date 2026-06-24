@@ -91,10 +91,12 @@ export function WeatherConfigEditor({
     setGeoState("locating");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(4));
+        const lon = Number(pos.coords.longitude.toFixed(4));
         const next: WeatherConfig = {
           label: "현재 위치",
-          lat: Number(pos.coords.latitude.toFixed(4)),
-          lon: Number(pos.coords.longitude.toFixed(4)),
+          lat,
+          lon,
           view: config.view,
         };
         setLabelInput(next.label);
@@ -102,6 +104,24 @@ export function WeatherConfigEditor({
         setLonInput(String(next.lon));
         setGeoState("idle");
         onChange(next);
+        // Resolve the actual 동(neighborhood) name in the background so the label
+        // reflects where you are (not just "현재 위치"). Best-effort: keep the
+        // generic label if the reverse lookup fails.
+        void (async () => {
+          try {
+            const res = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
+            const json = (await res.json()) as {
+              result?: { label?: string } | null;
+            };
+            const dong = json.result?.label?.trim();
+            if (dong) {
+              setLabelInput(dong);
+              onChange({ label: dong, lat, lon, view: config.view });
+            }
+          } catch {
+            /* keep "현재 위치" */
+          }
+        })();
       },
       () => {
         setGeoState("error");

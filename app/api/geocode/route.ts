@@ -13,12 +13,43 @@
  */
 
 import type { NextRequest } from "next/server";
-import { searchPlaces } from "@/lib/api/geocodeClient";
+import { reverseGeocode, searchPlaces } from "@/lib/api/geocodeClient";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+
+  // Reverse mode: ?lat=&lon= → a friendly 동-level place name (현재 위치 라벨).
+  const latRaw = searchParams.get("lat");
+  const lonRaw = searchParams.get("lon");
+  if (latRaw !== null && lonRaw !== null) {
+    const lat = Number(latRaw);
+    const lon = Number(lonRaw);
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      lat < -90 ||
+      lat > 90 ||
+      lon < -180 ||
+      lon > 180
+    ) {
+      return Response.json(
+        { result: null },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
+    const result = await reverseGeocode(lat, lon);
+    return Response.json(
+      { result },
+      {
+        headers: {
+          "cache-control": "public, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      },
+    );
+  }
+
   const q = searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) {
     return Response.json({ results: [] }, { headers: { "cache-control": "no-store" } });
