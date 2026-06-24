@@ -64,6 +64,14 @@ export function periodById(id: string): OutfitPeriod {
   return OUTFIT_PERIODS.find((p) => p.id === id) ?? OUTFIT_PERIODS[2];
 }
 
+/** 시간대 자동 추적('지금') 선택 id — 현재 시각이 속한 구간을 따라간다. */
+export const AUTO_PERIOD_ID = "auto";
+
+/** 주어진 시각(보통 현재)이 속한 시간대 id. */
+export function currentPeriodId(date: Date): string {
+  return OUTFIT_PERIODS[getOutfitPeriodIndex(date.getHours())].id;
+}
+
 /**
  * 체감 보정 — 개인 추위/더위 민감도(°C). 효과 체감온도에 더해 추천 구간을 옮긴다.
  * 추위를 많이 타면 음수(체감을 더 춥게 → 더 따뜻한 추천), 더위를 많이 타면 양수.

@@ -11,12 +11,13 @@
 
 import * as React from "react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
+import { RefreshBar } from "@/components/widgets/shared/RefreshBar";
 import { useNews } from "./useNews";
 import { relativeTime } from "./format";
 import type { NewsConfig } from "./types";
 
 export function NewsCompactView({ config }: CompactViewProps<NewsConfig>) {
-  const { data, loading, error } = useNews(config);
+  const { data, loading, error, lastUpdated, refresh } = useNews(config);
 
   if (loading && !data) {
     return <p className="text-sm text-muted-foreground">뉴스 불러오는 중…</p>;
@@ -62,6 +63,11 @@ export function NewsCompactView({ config }: CompactViewProps<NewsConfig>) {
           );
         })}
       </ul>
+      <RefreshBar
+        lastUpdated={lastUpdated}
+        onRefresh={refresh}
+        size="compact"
+      />
     </div>
   );
 }

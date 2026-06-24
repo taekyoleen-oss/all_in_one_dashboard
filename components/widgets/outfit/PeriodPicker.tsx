@@ -1,9 +1,15 @@
 "use client";
 
-/** 시간대 선택 칩 (가로 스크롤). 원본 OUTFIT_PERIODS(7구간)를 그대로 사용. */
+/** 시간대 선택 칩 (가로 스크롤). 맨 앞 '지금'(자동, 현재 시각 추적) + OUTFIT_PERIODS(7구간). */
 
 import * as React from "react";
-import { OUTFIT_PERIODS } from "./constants";
+import { AUTO_PERIOD_ID, OUTFIT_PERIODS } from "./constants";
+
+/** '지금'(자동 추적) 칩 + 7개 고정 시간대. */
+const PERIOD_CHIPS: { id: string; label: string; emoji: string }[] = [
+  { id: AUTO_PERIOD_ID, label: "지금", emoji: "⏱" },
+  ...OUTFIT_PERIODS.map((p) => ({ id: p.id, label: p.label, emoji: p.emoji })),
+];
 
 export function PeriodPicker({
   value,
@@ -21,7 +27,7 @@ export function PeriodPicker({
       aria-label="시간대 선택"
       className="flex shrink-0 items-center gap-1 overflow-x-auto pb-scroll"
     >
-      {OUTFIT_PERIODS.map((p) => {
+      {PERIOD_CHIPS.map((p) => {
         const active = p.id === value;
         return (
           <button

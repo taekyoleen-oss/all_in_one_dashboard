@@ -18,40 +18,19 @@ import { buildOutfitSnapshot } from "./weatherMap";
 import { recommendOutfit } from "./illustration/recommender";
 import { OutfitIllustration } from "./illustration/OutfitIllustration";
 import { PeriodPicker } from "./PeriodPicker";
-import { usePersistedPeriod } from "./usePersistedPeriod";
-import {
-  activityIcon,
-  activityLabel,
-  getOutfitPeriodIndex,
-  OUTFIT_PERIODS,
-} from "./constants";
+import { useSelectedPeriod } from "./useSelectedPeriod";
+import { activityIcon, activityLabel } from "./constants";
 import type { OutfitConfig } from "./types";
-
-function currentPeriodId(): string {
-  return OUTFIT_PERIODS[getOutfitPeriodIndex(new Date().getHours())].id;
-}
-
-/** Shared selected-period hook: persisted per instance, synced when the config
- *  default (기본 시간대) actually changes (not on every mount, so '전체' keeps it). */
-function useSelectedPeriod(instanceId: string, configPeriod?: string) {
-  const { period, setPeriod } = usePersistedPeriod(instanceId);
-  const prevConfig = React.useRef(configPeriod);
-  React.useEffect(() => {
-    if (prevConfig.current !== configPeriod) {
-      prevConfig.current = configPeriod;
-      setPeriod(configPeriod ?? currentPeriodId());
-    }
-  }, [configPeriod, setPeriod]);
-  const effective = period ?? configPeriod ?? currentPeriodId();
-  return { periodId: effective, setPeriodId: setPeriod };
-}
 
 export function OutfitCompactView({
   config,
   instanceId,
 }: CompactViewProps<OutfitConfig>) {
   const { data, loading, error, lastUpdated, refresh } = useOutfit(config);
-  const { periodId, setPeriodId } = useSelectedPeriod(instanceId, config.periodId);
+  const { selection, periodId, setSelection } = useSelectedPeriod(
+    instanceId,
+    config.periodId,
+  );
 
   const computed = React.useMemo(() => {
     if (!data) return null;
@@ -84,7 +63,7 @@ export function OutfitCompactView({
   return (
     <div className="flex h-full flex-col gap-1.5">
       {/* 시간대 선택 — 상단 */}
-      <PeriodPicker value={periodId} onChange={setPeriodId} size="compact" />
+      <PeriodPicker value={selection} onChange={setSelection} size="compact" />
 
       {/* 본문: 좌(날씨+의상) | 우(일러스트). 좁으면 세로 스택. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 @[300px]/widget:flex-row">

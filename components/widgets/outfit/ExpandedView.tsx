@@ -15,44 +15,25 @@ import { buildOutfitSnapshot } from "./weatherMap";
 import { recommendOutfit } from "./illustration/recommender";
 import { OutfitIllustration } from "./illustration/OutfitIllustration";
 import { PeriodPicker } from "./PeriodPicker";
-import { usePersistedPeriod } from "./usePersistedPeriod";
+import { useSelectedPeriod } from "./useSelectedPeriod";
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   type OutfitCategoryKey,
 } from "./illustration/categories";
 import type { OutfitItem } from "./illustration/types";
-import {
-  activityIcon,
-  activityLabel,
-  getOutfitPeriodIndex,
-  OUTFIT_PERIODS,
-} from "./constants";
+import { activityIcon, activityLabel } from "./constants";
 import type { OutfitConfig } from "./types";
-
-function currentPeriodId(): string {
-  return OUTFIT_PERIODS[getOutfitPeriodIndex(new Date().getHours())].id;
-}
-
-function useSelectedPeriod(instanceId: string, configPeriod?: string) {
-  const { period, setPeriod } = usePersistedPeriod(instanceId);
-  const prevConfig = React.useRef(configPeriod);
-  React.useEffect(() => {
-    if (prevConfig.current !== configPeriod) {
-      prevConfig.current = configPeriod;
-      setPeriod(configPeriod ?? currentPeriodId());
-    }
-  }, [configPeriod, setPeriod]);
-  const effective = period ?? configPeriod ?? currentPeriodId();
-  return { periodId: effective, setPeriodId: setPeriod };
-}
 
 export function OutfitExpandedView({
   config,
   instanceId,
 }: ExpandedViewProps<OutfitConfig>) {
   const { data, loading, error, refresh } = useOutfit(config);
-  const { periodId, setPeriodId } = useSelectedPeriod(instanceId, config.periodId);
+  const { selection, periodId, setSelection } = useSelectedPeriod(
+    instanceId,
+    config.periodId,
+  );
 
   const computed = React.useMemo(() => {
     if (!data) return null;
@@ -88,7 +69,7 @@ export function OutfitExpandedView({
   return (
     <div className="flex flex-col gap-4">
       {/* 시간대 선택 — 상단 */}
-      <PeriodPicker value={periodId} onChange={setPeriodId} size="expanded" />
+      <PeriodPicker value={selection} onChange={setSelection} size="expanded" />
 
       {/* 2단: 좌(날씨+의상+팁) | 우(일러스트) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,300px)]">
