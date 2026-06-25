@@ -21,13 +21,16 @@ export function PeriodPicker({
   size?: "compact" | "expanded";
 }) {
   const big = size === "expanded";
-  const chipClass = (active: boolean) =>
+  // tomorrow=true인 칩(내일 시간대)은 비활성 시 회색 배경으로 오늘과 시각 구별.
+  const chipClass = (active: boolean, tomorrow = false) =>
     [
       "inline-flex shrink-0 items-center gap-1 rounded-full border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
       big ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
       active
         ? "border-primary bg-primary/10 text-foreground"
-        : "border-border text-muted-foreground hover:bg-accent/40",
+        : tomorrow
+          ? "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+          : "border-border text-muted-foreground hover:bg-accent/40",
     ].join(" ");
 
   return (
@@ -66,7 +69,7 @@ export function PeriodPicker({
               aria-pressed={active}
               aria-label={`${s.dayOffset === 1 ? "내일 " : ""}${s.label}`}
               onClick={() => onChange(s.key)}
-              className={chipClass(active)}
+              className={chipClass(active, s.dayOffset === 1)}
             >
               <span aria-hidden>{s.emoji}</span>
               {s.label}
