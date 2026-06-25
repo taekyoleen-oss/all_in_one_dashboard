@@ -18,6 +18,7 @@ import {
   formatPrice,
   formatChange,
   formatPct,
+  quoteInfoUrl,
 } from "./format";
 import { useFlash } from "./useFlash";
 import { Sparkline } from "./Sparkline";
@@ -57,10 +58,17 @@ export function QuoteRow({
     <li
       data-direction={dir}
       className={[
-        "flex items-center justify-between gap-3 rounded-md px-1.5 py-1 transition-colors duration-500",
+        "rounded-md transition-colors duration-500",
         flash ? FLASH_CLASS[flash] : "bg-transparent",
       ].join(" ")}
     >
+      <a
+        href={quoteInfoUrl(symbol)}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`${quote?.name || name} 주식정보 보기 (네이버 금융, 새 탭)`}
+        className="flex items-center justify-between gap-3 rounded-md px-1.5 py-1 hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
       <div className="flex min-w-0 flex-col">
         <span
           className={[
@@ -110,6 +118,7 @@ export function QuoteRow({
           {changeText}
         </span>
       </div>
+      </a>
     </li>
   );
 }

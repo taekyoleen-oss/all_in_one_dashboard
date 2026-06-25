@@ -129,8 +129,10 @@ interface OpenMeteoResponse {
   };
 }
 
-/** How many hours of the hourly series to keep (from "now" forward). */
-const HOURLY_KEEP = 24;
+/** How many hours of the hourly series to keep (from "now" forward).
+ *  48h(=약 2일): 외출옷 위젯이 오후에도 '내일' 전 시간대(저녁 포함)를 예보로 잡을 수 있게
+ *  한다(24h면 오후엔 내일 저녁이 빠짐). 날씨 위젯은 hourly.slice(0,12)만 표시하므로 영향 없음. */
+const HOURLY_KEEP = 48;
 /** How many days of the daily forecast to keep. */
 const DAILY_KEEP = 7;
 

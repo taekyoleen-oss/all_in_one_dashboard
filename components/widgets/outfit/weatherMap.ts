@@ -20,7 +20,12 @@ import type {
   PtyCode,
   SkyCode,
 } from "./illustration/types";
-import { periodById, sensitivityOffset } from "./constants";
+import {
+  currentPeriodId,
+  parsePeriodKey,
+  periodById,
+  sensitivityOffset,
+} from "./constants";
 
 /** condition → 기상청 강수형태/하늘상태 코드 근사. */
 function conditionToCodes(c: WeatherCondition): {
@@ -99,18 +104,33 @@ export interface OutfitSnapshot {
   calendarMonth: number;
 }
 
-/** 선택 시간대의 시간별 예보를 찾는다(없으면 null → 현재값 폴백). */
+/**
+ * 선택 시간대(특정 날의 repHour)의 시간별 예보를 찾는다.
+ *  1순위: 앵커(오늘/내일 날짜) + 같은 시각 → '내일 16~18시' 같은 칩이 내일 예보를 정확히 잡음.
+ *  2순위: 같은 날 데이터가 없으면 가장 가까운 미래의 같은 시각(데이터 갭 폴백).
+ * 모두 없으면 null → 호출부가 현재값으로 폴백.
+ */
 function findHourly(
   weather: Weather,
   repHour: number,
+  anchorTs: number,
 ): Weather["hourly"][number] | null {
+  const anchor = new Date(anchorTs);
+  const sameDay = (d: Date) =>
+    d.getFullYear() === anchor.getFullYear() &&
+    d.getMonth() === anchor.getMonth() &&
+    d.getDate() === anchor.getDate();
+  // 1순위: 앵커 날짜 + 같은 시각.
+  for (const h of weather.hourly) {
+    const d = new Date(h.ts);
+    if (d.getHours() === repHour && sameDay(d)) return h;
+  }
+  // 2순위: 가장 가까운 미래의 같은 시각.
   const now = Date.now();
   let best: Weather["hourly"][number] | null = null;
   let bestTs = Infinity;
   for (const h of weather.hourly) {
-    const d = new Date(h.ts);
-    if (d.getHours() !== repHour) continue;
-    // 과거(1시간 이전)는 제외, 가장 가까운 미래의 같은 시각을 선택.
+    if (new Date(h.ts).getHours() !== repHour) continue;
     if (h.ts < now - 60 * 60 * 1000) continue;
     if (h.ts < bestTs) {
       bestTs = h.ts;
@@ -129,31 +149,30 @@ export function buildOutfitSnapshot(
     periodId?: string;
   },
 ): OutfitSnapshot {
-  const period = opts.periodId
-    ? periodById(opts.periodId)
-    : periodById(
-        // periodId 미지정 시 현재 시각 구간.
-        ["dawn", "h07_09", "h10_12", "h13_15", "h16_18", "h19_21", "h21_23"][
-          (() => {
-            const hr = new Date().getHours();
-            if (hr < 7) return 0;
-            if (hr < 10) return 1;
-            if (hr < 13) return 2;
-            if (hr < 16) return 3;
-            if (hr < 19) return 4;
-            if (hr < 22) return 5;
-            return 6;
-          })()
-        ],
-      );
+  const now = new Date();
+  // periodId 키('h10_12' 또는 '내일'을 뜻하는 'h10_12@1')를 baseId + dayOffset로 분해.
+  // 미지정이면 현재 시각이 속한 오늘 구간.
+  const parsed = parsePeriodKey(opts.periodId ?? currentPeriodId(now));
+  const period = periodById(parsed.baseId);
+  const dayOffset = parsed.dayOffset;
   const repHour = period.repHour;
-  const calendarMonth = new Date().getMonth() + 1;
+  // 앵커 = 선택한 날(오늘/내일)의 대표 시각 → 그 날짜의 예보를 정확히 매칭.
+  const anchor = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + dayOffset,
+    repHour,
+    0,
+    0,
+    0,
+  );
+  const calendarMonth = anchor.getMonth() + 1;
 
   const cur = weather.current;
   const flDelta =
     typeof cur.feelsLike === "number" ? cur.feelsLike - cur.temp : 0;
 
-  const hourly = findHourly(weather, repHour);
+  const hourly = findHourly(weather, repHour, anchor.getTime());
   const temp = hourly ? hourly.temp : cur.temp;
   const condition = hourly ? hourly.condition : cur.condition;
   const pop = hourly ? hourly.pop : cur.pop;
@@ -194,7 +213,7 @@ export function buildOutfitSnapshot(
     feelsLike,
     condition,
     hour: repHour,
-    periodLabel: period.label,
+    periodLabel: dayOffset === 1 ? `내일 ${period.label}` : period.label,
     fromHourly: hourly != null,
     calendarMonth,
   };

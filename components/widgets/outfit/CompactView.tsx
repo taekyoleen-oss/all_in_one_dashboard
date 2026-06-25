@@ -27,7 +27,7 @@ export function OutfitCompactView({
   instanceId,
 }: CompactViewProps<OutfitConfig>) {
   const { data, loading, error, lastUpdated, refresh } = useOutfit(config);
-  const { selection, periodId, setSelection } = useSelectedPeriod(
+  const { selection, periodId, setSelection, slots } = useSelectedPeriod(
     instanceId,
     config.periodId,
   );
@@ -63,7 +63,12 @@ export function OutfitCompactView({
   return (
     <div className="flex h-full flex-col gap-1.5">
       {/* 시간대 선택 — 상단 */}
-      <PeriodPicker value={selection} onChange={setSelection} size="compact" />
+      <PeriodPicker
+        value={selection}
+        onChange={setSelection}
+        slots={slots}
+        size="compact"
+      />
 
       {/* 본문: 좌(날씨+의상) | 우(일러스트). 좁으면 세로 스택. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 @[300px]/widget:flex-row">

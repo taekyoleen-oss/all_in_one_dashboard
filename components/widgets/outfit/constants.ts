@@ -73,6 +73,70 @@ export function currentPeriodId(date: Date): string {
 }
 
 /**
+ * 시간대 슬롯 — 특정 날(오늘/내일)의 한 구간. '현재→미래' 롤링 윈도우의 한 칩.
+ * 선택 키(=저장값)는 오늘이면 baseId('h10_12'), 내일이면 `${baseId}@1`로 인코딩한다.
+ */
+export interface PeriodSlot {
+  /** 선택 키(저장값·하이라이트 식별자). */
+  key: string;
+  /** 기준 시간대 id(OUTFIT_PERIODS). */
+  baseId: string;
+  /** 0=오늘, 1=내일. */
+  dayOffset: number;
+  /** 대표 시각(예보 매칭용). */
+  repHour: number;
+  /** 칩 라벨(시각만, '내일' 접두는 picker가 구분선으로 표시). */
+  label: string;
+  emoji: string;
+}
+
+/** 선택 키를 baseId + dayOffset로 분해(레거시 오늘 키는 dayOffset 0). */
+export function parsePeriodKey(key: string): { baseId: string; dayOffset: number } {
+  const m = key.match(/^(.+?)@(\d+)$/);
+  if (m) return { baseId: m[1], dayOffset: Number(m[2]) };
+  return { baseId: key, dayOffset: 0 };
+}
+
+/**
+ * 현재 시각 기준 '앞으로' 진행하는 시간대 슬롯 목록.
+ *  - 오늘은 현재 구간부터 끝까지, 이어서 내일 구간들을 붙인다.
+ *  - 예보 보관 한도(기본 47h ≤ HOURLY_KEEP) 안에 드는 슬롯만 포함 → 데이터 없는 칩 방지.
+ * 결과적으로 지나간 시간대는 사라지고, 오후가 되면 내일 시간대가 자연히 따라온다(요구).
+ */
+export function buildForwardPeriods(now: Date, horizonHours = 47): PeriodSlot[] {
+  const curIdx = getOutfitPeriodIndex(now.getHours());
+  const limit = now.getTime() + horizonHours * 3_600_000;
+  const slots: PeriodSlot[] = [];
+  const addDay = (dayOffset: number, fromIdx: number) => {
+    for (let i = fromIdx; i < OUTFIT_PERIODS.length; i++) {
+      const p = OUTFIT_PERIODS[i];
+      // 해당 슬롯의 대표 시각(오늘/내일 repHour). 미래 한도를 넘으면 그 날은 종료.
+      const target = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + dayOffset,
+        p.repHour,
+        0,
+        0,
+        0,
+      );
+      if (target.getTime() > limit) return;
+      slots.push({
+        key: dayOffset === 0 ? p.id : `${p.id}@${dayOffset}`,
+        baseId: p.id,
+        dayOffset,
+        repHour: p.repHour,
+        label: p.label,
+        emoji: p.emoji,
+      });
+    }
+  };
+  addDay(0, curIdx); // 오늘: 현재 구간 ~ 끝
+  addDay(1, 0); // 내일: 전 구간(한도 내)
+  return slots;
+}
+
+/**
  * 체감 보정 — 개인 추위/더위 민감도(°C). 효과 체감온도에 더해 추천 구간을 옮긴다.
  * 추위를 많이 타면 음수(체감을 더 춥게 → 더 따뜻한 추천), 더위를 많이 타면 양수.
  */

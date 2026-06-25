@@ -18,15 +18,22 @@
 import * as React from "react";
 import { useNow } from "@/lib/utils/useNow";
 import { usePersistedPeriod } from "./usePersistedPeriod";
-import { AUTO_PERIOD_ID, currentPeriodId } from "./constants";
+import {
+  AUTO_PERIOD_ID,
+  buildForwardPeriods,
+  currentPeriodId,
+  type PeriodSlot,
+} from "./constants";
 
 export interface SelectedPeriod {
-  /** 사용자 선택값('auto' 또는 시간대 id) — PeriodPicker 하이라이트용. */
+  /** 사용자 선택값('auto' 또는 시간대 키) — PeriodPicker 하이라이트용. */
   selection: string;
-  /** 추천 계산에 쓰는 실제 시간대 id(자동이면 현재 시각 반영). */
+  /** 추천 계산에 쓰는 실제 시간대 키(자동이면 현재 시각 반영). */
   periodId: string;
   /** 칩 클릭 시 선택 갱신('auto' 포함). */
   setSelection: (id: string) => void;
+  /** '현재→미래' 롤링 시간대 슬롯(오늘 남은 구간 + 내일). PeriodPicker가 렌더. */
+  slots: PeriodSlot[];
 }
 
 export function useSelectedPeriod(
@@ -45,14 +52,25 @@ export function useSelectedPeriod(
     }
   }, [configPeriod, setPeriod]);
 
-  const selection = period ?? configPeriod ?? AUTO_PERIOD_ID;
-  const isAuto = selection === AUTO_PERIOD_ID;
+  const stored = period ?? configPeriod ?? AUTO_PERIOD_ID;
 
-  // 자동일 때만 분 단위로 틱(시간대 경계를 넘으면 추천 갱신). 고정이면 시간당 1회로 최소화.
-  const now = useNow(isAuto ? 60_000 : 3_600_000);
-  const periodId = isAuto ? currentPeriodId(now) : selection;
+  // 분 단위 틱: 시간이 흐르면 현재 구간이 넘어가고, 지나간 칩은 롤링 윈도우에서 사라진다.
+  const now = useNow(60_000);
+  const slots = React.useMemo(
+    // 분 단위로만 재계산(초 변동 무시)되도록 분 타임스탬프를 키로.
+    () => buildForwardPeriods(now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [Math.floor(now.getTime() / 60_000)],
+  );
 
-  return { selection, periodId, setSelection: setPeriod };
+  // 저장된 고정 선택이 이미 지나가 윈도우에 없으면 자동('지금')으로 자가 복원.
+  const inWindow =
+    stored === AUTO_PERIOD_ID || slots.some((s) => s.key === stored);
+  const selection = inWindow ? stored : AUTO_PERIOD_ID;
+  const periodId =
+    selection === AUTO_PERIOD_ID ? currentPeriodId(now) : selection;
+
+  return { selection, periodId, setSelection: setPeriod, slots };
 }
 
 export default useSelectedPeriod;

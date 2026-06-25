@@ -104,27 +104,70 @@ function lastFiniteClose(
   return null;
 }
 
+/**
+ * 직전 거래일 종가 — 해당 국가(미국·한국) 시장의 "전일 종가"를 일봉 시계열에서 직접 구한다.
+ * Naver/Google이 보여주는 "전일대비"의 기준값과 동일하며, 한국 시각·요일 경계와 무관하게
+ * 그 종목 자국 시장의 직전 세션 종가를 쓴다.
+ *
+ * Yahoo가 `meta.previousClose`를 빠뜨리는 경우(현재 지수 응답이 그렇다)를 대비한 권위 소스다.
+ * `meta.chartPreviousClose`는 range 윈도우(5d) *시작 직전* 봉, 즉 약 5거래일 전 종가라서
+ * 전일종가로 쓰면 등락의 폭·부호가 모두 틀어진다(다우는 부호까지 반전됨) — 그래서 쓰지 않는다.
+ *
+ *  - 정규장 진행 중: 마지막 봉이 오늘(진행 중) 세션 → 전일종가는 그 직전 봉.
+ *  - 장 마감/시간외: 마지막 봉이 가장 최근 완료 세션 → 전일종가는 역시 직전 봉.
+ *  - 새 세션이 시작됐는데 아직 봉이 안 생긴 드문 경우(latestTs가 마지막 봉보다 20h+ 이후):
+ *    마지막 봉 자체가 전일종가.
+ *
+ * 두 세션 이상을 못 구하면 null.
+ */
+function previousDailyClose(
+  timestamps: number[],
+  closes: Array<number | null>,
+  latestTs: number,
+): number | null {
+  const bars: Array<{ ts: number; close: number }> = [];
+  for (let i = 0; i < closes.length; i++) {
+    const c = closes[i];
+    if (typeof c === "number" && Number.isFinite(c)) {
+      bars.push({ ts: timestamps[i] ?? 0, close: c });
+    }
+  }
+  if (bars.length === 0) return null;
+  const last = bars[bars.length - 1];
+  // 일봉 ts는 세션 시작 시각으로 찍힌다. 같은 세션의 실시간 시세는 ~14h 이내에 위치하므로,
+  // latestTs가 마지막 봉보다 20h 넘게 뒤면 봉이 아직 안 생긴 새 세션 → 마지막 봉이 전일종가.
+  if (latestTs - last.ts > 20 * 3600) return last.close;
+  // 일반: 마지막 봉이 최신 세션 → 전일종가는 그 직전 봉.
+  return bars.length >= 2 ? bars[bars.length - 2].close : last.close;
+}
+
 /** Fetch + normalize a single symbol; returns null on any failure (caller tracks errors). */
 async function fetchOne(symbol: StockSymbol): Promise<StockQuote | null> {
   const meta = resolveMeta(symbol);
   const yahoo = toYahooSymbol(symbol);
-  // range=5d (not 1d): with 1d Yahoo often omits `previousClose`, making the
-  // day change read 0. 5d reliably carries previousClose for a correct 등락. This
-  // is the authoritative base for the regular price + 전일종가 (indices included).
+  // range=5d (not 1d): 일봉 시계열에서 직전 거래일 종가를 직접 뽑아 등락 기준으로 쓰기 위해
+  // 최소 두 세션이 필요하다(1d면 한 세션뿐). 이 일봉이 정규가 + 전일종가(지수 포함)의 권위 소스다.
   const base = await fetchChart(yahoo, "1d", "5d");
   const m = base?.meta;
   if (!m || typeof m.regularMarketPrice !== "number") return null;
 
-  const prevClose =
-    typeof m.previousClose === "number"
-      ? m.previousClose
-      : typeof m.chartPreviousClose === "number"
-        ? m.chartPreviousClose
-        : m.regularMarketPrice;
-
   let price = m.regularMarketPrice;
   let tsSec =
     typeof m.regularMarketTime === "number" ? m.regularMarketTime : Date.now() / 1000;
+
+  // 전일종가(해당 국가 시장 직전 세션 종가) 우선순위:
+  //  1) meta.previousClose — 있으면 권위값(현재 지수 응답엔 대개 없음).
+  //  2) 일봉 시계열의 직전 세션 종가 — 화면에 보이는 "전일대비"와 동일한 기준.
+  //  3) chartPreviousClose — 마지막 폴백(주의: 5거래일 전 값이라 부정확할 수 있음).
+  const prevClose =
+    typeof m.previousClose === "number"
+      ? m.previousClose
+      : (base
+          ? previousDailyClose(base.timestamps, base.closes, tsSec)
+          : null) ??
+        (typeof m.chartPreviousClose === "number"
+          ? m.chartPreviousClose
+          : m.regularMarketPrice);
 
   // 시간외(pre/post market) 반영: 정규장 마감 후 움직인 가격을 보여준다. 지수(^…)는
   // 시간외 거래가 없고 분봉 series가 비어 있으므로 건너뛴다(정규장 종가 = 최종값).

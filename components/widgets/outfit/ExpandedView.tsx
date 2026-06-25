@@ -30,7 +30,7 @@ export function OutfitExpandedView({
   instanceId,
 }: ExpandedViewProps<OutfitConfig>) {
   const { data, loading, error, refresh } = useOutfit(config);
-  const { selection, periodId, setSelection } = useSelectedPeriod(
+  const { selection, periodId, setSelection, slots } = useSelectedPeriod(
     instanceId,
     config.periodId,
   );
@@ -69,7 +69,12 @@ export function OutfitExpandedView({
   return (
     <div className="flex flex-col gap-4">
       {/* 시간대 선택 — 상단 */}
-      <PeriodPicker value={selection} onChange={setSelection} size="expanded" />
+      <PeriodPicker
+        value={selection}
+        onChange={setSelection}
+        slots={slots}
+        size="expanded"
+      />
 
       {/* 2단: 좌(날씨+의상+팁) | 우(일러스트) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,300px)]">
