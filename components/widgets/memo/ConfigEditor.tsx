@@ -92,7 +92,7 @@ export function MemoConfigEditor({ config, onChange }: ConfigEditorProps<MemoCon
               aria-hidden
               className="size-3 rounded-full border border-border bg-foreground"
             />
-            자동
+            기본
           </button>
 
           {MEMO_TEXT_COLORS.map((c) => {

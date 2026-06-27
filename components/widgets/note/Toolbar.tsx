@@ -179,14 +179,14 @@ function ColorMenu({
         data-pb-no-drag=""
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => apply(AUTO_TEXT_COLOR)}
-        title="테마 자동 (라이트=검정 · 다크=흰색)"
+        title="기본 — 라이트 모드=검정 · 다크 모드=흰색 (테마 자동)"
         className="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span
           aria-hidden
           className="size-4 shrink-0 rounded border border-border bg-foreground"
         />
-        자동 (테마)
+        기본 (라이트=검정·다크=흰색)
       </button>
 
       <Swatches colors={TEXT_COLORS} onPick={apply} />
@@ -301,15 +301,7 @@ export function Toolbar({
         ))}
       </select>
 
-      <IconBtn title="제목" onClick={() => run(() => RT.formatBlock("H2"))}><Heading2 size={16} /></IconBtn>
-      <IconBtn title="소제목" onClick={() => run(() => RT.formatBlock("H3"))}><Heading3 size={16} /></IconBtn>
-      <span className={sep} />
-
-      <IconBtn title="굵게" active={active.bold} onClick={() => run(RT.toggleBold)}><Bold size={16} /></IconBtn>
-      <IconBtn title="기울임" active={active.italic} onClick={() => run(RT.toggleItalic)}><Italic size={16} /></IconBtn>
-      <IconBtn title="밑줄" active={active.underline} onClick={() => run(RT.toggleUnderline)}><Underline size={16} /></IconBtn>
-      <IconBtn title="취소선" active={active.strike} onClick={() => run(RT.toggleStrike)}><Strikethrough size={16} /></IconBtn>
-
+      {/* 글자 색 — 글자 크기 바로 옆(노트 타일 색과는 별개 기능). '기본' = 테마 자동. */}
       <Popover title="글자 색" icon={<Baseline size={16} />}>
         {(close) => (
           <ColorMenu editorRef={editorRef} onApplied={onAfter} close={close} />
@@ -320,6 +312,16 @@ export function Toolbar({
           <Swatches colors={HIGHLIGHT_COLORS} onPick={(c) => { run(() => RT.setHiliteColor(c)); close(); }} />
         )}
       </Popover>
+      <span className={sep} />
+
+      <IconBtn title="제목" onClick={() => run(() => RT.formatBlock("H2"))}><Heading2 size={16} /></IconBtn>
+      <IconBtn title="소제목" onClick={() => run(() => RT.formatBlock("H3"))}><Heading3 size={16} /></IconBtn>
+      <span className={sep} />
+
+      <IconBtn title="굵게" active={active.bold} onClick={() => run(RT.toggleBold)}><Bold size={16} /></IconBtn>
+      <IconBtn title="기울임" active={active.italic} onClick={() => run(RT.toggleItalic)}><Italic size={16} /></IconBtn>
+      <IconBtn title="밑줄" active={active.underline} onClick={() => run(RT.toggleUnderline)}><Underline size={16} /></IconBtn>
+      <IconBtn title="취소선" active={active.strike} onClick={() => run(RT.toggleStrike)}><Strikethrough size={16} /></IconBtn>
       <span className={sep} />
 
       <IconBtn title="글머리 기호" active={active.ul} onClick={() => run(RT.bulletList)}><List size={16} /></IconBtn>
