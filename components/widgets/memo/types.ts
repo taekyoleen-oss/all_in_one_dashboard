@@ -13,6 +13,11 @@ export interface MemoConfig {
   color: MemoColor;
   /** Font size bucket for the body. */
   size: MemoSize;
+  /**
+   * Body text color (CSS color). Optional — when unset the body follows the
+   * theme foreground (라이트=검정 · 다크=흰색). A concrete color overrides that.
+   */
+  textColor?: string;
 }
 
 export type MemoColor = "default" | "amber" | "rose" | "green" | "blue" | "violet";
@@ -27,6 +32,21 @@ export const MEMO_COLORS: Record<MemoColor, { label: string; swatch: string }> =
   blue: { label: "블루", swatch: "oklch(0.68 0.14 240)" },
   violet: { label: "바이올렛", swatch: "oklch(0.68 0.17 295)" },
 };
+
+/**
+ * Body text-color presets (concrete CSS colors). The "자동(테마)" choice is the
+ * absence of a value (textColor undefined) → body uses the theme foreground.
+ */
+export const MEMO_TEXT_COLORS: string[] = [
+  "#ef4444", // red
+  "#f59e0b", // amber
+  "#10b981", // green
+  "#3b82f6", // blue
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#6b7280", // gray
+  "#111827", // near-black
+];
 
 /** Body font-size per bucket (compact view scales up via @container). */
 export const MEMO_SIZE_CLASS: Record<MemoSize, string> = {

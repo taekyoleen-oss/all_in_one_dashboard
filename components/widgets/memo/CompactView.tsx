@@ -64,6 +64,9 @@ export function MemoCompactView({
         placeholder="여기에 메모를 입력하세요…"
         spellCheck={false}
         data-pb-no-drag=""
+        // Unset textColor → text-foreground class (테마 자동). A concrete color
+        // is applied inline and overrides the class.
+        style={config.textColor ? { color: config.textColor } : undefined}
         className={[
           "min-w-0 flex-1 resize-none bg-transparent leading-relaxed outline-none",
           "text-foreground placeholder:italic placeholder:text-muted-foreground",

@@ -55,6 +55,12 @@ export interface ExpandedViewProps<C = unknown> {
 export interface ConfigEditorProps<C = unknown> {
   config: C;
   onChange: (next: C) => void;
+  /**
+   * The instance being edited. Optional (older editors ignore it) — used by
+   * editors that drive cross-instance state, e.g. the note's "공유 받기" toggle
+   * which must clear the flag on every OTHER note.
+   */
+  instanceId?: string;
 }
 
 /**

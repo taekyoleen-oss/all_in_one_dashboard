@@ -104,7 +104,11 @@ function ConfigDialogBody({
 
         <div className="max-h-[75dvh] overflow-y-auto p-4">
           {Editor ? (
-            <Editor config={draft} onChange={setDraft} />
+            <Editor
+              config={draft}
+              onChange={setDraft}
+              instanceId={instance.instanceId}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               이 위젯에는 편집할 설정이 없습니다.

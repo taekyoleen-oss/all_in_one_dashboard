@@ -20,5 +20,15 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icon.svg", type: "image/svg+xml", sizes: "any" },
       { src: "/apple-icon", type: "image/png", sizes: "180x180" },
     ],
+    // Web Share Target — when the installed PWA is picked from the mobile share
+    // sheet, the OS opens /share with the shared title/text/url as query params.
+    // GET (no service worker needed); /share routes the content into the
+    // designated "공유 받기" note. (iOS Safari doesn't support share_target yet.)
+    share_target: {
+      action: "/share",
+      method: "GET",
+      enctype: "application/x-www-form-urlencoded",
+      params: { title: "title", text: "text", url: "url" },
+    },
   };
 }

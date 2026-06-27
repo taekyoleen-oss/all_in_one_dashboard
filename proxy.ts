@@ -33,7 +33,10 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 /** Exact paths (or prefixes) that require an authenticated owner session. */
-const PROTECTED_PREFIXES = ["/settings"];
+// `/share` (mobile Web-Share-Target landing) is gated too: an unauthenticated
+// share bounces to /login with `next=/share?…`, so the shared content survives
+// the login round-trip and is processed once the owner session is established.
+const PROTECTED_PREFIXES = ["/settings", "/share"];
 
 function isProtected(pathname: string): boolean {
   if (pathname === "/") return true;

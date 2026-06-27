@@ -9,7 +9,7 @@
  */
 
 import * as React from "react";
-import { NotebookPen, Paperclip } from "lucide-react";
+import { NotebookPen, Paperclip, Share2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import { sanitizeHtml, htmlToText } from "./sanitize";
 import { NOTE_PROSE_CLASS } from "./NoteEditor";
@@ -32,6 +32,13 @@ export function NoteCompactView({ config }: CompactViewProps<NoteConfig>) {
         <span className="truncate text-sm font-semibold text-foreground">
           {config.title || "제목 없는 노트"}
         </span>
+        {config.shareTarget ? (
+          <Share2
+            size={12}
+            aria-label="공유 받기 대상"
+            className="shrink-0 text-primary"
+          />
+        ) : null}
         {config.attachments.length > 0 ? (
           <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
             <Paperclip size={11} aria-hidden /> {config.attachments.length}

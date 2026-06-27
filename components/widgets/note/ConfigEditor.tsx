@@ -9,15 +9,70 @@
  */
 
 import * as React from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, Share2 } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
+import { useSetShareTargetNote } from "@/lib/widgets/persistence";
 import type { NoteConfig } from "./types";
 
-export function NoteConfigEditor({ config, onChange }: ConfigEditorProps<NoteConfig>) {
+export function NoteConfigEditor({
+  config,
+  onChange,
+  instanceId,
+}: ConfigEditorProps<NoteConfig>) {
   const [confirming, setConfirming] = React.useState(false);
+  const setShareTargetNote = useSetShareTargetNote();
+  const shareOn = Boolean(config.shareTarget);
+
+  const toggleShare = () => {
+    const next = !shareOn;
+    // Keep the dialog draft consistent (저장 preserves it) AND apply the
+    // cross-instance designation immediately (clears every other note).
+    onChange({ ...config, shareTarget: next });
+    if (instanceId) setShareTargetNote(instanceId, next);
+  };
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 모바일 공유 받기 — 이 노트를 단일 공유 저장 대상으로 지정 */}
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={shareOn}
+          onClick={toggleShare}
+          className="flex items-center justify-between gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="flex items-center gap-2">
+            <Share2 size={15} aria-hidden className="shrink-0 text-primary" />
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">공유 받기</span>
+              <span className="text-[11px] text-muted-foreground">
+                모바일에서 공유한 내용이 이 노트에 저장됩니다.
+              </span>
+            </span>
+          </span>
+          <span
+            aria-hidden
+            className={[
+              "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+              shareOn ? "bg-primary" : "bg-muted",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "inline-block size-4 rounded-full bg-background shadow transition-transform",
+                shareOn ? "translate-x-4" : "translate-x-0.5",
+              ].join(" ")}
+            />
+          </span>
+        </button>
+        {shareOn ? (
+          <p className="text-[11px] text-muted-foreground">
+            다른 노트에서 ‘공유 받기’를 켜면 대상이 그 노트로 옮겨갑니다.
+          </p>
+        ) : null}
+      </div>
+
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         노트 제목
         <input

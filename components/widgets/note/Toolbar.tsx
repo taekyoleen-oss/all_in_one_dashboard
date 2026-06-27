@@ -19,7 +19,7 @@ import {
   Rows3, Columns3, Trash2,
 } from "lucide-react";
 import * as RT from "./richText";
-import { FONT_SIZES, TEXT_COLORS, HIGHLIGHT_COLORS } from "./types";
+import { FONT_SIZES, TEXT_COLORS, HIGHLIGHT_COLORS, AUTO_TEXT_COLOR } from "./types";
 import type { ActiveMarks } from "./richText";
 
 const btn =
@@ -131,6 +131,94 @@ function Swatches({
   );
 }
 
+/**
+ * Text-color menu: 자동(테마) + preset swatches + a custom color picker.
+ *
+ *  The native <input type="color"> must take focus to open, which would collapse
+ *  the editor selection — so we snapshot the selection Range when the menu opens
+ *  (the trigger button used onMouseDown→preventDefault, so the selection is still
+ *  intact at mount) and restore it right before applying any color.
+ */
+function ColorMenu({
+  editorRef,
+  onApplied,
+  close,
+}: {
+  editorRef: React.RefObject<HTMLDivElement | null>;
+  onApplied: () => void;
+  close: () => void;
+}) {
+  const savedRange = React.useRef<Range | null>(null);
+  const [custom, setCustom] = React.useState("#ef4444");
+
+  React.useEffect(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+    }
+  }, [editorRef]);
+
+  const apply = (color: string) => {
+    const el = editorRef.current;
+    el?.focus();
+    const r = savedRange.current;
+    if (r) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+    }
+    RT.setForeColor(color);
+    onApplied();
+    close();
+  };
+
+  return (
+    <div className="flex w-40 flex-col gap-2" data-pb-no-drag="">
+      <button
+        type="button"
+        data-pb-no-drag=""
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => apply(AUTO_TEXT_COLOR)}
+        title="테마 자동 (라이트=검정 · 다크=흰색)"
+        className="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span
+          aria-hidden
+          className="size-4 shrink-0 rounded border border-border bg-foreground"
+        />
+        자동 (테마)
+      </button>
+
+      <Swatches colors={TEXT_COLORS} onPick={apply} />
+
+      <label
+        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+        data-pb-no-drag=""
+      >
+        <span className="shrink-0">직접</span>
+        <input
+          type="color"
+          value={custom}
+          data-pb-no-drag=""
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => setCustom(e.target.value)}
+          className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0.5"
+          aria-label="직접 색 선택"
+        />
+        <button
+          type="button"
+          data-pb-no-drag=""
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => apply(custom)}
+          className="ml-auto rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          적용
+        </button>
+      </label>
+    </div>
+  );
+}
+
 function TableGrid({ onPick }: { onPick: (r: number, c: number) => void }) {
   const [hover, setHover] = React.useState<{ r: number; c: number }>({ r: 0, c: 0 });
   const N = 6;
@@ -224,7 +312,7 @@ export function Toolbar({
 
       <Popover title="글자 색" icon={<Baseline size={16} />}>
         {(close) => (
-          <Swatches colors={TEXT_COLORS} onPick={(c) => { run(() => RT.setForeColor(c)); close(); }} />
+          <ColorMenu editorRef={editorRef} onApplied={onAfter} close={close} />
         )}
       </Popover>
       <Popover title="형광펜" icon={<Highlighter size={16} />}>

@@ -81,6 +81,12 @@ export interface UsePersistenceResult {
   /** Move an instance to another board (drag onto a tab). No-op if same board. */
   moveInstanceToBoard: (instanceId: string, targetBoardId: string) => void;
   saveConfig: (instanceId: string, nextConfig: unknown) => void;
+  /**
+   * Designate the single "공유 받기" note across ALL boards. on=true sets the
+   * flag on `instanceId` and clears it on every other note; on=false just clears
+   * `instanceId`. Marks each changed note dirty (debounced flush persists).
+   */
+  setShareTargetNote: (instanceId: string, on: boolean) => void;
   compactActive: (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => void;
 
   /** Board ops. */
@@ -396,18 +402,38 @@ export function usePersistence(
 
   const addInstance = React.useCallback(
     (instance: WidgetInstance, layoutItem: CanvasLayoutItem) => {
+      // 첫 노트는 기본값으로 "공유 받기" ON: 아직 어떤 노트도 공유 대상이 아니면
+      // 새로 추가되는 노트를 모바일 공유 저장 대상으로 지정한다(단일 불변식 유지 —
+      // 이미 대상이 있으면 새 노트는 false). 노트가 아니면 그대로.
+      let toAdd = instance;
+      if (instance.type === "note") {
+        const anyTarget = stateRef.current.some((b) =>
+          b.instances.some(
+            (i) =>
+              i.type === "note" &&
+              Boolean((i.config as { shareTarget?: boolean } | null)?.shareTarget),
+          ),
+        );
+        // No target yet → this note becomes it. A target already exists → make sure
+        // the new note is NOT a target (a duplicated/pasted note may carry a copied
+        // shareTarget flag — strip it to keep exactly one).
+        toAdd = {
+          ...instance,
+          config: { ...(instance.config as object), shareTarget: !anyTarget },
+        };
+      }
       setBoards((prev) =>
         prev.map((b) =>
           b.meta.id === activeId
             ? {
                 ...b,
-                instances: [...b.instances, instance],
+                instances: [...b.instances, toAdd],
                 layout: [...b.layout, layoutItem],
               }
             : b,
         ),
       );
-      markWidget(instance.instanceId);
+      markWidget(toAdd.instanceId);
     },
     [activeId, markWidget],
   );
@@ -503,6 +529,30 @@ export function usePersistence(
       markWidget(instanceId);
     },
     [activeId, markWidget],
+  );
+
+  const setShareTargetNote = React.useCallback(
+    (instanceId: string, on: boolean) => {
+      const changed: string[] = [];
+      setBoards((prev) =>
+        prev.map((b) => ({
+          ...b,
+          instances: b.instances.map((i) => {
+            if (i.type !== "note") return i;
+            const cfg = (i.config ?? {}) as { shareTarget?: boolean };
+            const cur = Boolean(cfg.shareTarget);
+            // on=true → exactly this note true, every other note false.
+            // on=false → only this note false; others untouched.
+            const next = on ? i.instanceId === instanceId : cur && i.instanceId !== instanceId;
+            if (cur === next) return i;
+            changed.push(i.instanceId);
+            return { ...i, config: { ...cfg, shareTarget: next } };
+          }),
+        })),
+      );
+      changed.forEach(markWidget);
+    },
+    [markWidget],
   );
 
   const compactActive = React.useCallback(
@@ -668,6 +718,7 @@ export function usePersistence(
     deleteInstance,
     moveInstanceToBoard,
     saveConfig,
+    setShareTargetNote,
     compactActive,
     addBoard,
     renameBoard,

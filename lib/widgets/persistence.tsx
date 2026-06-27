@@ -6,31 +6,57 @@
  * rename). CanvasShell provides its `saveConfig`; widgets read it via
  * `useSaveWidgetConfig()`. saveConfig REPLACES the whole config, so callers pass
  * the full merged object (e.g. `{ ...config, text }`).
+ *
+ * It ALSO exposes `setShareTargetNote(instanceId, on)` — a CROSS-instance action
+ * (note's "공유 받기"): enabling it on one note clears the flag on every other
+ * note across all boards, so exactly one note is the mobile-share destination.
  */
 
 import * as React from "react";
 
 type SaveConfigFn = (instanceId: string, nextConfig: unknown) => void;
+type SetShareTargetFn = (instanceId: string, on: boolean) => void;
 
-const SaveConfigContext = React.createContext<SaveConfigFn | null>(null);
+interface WidgetPersistenceValue {
+  save: SaveConfigFn;
+  setShareTargetNote: SetShareTargetFn;
+}
+
+const WidgetPersistenceContext =
+  React.createContext<WidgetPersistenceValue | null>(null);
 
 export function WidgetPersistenceProvider({
   save,
+  setShareTargetNote,
   children,
 }: {
   save: SaveConfigFn;
+  setShareTargetNote: SetShareTargetFn;
   children: React.ReactNode;
 }) {
+  const value = React.useMemo<WidgetPersistenceValue>(
+    () => ({ save, setShareTargetNote }),
+    [save, setShareTargetNote],
+  );
   return (
-    <SaveConfigContext.Provider value={save}>
+    <WidgetPersistenceContext.Provider value={value}>
       {children}
-    </SaveConfigContext.Provider>
+    </WidgetPersistenceContext.Provider>
   );
 }
 
 /** Returns a stable saver; a no-op when no provider is mounted (e.g. previews). */
 export function useSaveWidgetConfig(): SaveConfigFn {
-  return React.useContext(SaveConfigContext) ?? noop;
+  return React.useContext(WidgetPersistenceContext)?.save ?? noopSave;
 }
 
-const noop: SaveConfigFn = () => {};
+/** Cross-instance: designate the single "공유 받기" note (clears all others). */
+export function useSetShareTargetNote(): SetShareTargetFn {
+  return (
+    React.useContext(WidgetPersistenceContext)?.setShareTargetNote ??
+    noopShareTarget
+  );
+}
+
+const noopSave: SaveConfigFn = () => {};
+const noopShareTarget: SetShareTargetFn = () => {};

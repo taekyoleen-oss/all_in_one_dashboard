@@ -11,6 +11,7 @@ import * as React from "react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import {
   MEMO_COLORS,
+  MEMO_TEXT_COLORS,
   type MemoColor,
   type MemoConfig,
   type MemoSize,
@@ -64,6 +65,66 @@ export function MemoConfigEditor({ config, onChange }: ConfigEditorProps<MemoCon
               </button>
             );
           })}
+        </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2 text-sm">
+        <legend className="mb-1 text-muted-foreground">글자 색</legend>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 자동(테마): textColor 없음 → 라이트=검정 · 다크=흰색 */}
+          <button
+            type="button"
+            aria-pressed={!config.textColor}
+            onClick={() => {
+              const next = { ...config };
+              delete next.textColor;
+              onChange(next);
+            }}
+            title="테마 자동 (라이트=검정 · 다크=흰색)"
+            className={[
+              "flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              !config.textColor
+                ? "border-ring bg-accent text-accent-foreground"
+                : "border-border text-muted-foreground hover:bg-accent/60",
+            ].join(" ")}
+          >
+            <span
+              aria-hidden
+              className="size-3 rounded-full border border-border bg-foreground"
+            />
+            자동
+          </button>
+
+          {MEMO_TEXT_COLORS.map((c) => {
+            const selected = config.textColor === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                aria-pressed={selected}
+                aria-label={c}
+                title={c}
+                onClick={() => onChange({ ...config, textColor: c })}
+                className={[
+                  "size-7 rounded-md border outline-none transition-transform focus-visible:ring-2 focus-visible:ring-ring",
+                  selected ? "border-ring ring-2 ring-ring" : "border-border hover:scale-110",
+                ].join(" ")}
+                style={{ backgroundColor: c }}
+              />
+            );
+          })}
+
+          {/* 임의 색 직접 선택 */}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            직접
+            <input
+              type="color"
+              value={config.textColor ?? "#ef4444"}
+              onChange={(e) => onChange({ ...config, textColor: e.target.value })}
+              aria-label="직접 글자 색 선택"
+              className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent p-0.5"
+            />
+          </label>
         </div>
       </fieldset>
 

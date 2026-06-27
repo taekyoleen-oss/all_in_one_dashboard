@@ -68,6 +68,8 @@ export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
         ) : null}
         {config.text.trim() ? (
           <p
+            // Unset textColor → text-foreground (테마 자동); a concrete color overrides.
+            style={config.textColor ? { color: config.textColor } : undefined}
             className={[
               "min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words leading-relaxed text-foreground",
               MEMO_SIZE_CLASS_EXPANDED[viewSize],

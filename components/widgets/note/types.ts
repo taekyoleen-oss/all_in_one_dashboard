@@ -32,6 +32,13 @@ export interface NoteConfig {
   attachments: NoteAttachment[];
   /** Last edit time (epoch ms), for a "수정: …" line. Optional. */
   updatedAt?: number;
+  /**
+   * "공유 받기": when true, this note is the single destination that mobile
+   * Web-Share-Target content (/share) appends to. Exactly one note carries this
+   * across all boards — enabling it on one note clears it on every other (see
+   * usePersistence.setShareTargetNote). The first note created defaults to true.
+   */
+  shareTarget?: boolean;
 }
 
 export const DEFAULT_NOTE_CONFIG: NoteConfig = {
@@ -50,6 +57,13 @@ export const FONT_SIZES: Array<{ label: string; px: number }> = [
   { label: "크게", px: 20 },
   { label: "아주 크게", px: 26 },
 ];
+
+/**
+ * "자동" text color — follows the theme foreground token, so body text is dark
+ * (≈검정) in light mode and light (≈흰색) in dark mode. Applied as an inline
+ * `color: var(--foreground)`; the sanitizer keeps it (no url/expression payload).
+ */
+export const AUTO_TEXT_COLOR = "var(--foreground)";
 
 /** Text + highlight color swatches (concrete CSS colors). */
 export const TEXT_COLORS: string[] = [
