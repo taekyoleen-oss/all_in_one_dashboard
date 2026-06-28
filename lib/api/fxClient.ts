@@ -134,13 +134,24 @@ function parseNaverNumber(raw: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Signed 전일대비 % of the KRW-per-currency value (direction from fluctuationsType). */
-function signedNaverRatio(info: NaverExchangeInfo): number {
-  const mag = parseNaverNumber(info.fluctuationsRatio) ?? 0;
+/**
+ * Signed 전일대비 % of the KRW-per-currency value (KRW-per-code 기준 부호).
+ *
+ * 주의: 네이버 `fluctuationsRatio`는 이미 부호가 붙어 온다(하락 시 "-0.45", 상승 시 "0.45").
+ * 따라서 크기로 쓰려면 절댓값을 취하고, 방향은 명시적 등락 enum(`fluctuationsType`)에서
+ * 가져온다. 예전 구현은 부호가 붙은 ratio에 type 부호를 한 번 더 곱해, FALLING(하락) 날에
+ * 부호가 뒤집혀 '상승'으로 표시되는 버그가 있었다(주말엔 직전 거래일이 하락이면 네 통화 모두
+ * 반대로 보임). type을 알 수 없을 땐 부호 붙은 ratio를 그대로 신뢰한다(안전 폴백).
+ */
+export function signedNaverRatio(info: NaverExchangeInfo): number {
+  const raw = parseNaverNumber(info.fluctuationsRatio);
+  if (raw === null) return 0;
+  const mag = Math.abs(raw);
   const name = info.fluctuationsType?.name ?? "";
   if (name === "RISING" || name === "UPPER_LIMIT") return mag;
   if (name === "FALLING" || name === "LOWER_LIMIT") return -mag;
-  return 0; // STEADY / unknown
+  if (name === "STEADY") return 0;
+  return raw; // 알 수 없는 타입 → 부호 붙은 ratio를 그대로 사용
 }
 
 /** Fetch one currency's KRW 고시환율 from 네이버, normalized to the widget's shape. */
