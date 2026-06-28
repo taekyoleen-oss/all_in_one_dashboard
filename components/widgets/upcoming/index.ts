@@ -17,8 +17,10 @@ export const upcomingWidget: WidgetDefinition<UpcomingConfig> = {
   icon: CalendarHeart,
   category: "extended",
   defaultConfig: DEFAULT_UPCOMING_CONFIG,
+  // minSize.w 5→3: 타일을 더 좁게 줄일 수 있도록(요구). EventRow·QuickAdd가
+  // min-w-0 truncate·flex-wrap이라 좁아져도 깨지지 않고 줄어든다.
   defaultSize: { w: 8, h: 8 },
-  minSize: { w: 5, h: 3 },
+  minSize: { w: 3, h: 3 },
   maxSize: { w: 16, h: 24 },
   CompactView: UpcomingCompactView,
   ExpandedView: UpcomingExpandedView,
