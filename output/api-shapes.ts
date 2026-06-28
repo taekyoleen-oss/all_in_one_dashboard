@@ -285,6 +285,13 @@ export const WeatherSchema = z.object({
     label: z.string(),
     lat: z.number(),
     lon: z.number(),
+    /**
+     * Reverse-geocoded 행정동(동) name for these coordinates (server best-effort,
+     * Kakao/Nominatim). Lets the tile show a neighborhood-level place even when the
+     * stored label is a coarse city (요구: 실제 동까지 표시). Undefined outside KR or
+     * when the lookup fails — the tile then keeps `label`.
+     */
+    dong: z.string().optional(),
   }),
   current: WeatherCurrentSchema,
   hourly: z.array(WeatherHourSchema),

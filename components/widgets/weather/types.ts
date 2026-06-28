@@ -35,6 +35,17 @@ export interface WeatherConfig {
   dailyLayout?: WeatherLayout;
 }
 
+/**
+ * 라벨이 '대략적'(도시·기본값·현재 위치)인지 — 이런 경우 타일은 좌표를 역지오코딩한
+ * 동(dong)으로 더 세분화해 표시한다. 사용자가 직접 붙인 커스텀 이름("우리집" 등)은
+ * generic이 아니므로 그대로 유지된다. (COMMON_CITIES 정의 뒤에서 평가)
+ */
+export function isGenericWeatherLabel(label: string | undefined): boolean {
+  const t = (label ?? "").trim();
+  if (!t || t === "현재 위치" || t === "서울") return true;
+  return COMMON_CITIES.some((c) => c.label === t);
+}
+
 /** Default location: 서울 시청 (mirrors the /api/weather DEFAULT_LOCATION). */
 export const DEFAULT_WEATHER_CONFIG: WeatherConfig = {
   label: "서울",

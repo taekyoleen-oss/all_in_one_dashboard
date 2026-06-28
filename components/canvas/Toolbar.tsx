@@ -21,8 +21,7 @@ import {
   Lock,
   Unlock,
   Sparkles,
-  StretchHorizontal,
-  Rows3,
+  Check,
   PanelLeft,
   Sun,
   Moon,
@@ -30,7 +29,14 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import { IconButton } from "@/components/ui/primitives";
+import {
+  IconButton,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/primitives";
 
 export type ThemeMode = "dark" | "light";
 
@@ -93,33 +99,72 @@ export function Toolbar({
             {editable ? <Unlock size={16} /> : <Lock size={16} />}
           </IconButton>
 
-          <IconButton label="자동정렬 (크기 유지·공백 제거)" onClick={onCompact}>
-            <Sparkles size={16} />
-          </IconButton>
-
-          <IconButton
-            label={
-              arrangeJustify
-                ? "가로 채우기 켜짐 (정렬 시 폭을 넓혀 가로 채움)"
-                : "가로 채우기 꺼짐 (정렬 시 폭 유지)"
-            }
-            active={arrangeJustify}
-            onClick={onToggleArrangeJustify}
-          >
-            <StretchHorizontal size={16} />
-          </IconButton>
-
-          <IconButton
-            label={
-              arrangeBaseline
-                ? "행 높이 맞춤 켜짐 (정렬 시 한 행 높이 통일)"
-                : "행 높이 맞춤 꺼짐 (정렬 시 높이 유지)"
-            }
-            active={arrangeBaseline}
-            onClick={onToggleArrangeBaseline}
-          >
-            <Rows3 size={16} />
-          </IconButton>
+          {/* 자동정렬: 본 버튼은 현재 옵션대로 정렬을 실행하고, 옆 캐럿(▾)이 옵션
+              서브메뉴를 연다. 비슷한 옵션은 버튼을 옆으로 늘리지 않고 이 메뉴에 모은다
+              (요구: 가로 채우기·행 높이 맞춤 등을 서브메뉴에서 선택). */}
+          <DropdownMenu>
+            <div className="flex items-center">
+              <IconButton
+                label="자동정렬 (크기 유지·공백 제거)"
+                onClick={onCompact}
+              >
+                <Sparkles size={16} />
+              </IconButton>
+              <DropdownMenuTrigger>
+                <IconButton label="자동정렬 옵션" className="size-7">
+                  <ChevronDown size={13} />
+                </IconButton>
+              </DropdownMenuTrigger>
+            </div>
+            <DropdownMenuContent align="start" className="min-w-56">
+              <p className="px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                자동정렬 옵션 (크기 변경)
+              </p>
+              <DropdownMenuItem
+                icon={
+                  arrangeJustify ? (
+                    <Check size={14} />
+                  ) : (
+                    <span className="size-3.5" aria-hidden />
+                  )
+                }
+                aria-pressed={arrangeJustify}
+                onClick={(e) => {
+                  // 메뉴를 닫지 않고 토글만(연속 선택 가능).
+                  e.preventDefault();
+                  onToggleArrangeJustify();
+                }}
+              >
+                가로 채우기{" "}
+                <span className="text-[11px] text-muted-foreground">
+                  (폭을 넓혀 가로 채움)
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                icon={
+                  arrangeBaseline ? (
+                    <Check size={14} />
+                  ) : (
+                    <span className="size-3.5" aria-hidden />
+                  )
+                }
+                aria-pressed={arrangeBaseline}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onToggleArrangeBaseline();
+                }}
+              >
+                행 높이 맞춤{" "}
+                <span className="text-[11px] text-muted-foreground">
+                  (한 행 높이 통일)
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem icon={<Sparkles size={14} />} onClick={onCompact}>
+                지금 정렬
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* 데스크톱(lg+) 전용 — 모바일/태블릿은 팔레트 FAB을 쓴다. IconButton의
               base `inline-flex`가 `hidden`을 이겨 모바일에서 토글이 새던 문제가 있어,

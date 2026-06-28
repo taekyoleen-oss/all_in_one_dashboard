@@ -22,7 +22,11 @@ import {
   formatPop,
   type TempTrend,
 } from "./format";
-import type { WeatherConfig, WeatherLayout } from "./types";
+import {
+  isGenericWeatherLabel,
+  type WeatherConfig,
+  type WeatherLayout,
+} from "./types";
 
 /** Tailwind text-color for an 어제 대비 trend (오름=주황, 내림=파랑). */
 function trendColor(trend: TempTrend): string {
@@ -58,12 +62,16 @@ export function WeatherExpandedView({ config }: ExpandedViewProps<WeatherConfig>
     typeof current.tempYesterday === "number"
       ? formatTempDelta(current.temp, current.tempYesterday)
       : null;
+  // 대략적 라벨이면 좌표의 동(洞)으로 더 세분화해 표시(요구: 실제 동까지).
+  const placeLabel = isGenericWeatherLabel(location.label)
+    ? (location.dong ?? location.label)
+    : location.label;
 
   return (
     <div className="flex flex-col gap-4">
       {/* Header: location + refresh */}
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="truncate">{location.label}</span>
+        <span className="truncate">{placeLabel}</span>
         <button
           type="button"
           onClick={refresh}

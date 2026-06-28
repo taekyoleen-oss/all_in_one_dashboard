@@ -147,6 +147,23 @@ export function WeatherConfigEditor({
     setLonInput(String(city.lon));
     setErr(null);
     onChange({ ...config, ...city });
+    // 동까지 세분화: 도시 좌표를 역지오코딩해 라벨을 행정동으로 보강(요구: 실제 동까지).
+    // best-effort — 실패 시 도시 라벨 유지.
+    void (async () => {
+      try {
+        const res = await fetch(`/api/geocode?lat=${city.lat}&lon=${city.lon}`);
+        const json = (await res.json()) as {
+          result?: { label?: string } | null;
+        };
+        const dong = json.result?.label?.trim();
+        if (dong) {
+          setLabelInput(dong);
+          onChange({ ...config, label: dong, lat: city.lat, lon: city.lon });
+        }
+      } catch {
+        /* keep the city label */
+      }
+    })();
   };
 
   const applyManual = () => {

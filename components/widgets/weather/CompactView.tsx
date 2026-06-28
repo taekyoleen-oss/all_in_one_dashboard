@@ -28,7 +28,11 @@ import {
   formatDay,
   type TempTrend,
 } from "./format";
-import type { WeatherConfig, WeatherLayout } from "./types";
+import {
+  isGenericWeatherLabel,
+  type WeatherConfig,
+  type WeatherLayout,
+} from "./types";
 
 /** Tailwind text-color for an 어제 대비 trend (오름=따뜻=주황, 내림=쌀쌀=파랑). */
 function trendColor(trend: TempTrend): string {
@@ -53,11 +57,15 @@ export function WeatherCompactView({ config }: CompactViewProps<WeatherConfig>) 
   }
 
   const { current, hourly, daily, location } = data;
+  // 대략적 라벨(도시·기본값)이면 좌표의 동(洞)으로 더 세분화해 표시(요구: 실제 동까지).
+  const placeLabel = isGenericWeatherLabel(location.label)
+    ? (location.dong ?? location.label)
+    : location.label;
 
   return (
     <div className="flex h-full flex-col gap-1">
       <p className="shrink-0 truncate text-xs text-muted-foreground">
-        {location.label}
+        {placeLabel}
       </p>
       <RefreshBar lastUpdated={lastUpdated} onRefresh={refresh} size="compact" />
 

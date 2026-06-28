@@ -20,6 +20,7 @@
 
 import type { NextRequest } from "next/server";
 import { fetchWeather } from "@/lib/api/weatherClient";
+import { reverseGeocode } from "@/lib/api/geocodeClient";
 import { WeatherSchema, type Weather } from "@/output/api-shapes";
 
 export const revalidate = 600;
@@ -95,7 +96,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const loc = resolveLocation(searchParams);
 
-  const weather = await fetchWeather(loc.lat, loc.lon, loc.label);
+  // 날씨와 동(행정동) 역지오코딩을 병렬로 — 동은 best-effort(요구: 실제 동까지 표시).
+  // 실패하거나 KR 밖이면 dong 없이 기존 라벨을 유지. 응답은 s-maxage로 캐시(10분)되어
+  // 위치당 호출 빈도가 낮다.
+  const [weather, rev] = await Promise.all([
+    fetchWeather(loc.lat, loc.lon, loc.label),
+    reverseGeocode(loc.lat, loc.lon).catch(() => null),
+  ]);
 
   if (!weather) {
     return Response.json(
@@ -106,6 +113,7 @@ export async function GET(request: NextRequest) {
 
   const parsed = WeatherSchema.safeParse(weather);
   const body: Weather = parsed.success ? parsed.data : weather;
+  if (rev?.label) body.location = { ...body.location, dong: rev.label };
 
   return Response.json(body, { headers: CACHE_HEADERS });
 }
