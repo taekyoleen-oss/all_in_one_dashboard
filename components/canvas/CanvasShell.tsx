@@ -55,6 +55,7 @@ import { createInstance } from "@/lib/utils/grid";
 import { usePersistedTheme } from "@/lib/utils/theme";
 import { usePersistedEditable } from "@/lib/utils/lock";
 import { usePersistedArrangeBaseline } from "@/lib/utils/arrangeBaseline";
+import { usePersistedArrangeJustify } from "@/lib/utils/arrangeJustify";
 import { arrangeLayout } from "@/lib/utils/arrange";
 import { useToast } from "@/components/ui/Toaster";
 import { usePersistence } from "@/lib/persistence/usePersistence";
@@ -141,7 +142,10 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
 
   // 편집/잠금 상태는 앱을 다시 시작해도 유지(localStorage). 기본=편집 가능.
   const [editable, setEditable] = usePersistedEditable();
-  // 자동정렬 '행 높이 맞춤'(baseline) 선택 — 기기별 localStorage(기본 OFF).
+  // 자동정렬 선택 옵션 — 기기별 localStorage(기본 OFF: 크기 변경 안 함).
+  //  • justify  = 가로 채우기(폭을 maxW까지 넓힘)
+  //  • baseline = 행 높이 맞춤(행 높이 통일)
+  const [arrangeJustify, setArrangeJustify] = usePersistedArrangeJustify();
   const [arrangeBaseline, setArrangeBaseline] = usePersistedArrangeBaseline();
   const { toast } = useToast();
   // Theme persists across reloads (localStorage). data-theme is also set pre-paint
@@ -289,24 +293,31 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     const boardId = activeId;
     const snapshot = active.layout.map((it) => ({ ...it }));
 
-    // lg: 행 기반 자동정렬(공백 제거 + 가로 채우기 + 선택적 행 높이 맞춤)을 영속.
+    // lg: 자동정렬(기본=크기 유지 공백 제거; 토글 시 가로 채우기·행 높이 맞춤)을 영속.
     // 동시에 nonce를 올려 모바일/태블릿(md/sm)에서는 기기-로컬 배치를 비우고 재파생.
     compactActive((layout) =>
       arrangeLayout(layout, {
         cols: LG_COLS,
         maxWOf,
-        justify: true,
+        justify: arrangeJustify,
         equalizeHeights: arrangeBaseline,
       }),
     );
     setCompactNonce((n) => n + 1);
 
+    // 적용된 옵션을 토스트 설명에 반영(기본은 크기 유지).
+    const extras: string[] = [];
+    if (arrangeJustify) extras.push("가로 채우기");
+    if (arrangeBaseline) extras.push("행 높이 맞춤");
+    const description =
+      extras.length > 0
+        ? `공백 제거 · ${extras.join(" · ")}`
+        : "공백 제거 (위젯 크기 유지)";
+
     // 되돌리기 토스트 — 클릭 시 스냅샷으로 해당 보드 복원(탭을 바꿔도 정확한 보드).
     toast({
       title: "자동정렬 완료",
-      description: arrangeBaseline
-        ? "공백 제거 · 가로 채우기 · 행 높이 맞춤"
-        : "공백 제거 · 가로 채우기",
+      description,
       durationMs: 7000,
       action: {
         label: "되돌리기",
@@ -318,6 +329,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     active.layout,
     compactActive,
     maxWOf,
+    arrangeJustify,
     arrangeBaseline,
     toast,
     restoreBoardLayout,
@@ -402,6 +414,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               editable={editable}
               onToggleEditable={() => setEditable(!editable)}
               onCompact={compactActiveBoard}
+              arrangeJustify={arrangeJustify}
+              onToggleArrangeJustify={() => setArrangeJustify(!arrangeJustify)}
               arrangeBaseline={arrangeBaseline}
               onToggleArrangeBaseline={() => setArrangeBaseline(!arrangeBaseline)}
               paletteCollapsed={paletteCollapsed}

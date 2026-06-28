@@ -21,6 +21,7 @@ import {
   Lock,
   Unlock,
   Sparkles,
+  StretchHorizontal,
   Rows3,
   PanelLeft,
   Sun,
@@ -39,7 +40,10 @@ export interface ToolbarProps {
   onToggleEditable: () => void;
   /** Run a compaction pass on the active board. */
   onCompact: () => void;
-  /** 자동정렬 '행 높이 맞춤'(baseline) 켜짐 여부 + 토글. */
+  /** 자동정렬 '가로 채우기'(justify, 폭 변경) 켜짐 여부 + 토글. */
+  arrangeJustify: boolean;
+  onToggleArrangeJustify: () => void;
+  /** 자동정렬 '행 높이 맞춤'(baseline, 높이 변경) 켜짐 여부 + 토글. */
   arrangeBaseline: boolean;
   onToggleArrangeBaseline: () => void;
   /** Desktop palette visibility (collapsed = hidden). */
@@ -56,6 +60,8 @@ export function Toolbar({
   editable,
   onToggleEditable,
   onCompact,
+  arrangeJustify,
+  onToggleArrangeJustify,
   arrangeBaseline,
   onToggleArrangeBaseline,
   paletteCollapsed,
@@ -87,8 +93,20 @@ export function Toolbar({
             {editable ? <Unlock size={16} /> : <Lock size={16} />}
           </IconButton>
 
-          <IconButton label="자동정렬 (공백 제거·가로 채우기)" onClick={onCompact}>
+          <IconButton label="자동정렬 (크기 유지·공백 제거)" onClick={onCompact}>
             <Sparkles size={16} />
+          </IconButton>
+
+          <IconButton
+            label={
+              arrangeJustify
+                ? "가로 채우기 켜짐 (정렬 시 폭을 넓혀 가로 채움)"
+                : "가로 채우기 꺼짐 (정렬 시 폭 유지)"
+            }
+            active={arrangeJustify}
+            onClick={onToggleArrangeJustify}
+          >
+            <StretchHorizontal size={16} />
           </IconButton>
 
           <IconButton
