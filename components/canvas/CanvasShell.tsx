@@ -54,11 +54,12 @@ import { useClipboard } from "@/lib/utils/clipboard";
 import { createInstance } from "@/lib/utils/grid";
 import { usePersistedTheme } from "@/lib/utils/theme";
 import { usePersistedEditable } from "@/lib/utils/lock";
+import { usePersistedArrangeBaseline } from "@/lib/utils/arrangeBaseline";
+import { arrangeLayout } from "@/lib/utils/arrange";
+import { useToast } from "@/components/ui/Toaster";
 import { usePersistence } from "@/lib/persistence/usePersistence";
 import { WidgetPersistenceProvider } from "@/lib/widgets/persistence";
 import type { BoardState } from "@/lib/persistence/types";
-import { verticalCompactor, type Layout } from "react-grid-layout";
-
 const LG_COLS = 24; // v2 grid: 24 columns (finer placement/resize)
 
 /** True iff `layout` describes exactly the instances in `instances` (same ids). */
@@ -83,25 +84,6 @@ function layoutsEqual(a: CanvasLayoutItem[], b: CanvasLayoutItem[]): boolean {
       return false;
   }
   return true;
-}
-
-/** Run a layout through the vertical compactor (정리하기). */
-function compactLayout(layout: CanvasLayoutItem[]): CanvasLayoutItem[] {
-  const rgl: Layout = layout.map((it) => ({
-    i: it.instanceId,
-    x: it.x,
-    y: it.y,
-    w: it.w,
-    h: it.h,
-  }));
-  const compacted = verticalCompactor.compact(rgl, LG_COLS);
-  return compacted.map((it) => ({
-    instanceId: it.i,
-    x: it.x,
-    y: it.y,
-    w: it.w,
-    h: it.h,
-  }));
 }
 
 /* --------------------------------- shell ---------------------------------- */
@@ -143,6 +125,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     active,
     setActiveId,
     updateActiveLayout,
+    restoreBoardLayout,
     addInstance,
     deleteInstance,
     moveInstanceToBoard,
@@ -158,6 +141,9 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
 
   // 편집/잠금 상태는 앱을 다시 시작해도 유지(localStorage). 기본=편집 가능.
   const [editable, setEditable] = usePersistedEditable();
+  // 자동정렬 '행 높이 맞춤'(baseline) 선택 — 기기별 localStorage(기본 OFF).
+  const [arrangeBaseline, setArrangeBaseline] = usePersistedArrangeBaseline();
+  const { toast } = useToast();
   // Theme persists across reloads (localStorage). data-theme is also set pre-paint
   // by an inline script in app/layout.tsx so there is no flash on load.
   const [theme, setTheme] = usePersistedTheme();
@@ -287,12 +273,55 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     [openOverlay],
   );
 
+  // 위젯이 점유할 수 있는 최대 폭(registry maxSize.w, lg 열수로 클램프) 조회.
+  const maxWOf = React.useCallback(
+    (instanceId: string) => {
+      const inst = active.instances.find((i) => i.instanceId === instanceId);
+      const def = inst ? widgetRegistry[inst.type] : undefined;
+      const m = def?.maxSize?.w ?? LG_COLS;
+      return Math.min(m, LG_COLS);
+    },
+    [active.instances],
+  );
+
   const compactActiveBoard = React.useCallback(() => {
-    // lg: 영속 레이아웃을 컴팩트. 동시에 nonce를 올려 모바일/태블릿(md/sm)에서는
-    // 기기-로컬 배치를 비우고 재파생(정돈)하게 한다(모바일 재정렬 동작).
-    compactActive(compactLayout);
+    // 되돌리기용 스냅샷(현재 lg 레이아웃 깊은 복사) + 대상 보드 id.
+    const boardId = activeId;
+    const snapshot = active.layout.map((it) => ({ ...it }));
+
+    // lg: 행 기반 자동정렬(공백 제거 + 가로 채우기 + 선택적 행 높이 맞춤)을 영속.
+    // 동시에 nonce를 올려 모바일/태블릿(md/sm)에서는 기기-로컬 배치를 비우고 재파생.
+    compactActive((layout) =>
+      arrangeLayout(layout, {
+        cols: LG_COLS,
+        maxWOf,
+        justify: true,
+        equalizeHeights: arrangeBaseline,
+      }),
+    );
     setCompactNonce((n) => n + 1);
-  }, [compactActive]);
+
+    // 되돌리기 토스트 — 클릭 시 스냅샷으로 해당 보드 복원(탭을 바꿔도 정확한 보드).
+    toast({
+      title: "자동정렬 완료",
+      description: arrangeBaseline
+        ? "공백 제거 · 가로 채우기 · 행 높이 맞춤"
+        : "공백 제거 · 가로 채우기",
+      durationMs: 7000,
+      action: {
+        label: "되돌리기",
+        onClick: () => restoreBoardLayout(boardId, snapshot),
+      },
+    });
+  }, [
+    activeId,
+    active.layout,
+    compactActive,
+    maxWOf,
+    arrangeBaseline,
+    toast,
+    restoreBoardLayout,
+  ]);
 
   /* ----- render-prop: per-instance widget menu in the frame header ----- */
   const renderActions = React.useCallback(
@@ -334,8 +363,13 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
       setShareTargetNote={setShareTargetNote}
     >
     <main className="min-h-dvh bg-background">
-      {/* Sticky header: title + board tabs + toolbar */}
-      <div className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
+      {/* Sticky header: title + board tabs + toolbar.
+          data-pb-sticky-header: 드래그 자동 스크롤이 상단 트리거 영역을 헤더
+          바닥에 맞추기 위해 이 요소의 높이를 측정한다(useDragAutoScroll). */}
+      <div
+        data-pb-sticky-header
+        className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur"
+      >
         {/* Single-row header: 제목 | 보드탭(가로 스크롤) | 툴바. The title and
             toolbar stay fixed (shrink-0); the tabs take the middle and scroll
             horizontally (min-w-0) so everything fits on ONE line at any width. */}
@@ -368,6 +402,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               editable={editable}
               onToggleEditable={() => setEditable(!editable)}
               onCompact={compactActiveBoard}
+              arrangeBaseline={arrangeBaseline}
+              onToggleArrangeBaseline={() => setArrangeBaseline(!arrangeBaseline)}
               paletteCollapsed={paletteCollapsed}
               onTogglePalette={() => setCollapsed(!paletteCollapsed)}
               theme={theme}

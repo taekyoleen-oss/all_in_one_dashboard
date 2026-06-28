@@ -40,6 +40,7 @@ import { calcXY } from "react-grid-layout";
 import type { WidgetRegistry, Density } from "@/lib/widgets/contract";
 import { WidgetFrame } from "./WidgetFrame";
 import { getDragType, clearDragType } from "@/lib/utils/dragSource";
+import { useDragAutoScroll } from "@/lib/utils/dragAutoScroll";
 import { usePersistedFontScale } from "@/lib/utils/fontScale";
 import { usePersistedColor, tintBackground } from "@/lib/utils/widgetColor";
 import { usePersistedTitle } from "@/lib/utils/widgetTitle";
@@ -679,6 +680,11 @@ export function GridCanvas({
     initialWidth: 1280,
   });
 
+  // 드래그 중 화면 가장자리 자동 스크롤(요구: 위젯을 상단 메뉴까지 끌면 캔버스가
+  // 아래로 내려가 더 위 칸으로 이동). onDragStart→start, onDrag→onPointer,
+  // onDragStop→stop 으로 연결한다(아래 핸들러들 참고).
+  const autoScroll = useDragAutoScroll();
+
   // The breakpoint RGL is actually rendering at, derived from the measured width
   // with RGL's own rule (width > breakpoint). Used to guard layout persistence so
   // an md/sm emission can never overwrite the lg widths (issue ①). Memoized so it
@@ -1041,6 +1047,8 @@ export function GridCanvas({
       clearTabHover();
       clearSwapHover();
       swapTargetRef.current = null;
+      // 가장자리 자동 스크롤 시작(상단 메뉴까지 끌면 캔버스가 따라 내려가도록).
+      autoScroll.start();
       // Track the dragged id + its pre-drag slot at EVERY breakpoint (swap + the
       // drag-onto-tab move both work everywhere).
       if (!oldItem) {
@@ -1051,11 +1059,13 @@ export function GridCanvas({
       dragIdRef.current = oldItem.i;
       dragOldPosRef.current = { x: oldItem.x, y: oldItem.y };
     },
-    [clearPushPrompt, clearTabHover, clearSwapHover],
+    [clearPushPrompt, clearTabHover, clearSwapHover, autoScroll],
   );
 
   const onDragTick = React.useCallback(
     (_lay: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
+      // 자동 스크롤이 쓸 마지막 커서 좌표를 매 틱 갱신(가장자리 판정·합성 이동에 사용).
+      autoScroll.onPointer(e);
       const id = dragIdRef.current;
       if (!id) return;
       // 1) Over a board tab? Highlight it (moving to that board takes priority over
@@ -1085,11 +1095,14 @@ export function GridCanvas({
       setSwapHover,
       clearSwapHover,
       storageKey,
+      autoScroll,
     ],
   );
 
   const onDragStop = React.useCallback(
     (lay: Layout, oldItem: LayoutItem | null) => {
+      // 드래그 종료 → 자동 스크롤 루프 정지(여러 early-return 전에 먼저).
+      autoScroll.stop();
       const id = dragIdRef.current ?? oldItem?.i ?? null;
       const aOld = dragOldPosRef.current;
       const target = swapTargetRef.current;
@@ -1144,6 +1157,7 @@ export function GridCanvas({
       clearTabHover,
       clearSwapHover,
       onLayoutChange,
+      autoScroll,
     ],
   );
 

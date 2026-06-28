@@ -21,6 +21,7 @@ import {
   Lock,
   Unlock,
   Sparkles,
+  Rows3,
   PanelLeft,
   Sun,
   Moon,
@@ -38,6 +39,9 @@ export interface ToolbarProps {
   onToggleEditable: () => void;
   /** Run a compaction pass on the active board. */
   onCompact: () => void;
+  /** 자동정렬 '행 높이 맞춤'(baseline) 켜짐 여부 + 토글. */
+  arrangeBaseline: boolean;
+  onToggleArrangeBaseline: () => void;
   /** Desktop palette visibility (collapsed = hidden). */
   paletteCollapsed: boolean;
   onTogglePalette: () => void;
@@ -52,6 +56,8 @@ export function Toolbar({
   editable,
   onToggleEditable,
   onCompact,
+  arrangeBaseline,
+  onToggleArrangeBaseline,
   paletteCollapsed,
   onTogglePalette,
   theme,
@@ -81,8 +87,20 @@ export function Toolbar({
             {editable ? <Unlock size={16} /> : <Lock size={16} />}
           </IconButton>
 
-          <IconButton label="재정렬 (한 화면에 맞추기)" onClick={onCompact}>
+          <IconButton label="자동정렬 (공백 제거·가로 채우기)" onClick={onCompact}>
             <Sparkles size={16} />
+          </IconButton>
+
+          <IconButton
+            label={
+              arrangeBaseline
+                ? "행 높이 맞춤 켜짐 (정렬 시 한 행 높이 통일)"
+                : "행 높이 맞춤 꺼짐 (정렬 시 높이 유지)"
+            }
+            active={arrangeBaseline}
+            onClick={onToggleArrangeBaseline}
+          >
+            <Rows3 size={16} />
           </IconButton>
 
           {/* 데스크톱(lg+) 전용 — 모바일/태블릿은 팔레트 FAB을 쓴다. IconButton의

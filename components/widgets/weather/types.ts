@@ -14,6 +14,9 @@
 /** Which forecast the tile (CompactView) shows. ExpandedView always shows all. */
 export type WeatherView = "current" | "hourly" | "daily";
 
+/** 시간별·주간 목록을 가로 줄(strip) 또는 세로 목록으로 표시. */
+export type WeatherLayout = "horizontal" | "vertical";
+
 export interface WeatherConfig {
   /** Display name for the location (e.g. "서울", "현재 위치"). */
   label: string;
@@ -26,6 +29,10 @@ export interface WeatherConfig {
    * backward-compat — undefined behaves as "current".
    */
   view?: WeatherView;
+  /** 시간별 표시 방향(가로/세로). 미설정=가로(기존 동작). 타일·자세히 모두 적용. */
+  hourlyLayout?: WeatherLayout;
+  /** 주간 표시 방향(가로/세로). 미설정=가로(기존 동작). 타일·자세히 모두 적용. */
+  dailyLayout?: WeatherLayout;
 }
 
 /** Default location: 서울 시청 (mirrors the /api/weather DEFAULT_LOCATION). */

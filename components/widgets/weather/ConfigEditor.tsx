@@ -16,12 +16,22 @@
 import * as React from "react";
 import { LocateFixed, MapPin, Search } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
-import { COMMON_CITIES, type WeatherConfig, type WeatherView } from "./types";
+import {
+  COMMON_CITIES,
+  type WeatherConfig,
+  type WeatherView,
+  type WeatherLayout,
+} from "./types";
 
 const VIEW_OPTIONS: Array<{ value: WeatherView; label: string }> = [
   { value: "current", label: "현재" },
   { value: "hourly", label: "시간별" },
   { value: "daily", label: "주간" },
+];
+
+const LAYOUT_OPTIONS: Array<{ value: WeatherLayout; label: string }> = [
+  { value: "horizontal", label: "가로" },
+  { value: "vertical", label: "세로" },
 ];
 
 /** One geocode hit from /api/geocode (kept local so no server module is bundled). */
@@ -78,7 +88,7 @@ export function WeatherConfigEditor({
     setLatInput(String(lat));
     setLonInput(String(lon));
     setErr(null);
-    onChange({ label: p.label, lat, lon, view: config.view });
+    onChange({ ...config, label: p.label, lat, lon });
   };
 
   const useCurrentLocation = () => {
@@ -94,10 +104,10 @@ export function WeatherConfigEditor({
         const lat = Number(pos.coords.latitude.toFixed(4));
         const lon = Number(pos.coords.longitude.toFixed(4));
         const next: WeatherConfig = {
+          ...config,
           label: "현재 위치",
           lat,
           lon,
-          view: config.view,
         };
         setLabelInput(next.label);
         setLatInput(String(next.lat));
@@ -116,7 +126,7 @@ export function WeatherConfigEditor({
             const dong = json.result?.label?.trim();
             if (dong) {
               setLabelInput(dong);
-              onChange({ label: dong, lat, lon, view: config.view });
+              onChange({ ...config, label: dong, lat, lon });
             }
           } catch {
             /* keep "현재 위치" */
@@ -136,7 +146,7 @@ export function WeatherConfigEditor({
     setLatInput(String(city.lat));
     setLonInput(String(city.lon));
     setErr(null);
-    onChange({ ...city, view: config.view });
+    onChange({ ...config, ...city });
   };
 
   const applyManual = () => {
@@ -156,7 +166,7 @@ export function WeatherConfigEditor({
       return;
     }
     setErr(null);
-    onChange({ label, lat, lon, view: config.view });
+    onChange({ ...config, label, lat, lon });
   };
 
   const isActiveCity = (city: { lat: number; lon: number }) =>
@@ -195,6 +205,66 @@ export function WeatherConfigEditor({
         </div>
         <p className="text-[11px] text-muted-foreground">
           타일에 보여줄 내용을 선택하세요. ‘자세히’에서는 현재·시간별·주간을 모두 봅니다.
+        </p>
+      </fieldset>
+
+      {/* 시간별·주간 표시 방향 — 가로 줄 / 세로 목록 (타일·자세히 공통) */}
+      <fieldset className="flex flex-col gap-3 rounded-md border border-border p-3">
+        <legend className="px-1 text-xs font-medium text-muted-foreground">
+          시간별·주간 방향
+        </legend>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">시간별</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {LAYOUT_OPTIONS.map((opt) => {
+              const active = (config.hourlyLayout ?? "horizontal") === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    onChange({ ...config, hourlyLayout: opt.value })
+                  }
+                  className={[
+                    "rounded-md border px-2 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border text-foreground hover:bg-accent/40",
+                  ].join(" ")}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">주간</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {LAYOUT_OPTIONS.map((opt) => {
+              const active = (config.dailyLayout ?? "horizontal") === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onChange({ ...config, dailyLayout: opt.value })}
+                  className={[
+                    "rounded-md border px-2 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border text-foreground hover:bg-accent/40",
+                  ].join(" ")}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          시간별·주간 목록을 가로 줄 또는 세로 목록으로 표시합니다.
         </p>
       </fieldset>
 

@@ -155,6 +155,8 @@ export async function fetchOpenMeteo(
       "temperature_2m_min,temperature_2m_max,weather_code,precipitation_probability_max",
     timezone: "auto",
     forecast_days: "7",
+    // 어제 같은 시각 기온을 얻기 위해 과거 1일을 포함(hourly 에 어제치가 들어온다).
+    past_days: "1",
     wind_speed_unit: "ms",
   });
   const url = `${OPEN_METEO_BASE}?${params.toString()}`;
@@ -182,14 +184,28 @@ export async function fetchOpenMeteo(
     const offsetSec = numOr(json.utc_offset_seconds, 0);
 
     // ---- hourly: keep the next HOURLY_KEEP points from "now" ----
+    // past_days=1 prepends YESTERDAY's hours; we use them only for the "어제 대비"
+    // temp (closest hour to now-24h), then keep just the forward points for display.
     const hourly: WeatherHour[] = [];
     const ht = json.hourly?.time ?? [];
     const htemp = json.hourly?.temperature_2m ?? [];
     const hcode = json.hourly?.weather_code ?? [];
     const hpop = json.hourly?.precipitation_probability ?? [];
+    const yTarget = now - 86_400_000; // 24h ago
+    let yTemp: number | undefined;
+    let yBestDelta = Infinity;
     for (let i = 0; i < ht.length; i++) {
       const ts = localTimeToEpoch(ht[i], offsetSec);
       if (Number.isNaN(ts)) continue;
+      // Track the past hour nearest to "same time yesterday" for the 어제 대비 line.
+      const t = optNum(htemp[i]);
+      if (t !== undefined) {
+        const d = Math.abs(ts - yTarget);
+        if (d < yBestDelta) {
+          yBestDelta = d;
+          yTemp = t;
+        }
+      }
       if (ts < now - 3_600_000) continue; // drop hours already well past
       hourly.push({
         ts,
@@ -199,6 +215,8 @@ export async function fetchOpenMeteo(
       });
       if (hourly.length >= HOURLY_KEEP) break;
     }
+    // Only trust the match if it's within ~90min of the target hour.
+    const tempYesterday = yBestDelta <= 5_400_000 ? yTemp : undefined;
 
     // ---- daily ----
     const daily: WeatherDay[] = [];
@@ -226,6 +244,7 @@ export async function fetchOpenMeteo(
         humidity: optNum(cur.relative_humidity_2m),
         windSpeed: optNum(cur.wind_speed_10m),
         pop: optNum(cur.precipitation_probability),
+        tempYesterday,
         ts: cur.time ? orNow(localTimeToEpoch(cur.time, offsetSec)) : now,
       },
       hourly,

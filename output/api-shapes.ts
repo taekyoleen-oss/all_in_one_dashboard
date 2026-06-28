@@ -234,6 +234,11 @@ export const WeatherCurrentSchema = z.object({
   windSpeed: z.number().optional(),
   /** Probability of precipitation %, 0–100 (optional). */
   pop: z.number().optional(),
+  /**
+   * Air temperature at the SAME hour yesterday, °C (optional — only the keyless
+   * Open-Meteo path provides it via past_days). Drives the "어제 대비" line.
+   */
+  tempYesterday: z.number().optional(),
   /** Observation/forecast time for this reading (epoch ms). */
   ts: z.number().int(),
 });

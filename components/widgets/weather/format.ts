@@ -73,9 +73,30 @@ export function ConditionIcon({
   return React.createElement(meta.Icon, { ...props, className: cls });
 }
 
-/** Round to a whole degree and append °C (e.g. 21.4 → "21°"). */
+/** Temperature to ONE decimal place + ° (e.g. 21.42 → "21.4°"). 요구: 소숫점 1자리. */
 export function formatTemp(celsius: number): string {
-  return `${Math.round(celsius)}°`;
+  if (!Number.isFinite(celsius)) return "—";
+  return `${celsius.toFixed(1)}°`;
+}
+
+/** Direction of a temperature change (어제 대비 색/아이콘). */
+export type TempTrend = "up" | "down" | "same";
+
+/**
+ * 어제 같은 시각 대비 현재 기온 변화. 0.05° 미만은 "비슷"으로 본다(반올림 1자리 기준).
+ * 기호는 +/− (마이너스 부호는 U+2212로 폭 안정).
+ */
+export function formatTempDelta(
+  currentTemp: number,
+  yesterdayTemp: number,
+): { text: string; trend: TempTrend } {
+  const diff = Math.round((currentTemp - yesterdayTemp) * 10) / 10;
+  if (Math.abs(diff) < 0.05) return { text: "어제와 비슷", trend: "same" };
+  const up = diff > 0;
+  return {
+    text: `어제보다 ${up ? "+" : "−"}${Math.abs(diff).toFixed(1)}°`,
+    trend: up ? "up" : "down",
+  };
 }
 
 /** Hour label for the hourly strip (e.g. "15시"). */

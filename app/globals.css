@@ -156,6 +156,17 @@ body {
   border-bottom-color: var(--muted-foreground);
 }
 
+/* 자동정렬/이동 시 타일이 새 자리로 부드럽게 이동(요구: 정렬 애니메이션). RGL은
+   드래그·리사이즈 중인 타일에 더 구체적인 셀렉터(.react-draggable-dragging /
+   .resizing)로 transition:none 을 주므로, 아래 1-class 규칙은 그 타일에는 적용되지
+   않는다 → 정렬·재배치만 매끄럽게, 끌고 있는 타일은 즉각 추종. reduced-motion 블록이
+   아래에서 이 전환을 무력화한다. */
+.react-grid-item:not(.react-draggable-dragging):not(.resizing) {
+  transition-property: transform, width, height, left, top;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* ============================================================================
    Canvas-shell motion (palette sheet up, focus overlay fade/scale). Kept subtle;
    disabled wholesale by the prefers-reduced-motion block below.

@@ -88,6 +88,12 @@ export interface UsePersistenceResult {
    */
   setShareTargetNote: (instanceId: string, on: boolean) => void;
   compactActive: (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => void;
+  /**
+   * Restore a SPECIFIC board's layout to an exact snapshot (자동정렬 되돌리기). Unlike
+   * updateActiveLayout it targets `boardId` explicitly, so undo restores the right
+   * board even if the user has since switched tabs. No-op if the board is gone.
+   */
+  restoreBoardLayout: (boardId: string, layout: CanvasLayoutItem[]) => void;
 
   /** Board ops. */
   addBoard: () => void;
@@ -398,6 +404,27 @@ export function usePersistence(
       scheduleFlush();
     },
     [activeId, scheduleFlush],
+  );
+
+  const restoreBoardLayout = React.useCallback(
+    (boardId: string, layout: CanvasLayoutItem[]) => {
+      const a = stateRef.current.find((b) => b.meta.id === boardId);
+      if (!a) return;
+      // Mark every widget whose placement differs from the snapshot dirty so the
+      // restore persists (auto-arrange already moved them server-side too).
+      const prevById = new Map(a.layout.map((l) => [l.instanceId, l]));
+      for (const it of layout) {
+        const p = prevById.get(it.instanceId);
+        if (!p || p.x !== it.x || p.y !== it.y || p.w !== it.w || p.h !== it.h) {
+          queueRef.current.widgets.add(it.instanceId);
+        }
+      }
+      setBoards((prev) =>
+        prev.map((b) => (b.meta.id === boardId ? { ...b, layout } : b)),
+      );
+      scheduleFlush();
+    },
+    [scheduleFlush],
   );
 
   const addInstance = React.useCallback(
@@ -714,6 +741,7 @@ export function usePersistence(
     active,
     setActiveId,
     updateActiveLayout,
+    restoreBoardLayout,
     addInstance,
     deleteInstance,
     moveInstanceToBoard,
