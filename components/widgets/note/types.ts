@@ -39,6 +39,19 @@ export interface NoteConfig {
    * usePersistence.setShareTargetNote). The first note created defaults to true.
    */
   shareTarget?: boolean;
+  /**
+   * 타일 접기 상태(노트 본문 상단 컨트롤).
+   *  - 'normal' (기본·생략 시) → 사용자가 설정한 높이 그대로. 드래그로 자유롭게 조절.
+   *  - 'more'   → 그 높이의 절반으로 접어 아래 위젯이 올라옴.
+   * 실제 그리드 h를 바꾸므로(세로 컴팩션) 이웃 위젯이 따라 이동한다. 토글은
+   * usePersistence.collapseNote가 layout·config를 함께 갱신한다.
+   */
+  collapse?: "normal" | "more";
+  /**
+   * 'more'로 접기 직전의 그리드 높이(행 수). '접기'(normal)로 복원할 때 이 값으로
+   * h를 되돌린다. 'more' 진입 시점의 현재 h를 캡처한다.
+   */
+  normalHeight?: number;
 }
 
 export const DEFAULT_NOTE_CONFIG: NoteConfig = {

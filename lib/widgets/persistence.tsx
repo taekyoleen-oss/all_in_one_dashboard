@@ -16,10 +16,12 @@ import * as React from "react";
 
 type SaveConfigFn = (instanceId: string, nextConfig: unknown) => void;
 type SetShareTargetFn = (instanceId: string, on: boolean) => void;
+type CollapseNoteFn = (instanceId: string, level: "normal" | "more") => void;
 
 interface WidgetPersistenceValue {
   save: SaveConfigFn;
   setShareTargetNote: SetShareTargetFn;
+  collapseNote: CollapseNoteFn;
 }
 
 const WidgetPersistenceContext =
@@ -28,15 +30,17 @@ const WidgetPersistenceContext =
 export function WidgetPersistenceProvider({
   save,
   setShareTargetNote,
+  collapseNote,
   children,
 }: {
   save: SaveConfigFn;
   setShareTargetNote: SetShareTargetFn;
+  collapseNote: CollapseNoteFn;
   children: React.ReactNode;
 }) {
   const value = React.useMemo<WidgetPersistenceValue>(
-    () => ({ save, setShareTargetNote }),
-    [save, setShareTargetNote],
+    () => ({ save, setShareTargetNote, collapseNote }),
+    [save, setShareTargetNote, collapseNote],
   );
   return (
     <WidgetPersistenceContext.Provider value={value}>
@@ -58,5 +62,11 @@ export function useSetShareTargetNote(): SetShareTargetFn {
   );
 }
 
+/** Collapse a note tile to half its height (or restore). No-op without a provider. */
+export function useCollapseNote(): CollapseNoteFn {
+  return React.useContext(WidgetPersistenceContext)?.collapseNote ?? noopCollapse;
+}
+
 const noopSave: SaveConfigFn = () => {};
 const noopShareTarget: SetShareTargetFn = () => {};
+const noopCollapse: CollapseNoteFn = () => {};

@@ -132,6 +132,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     moveInstanceToBoard,
     saveConfig,
     setShareTargetNote,
+    collapseNote,
     compactActive,
     addBoard,
     renameBoard,
@@ -373,6 +374,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     <WidgetPersistenceProvider
       save={saveConfig}
       setShareTargetNote={setShareTargetNote}
+      collapseNote={collapseNote}
     >
     <main className="min-h-dvh bg-background">
       {/* Sticky header: title + board tabs + toolbar.

@@ -87,6 +87,13 @@ export interface UsePersistenceResult {
    * `instanceId`. Marks each changed note dirty (debounced flush persists).
    */
   setShareTargetNote: (instanceId: string, on: boolean) => void;
+  /**
+   * 노트 타일 접기(본문 상단 토글). level 'more' = 현재 그리드 h를 normalHeight로
+   * 기억하고 h를 절반(round, note minSize.h 이상)으로 줄임 → 세로 컴팩션으로 아래
+   * 위젯이 올라온다. level 'normal' = 기억해 둔 normalHeight로 h 복원. layout과
+   * config(collapse/normalHeight)를 한 번에 갱신하고 dirty 마킹(디바운스 flush로 영속).
+   */
+  collapseNote: (instanceId: string, level: "normal" | "more") => void;
   compactActive: (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => void;
   /**
    * Restore a SPECIFIC board's layout to an exact snapshot (자동정렬 되돌리기). Unlike
@@ -582,6 +589,50 @@ export function usePersistence(
     [markWidget],
   );
 
+  const collapseNote = React.useCallback(
+    (instanceId: string, level: "normal" | "more") => {
+      const minH = widgetRegistry["note"]?.minSize.h ?? 3;
+      setBoards((prev) =>
+        prev.map((b) => {
+          if (b.meta.id !== activeId) return b;
+          const item = b.layout.find((l) => l.instanceId === instanceId);
+          const inst = b.instances.find((i) => i.instanceId === instanceId);
+          if (!item || !inst) return b;
+          const cfg = (inst.config ?? {}) as {
+            collapse?: "normal" | "more";
+            normalHeight?: number;
+          };
+          const curLevel = cfg.collapse ?? "normal";
+          let newH = item.h;
+          let nextCfg = cfg;
+          if (level === "more") {
+            // 현재 'normal'이면 지금 h를 기준으로, 이미 'more'면 기억해 둔 높이를 기준으로
+            // 절반을 계산한다(연속 클릭이 1/4로 쪼개지지 않게).
+            const base =
+              curLevel === "more" ? cfg.normalHeight ?? item.h : item.h;
+            newH = Math.max(Math.round(base / 2), minH);
+            nextCfg = { ...cfg, collapse: "more", normalHeight: base };
+          } else {
+            newH = Math.max(cfg.normalHeight ?? item.h, minH);
+            nextCfg = { ...cfg, collapse: "normal" };
+          }
+          if (newH === item.h && curLevel === level) return b;
+          return {
+            ...b,
+            instances: b.instances.map((i) =>
+              i.instanceId === instanceId ? { ...i, config: nextCfg } : i,
+            ),
+            layout: b.layout.map((l) =>
+              l.instanceId === instanceId ? { ...l, h: newH } : l,
+            ),
+          };
+        }),
+      );
+      markWidget(instanceId);
+    },
+    [activeId, markWidget],
+  );
+
   const compactActive = React.useCallback(
     (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => {
       const a = stateRef.current.find((b) => b.meta.id === activeId);
@@ -747,6 +798,7 @@ export function usePersistence(
     moveInstanceToBoard,
     saveConfig,
     setShareTargetNote,
+    collapseNote,
     compactActive,
     addBoard,
     renameBoard,
