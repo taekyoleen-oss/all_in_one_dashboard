@@ -150,6 +150,28 @@ export function usePersistence(
   const [activeId, setActiveId] = React.useState<string>(seed[0].meta.id);
   const [saving, setSaving] = React.useState(false);
 
+  // 마지막으로 열었던 탭(보드)을 기기별로 기억해 앱 재시작 시 복원한다. userId로 키를
+  // 분리(같은 기기 다른 계정 충돌 방지). 보안/민감정보 아님 → DB 아닌 localStorage.
+  const lastBoardKey = `pb:last-board:${userId}`;
+  const persistActiveId = React.useCallback(
+    (id: string) => {
+      try {
+        window.localStorage.setItem(lastBoardKey, id);
+      } catch {
+        /* private 모드/용량 초과 등은 조용히 무시 — 탭 복원은 부가 기능 */
+      }
+    },
+    [lastBoardKey],
+  );
+  // 탭 선택(클릭·추가·삭제)의 단일 경로: 상태 갱신 + 마지막 탭 기억.
+  const selectActiveId = React.useCallback(
+    (id: string) => {
+      setActiveId(id);
+      persistActiveId(id);
+    },
+    [persistActiveId],
+  );
+
   // Latest state, readable inside the debounced flush without re-creating
   // callbacks. Synced in an effect (post-commit) — never written during render.
   // The flush is debounced (≥600ms), so it always runs after this effect.
@@ -157,6 +179,30 @@ export function usePersistence(
   React.useEffect(() => {
     stateRef.current = boards;
   }, [boards]);
+
+  // 앱 재시작 시 마지막 탭 복원. SSR/hydration 안전을 위해 초기 activeId는 서버와 동일한
+  // seed[0]로 두고, 마운트 후 한 번만 저장된 보드로 전환한다(저장값이 현재 보드 목록에
+  // 있을 때만; 삭제된 보드면 기본 보드 유지). 복원 자체는 이미 저장된 값이라 재저장 불필요.
+  const restoredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(lastBoardKey);
+    } catch {
+      stored = null;
+    }
+    if (
+      stored &&
+      stored !== activeId &&
+      stateRef.current.some((b) => b.meta.id === stored)
+    ) {
+      setActiveId(stored);
+    }
+    // 마운트 1회만 실행(restoredRef 가드). activeId는 초기값 비교용으로만 사용.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastBoardKey]);
 
   const queueRef = React.useRef<DirtyQueue>(emptyQueue());
   const timerRef = React.useRef<number | null>(null);
@@ -671,9 +717,9 @@ export function usePersistence(
       sortOrder: maxSort + 1,
     };
     setBoards((prev) => [...prev, { meta, instances: [], layout: [] }]);
-    setActiveId(id);
+    selectActiveId(id);
     markBoard(id);
-  }, [markBoard]);
+  }, [markBoard, selectActiveId]);
 
   const renameBoard = React.useCallback(
     (boardId: string, name: string) => {
@@ -710,7 +756,7 @@ export function usePersistence(
       });
 
       setBoards(next);
-      if (activeId === boardId) setActiveId(next[0].meta.id);
+      if (activeId === boardId) selectActiveId(next[0].meta.id);
 
       // Widgets cascade-delete in the DB (FK on delete cascade); we only need to
       // delete the board row and clear any pending widget writes for it.
@@ -721,7 +767,7 @@ export function usePersistence(
       markBoardDeleted(boardId);
       if (promotedId) markBoard(promotedId);
     },
-    [activeId, markBoard, markBoardDeleted],
+    [activeId, markBoard, markBoardDeleted, selectActiveId],
   );
 
   const setDefaultBoard = React.useCallback(
@@ -790,7 +836,8 @@ export function usePersistence(
     boards,
     activeId,
     active,
-    setActiveId,
+    // 외부(탭 클릭)도 selectActiveId로 — 전환 시 마지막 탭을 기기에 기억한다.
+    setActiveId: selectActiveId,
     updateActiveLayout,
     restoreBoardLayout,
     addInstance,
