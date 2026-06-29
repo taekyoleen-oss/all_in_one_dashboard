@@ -89,9 +89,11 @@ export interface UsePersistenceResult {
   setShareTargetNote: (instanceId: string, on: boolean) => void;
   /**
    * 노트 타일 접기(본문 상단 토글). level 'more' = 현재 그리드 h를 normalHeight로
-   * 기억하고 h를 절반(round, note minSize.h 이상)으로 줄임 → 세로 컴팩션으로 아래
-   * 위젯이 올라온다. level 'normal' = 기억해 둔 normalHeight로 h 복원. layout과
-   * config(collapse/normalHeight)를 한 번에 갱신하고 dirty 마킹(디바운스 flush로 영속).
+   * 기억하고 h를 절반(round, note minSize.h 이상)으로 줄임. level 'normal' = 기억해
+   * 둔 normalHeight로 h 복원. 그리드가 자유 배치(컴팩션 없음)라 높이 변화량(delta)만큼
+   * "노트 아래에 있고 노트 열과 가로로 겹치는" 위젯들을 함께 이동시켜, 더접기 시 그만큼
+   * 올라오고 접기 시 정확히 그만큼 내려가게 한다. layout과 config(collapse/normalHeight)를
+   * 한 번에 갱신하고 옮겨진 위젯까지 dirty 마킹(디바운스 flush로 영속).
    */
   collapseNote: (instanceId: string, level: "normal" | "more") => void;
   compactActive: (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => void;
@@ -592,6 +594,8 @@ export function usePersistence(
   const collapseNote = React.useCallback(
     (instanceId: string, level: "normal" | "more") => {
       const minH = widgetRegistry["note"]?.minSize.h ?? 3;
+      // 노트 외에 위치가 바뀐(아래로/위로 따라 이동한) 위젯 id를 모아 dirty 마킹한다.
+      const moved: string[] = [];
       setBoards((prev) =>
         prev.map((b) => {
           if (b.meta.id !== activeId) return b;
@@ -617,18 +621,37 @@ export function usePersistence(
             nextCfg = { ...cfg, collapse: "normal" };
           }
           if (newH === item.h && curLevel === level) return b;
+          // 그리드는 자유 배치(type:null 컴팩터)라 노트 h만 바꿔서는 아래 위젯이
+          // 스스로 움직이지 않는다. 높이 변화량(delta)만큼 "노트 아래에 있고 노트의
+          // 열 범위와 가로로 겹치는" 위젯들을 직접 이동한다 — 더접기(delta<0)면 그만큼
+          // 위로, 접기(delta>0)면 정확히 그만큼 아래로. 같은 delta로 함께 옮기므로
+          // 위젯 간 간격·상대 위치가 보존되고 새 겹침도 생기지 않는다(옆 열 위젯은 제외).
+          const delta = newH - item.h;
+          const oldBottom = item.y + item.h;
+          const layout = b.layout.map((l) => {
+            if (l.instanceId === instanceId) return { ...l, h: newH };
+            if (
+              delta !== 0 &&
+              l.y >= oldBottom &&
+              l.x < item.x + item.w &&
+              item.x < l.x + l.w
+            ) {
+              moved.push(l.instanceId);
+              return { ...l, y: Math.max(0, l.y + delta) };
+            }
+            return l;
+          });
           return {
             ...b,
             instances: b.instances.map((i) =>
               i.instanceId === instanceId ? { ...i, config: nextCfg } : i,
             ),
-            layout: b.layout.map((l) =>
-              l.instanceId === instanceId ? { ...l, h: newH } : l,
-            ),
+            layout,
           };
         }),
       );
       markWidget(instanceId);
+      moved.forEach(markWidget);
     },
     [activeId, markWidget],
   );
