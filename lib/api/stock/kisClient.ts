@@ -173,11 +173,21 @@ function inOvertimeWindowKst(nowMs: number): boolean {
   return kstHour >= 16 || kstHour < 9;
 }
 
-/** 시간외 단일가 보정값(전일종가 대비, 정규장과 동일 기준). 미형성·실패 시 null. */
+/**
+ * 시간외 단일가 + 거래량만 읽는다(등락은 호출부에서 '전일 종가' 대비로 직접 계산).
+ *  미형성/실패/시간외 미거래(vol≤0) 시 null → 정규장 시세 유지.
+ *
+ *  ⚠ KIS의 `ovtm_untp_prdy_vrss/ctrt/sign`은 이름과 달리 '전일' 종가가 아니라
+ *  **시간외 기준가(=정규장 종가)** 대비 등락이다. 그래서 정규장에서 크게 움직였지만
+ *  시간외엔 변동이 없는 종목(예: 상한가)은 이 필드가 0/보합으로 온다. 이를 그대로
+ *  '전일대비'로 쓰면 정규장의 실제 등락(예: +29.84%)이 0으로 덮여 위젯이 "—"로
+ *  표시되는 버그가 있었다. 따라서 등락은 이 필드를 쓰지 않고, 정규장 응답에서 구한
+ *  전일 종가 기준으로 호출부에서 재계산한다.
+ */
 async function fetchOvertime(
   code: string,
   token: string,
-): Promise<{ price: number; change: number; changePct: number } | null> {
+): Promise<{ price: number } | null> {
   const params = new URLSearchParams({
     FID_COND_MRKT_DIV_CODE: "J",
     FID_INPUT_ISCD: code,
@@ -190,9 +200,6 @@ async function fetchOvertime(
   const json = (await res.json()) as {
     output?: {
       ovtm_untp_prpr?: string; // 시간외 단일가 현재가
-      ovtm_untp_prdy_vrss?: string; // 전일 대비
-      ovtm_untp_prdy_ctrt?: string; // 전일 대비율
-      ovtm_untp_prdy_vrss_sign?: string; // 전일 대비 부호
       ovtm_untp_vol?: string; // 시간외 단일가 거래량
     };
   };
@@ -201,21 +208,10 @@ async function fetchOvertime(
   const price = Number(o.ovtm_untp_prpr);
   const vol = Number(o.ovtm_untp_vol ?? "0");
   // 시간외 거래가 실제로 체결된 경우(vol>0)에만 반영한다. 거래가 없으면 KIS는
-  // ovtm_untp_prpr를 기준가(=정규장 종가)로 채우고 등락을 0으로 주므로, 그대로
-  // 쓰면 정규장의 실제 등락이 0으로 덮여버린다 → 정규장 시세를 유지하도록 null.
+  // ovtm_untp_prpr를 기준가(=정규장 종가)로 채우므로 정규장 시세를 유지하도록 null.
   if (!Number.isFinite(price) || price <= 0) return null;
   if (!Number.isFinite(vol) || vol <= 0) return null;
-  const factor = signFactor(o.ovtm_untp_prdy_vrss_sign);
-  const magnitude = Number(o.ovtm_untp_prdy_vrss ?? "0");
-  const pct = Number(o.ovtm_untp_prdy_ctrt ?? "0");
-  return {
-    price,
-    // 정규장과 동일하게 부호코드 × 절대값(이중부호 방지).
-    change: Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0,
-    changePct: Number.isFinite(pct)
-      ? Math.abs(pct) * (factor === 0 ? 1 : factor)
-      : 0,
-  };
+  return { price };
 }
 
 /** Fetch one individual KR stock current price. */
@@ -255,20 +251,24 @@ async function fetchStock(
   // KIS returns prdy_vrss/prdy_ctrt ALREADY SIGNED. Derive the sign solely from
   // the authoritative sign code on the absolute magnitude — otherwise a signed
   // value × the sign factor double-applies and FLIPS 상승/하락 (bug fix).
+  const regChange = Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0;
   let outPrice = price;
-  let outChange = Number.isFinite(magnitude) ? Math.abs(magnitude) * factor : 0;
+  let outChange = regChange;
   let outPct = Number.isFinite(pct) ? Math.abs(pct) * (factor === 0 ? 1 : factor) : 0;
+  // 전일 종가 = 정규장 현재가 − 정규장 전일대비. 시간외 등락은 이 값 기준으로 재계산한다.
+  const prevClose = price - regChange;
 
-  // 시간외 단일가 반영: 저녁·야간 시간대에만 조회해 정규장 가격 위에 덧입힌다(전일종가
-  // 대비라 기준 일관). 미형성·실패면 정규장 값을 그대로 둔다(시간외 조회 오류가 정규장
-  // 시세를 떨어뜨리지 않도록 격리).
-  if (inOvertimeWindowKst(Date.now())) {
+  // 시간외 단일가 반영: 저녁·야간 시간대에만 조회해 정규장 가격 위에 덧입힌다. 미형성·
+  // 실패면 정규장 값을 그대로 둔다(시간외 조회 오류가 정규장 시세를 떨어뜨리지 않도록 격리).
+  // 등락은 KIS 시간외 필드(=기준가 대비, 상한가 등에서 0이 됨)가 아니라 '전일 종가' 대비로
+  // 직접 계산 → 정규장 등락이 0으로 덮이는 버그(상한가 종목 "—" 표시)를 막는다.
+  if (inOvertimeWindowKst(Date.now()) && prevClose > 0) {
     try {
       const ot = await fetchOvertime(code, token);
       if (ot) {
         outPrice = ot.price;
-        outChange = ot.change;
-        outPct = ot.changePct;
+        outChange = ot.price - prevClose;
+        outPct = ((ot.price - prevClose) / prevClose) * 100;
       }
     } catch {
       /* keep regular quote */

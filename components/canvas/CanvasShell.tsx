@@ -461,6 +461,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               instances={active.instances}
               layout={active.layout}
               onLayoutChange={handleLayoutChange}
+              onCollapseNote={collapseNote}
               editable={editable}
               onDropWidget={addByDrop}
               renderActions={renderActions}

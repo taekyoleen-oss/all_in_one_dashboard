@@ -62,9 +62,37 @@ export function useSetShareTargetNote(): SetShareTargetFn {
   );
 }
 
+/**
+ * Breakpoint-aware collapse OVERRIDE provided by GridCanvas. On desktop (lg) the
+ * canvas just delegates to the DB collapse below; on mobile/tablet (md/sm) it
+ * ALSO shifts the device-local layout so the note tile shrinks AND the widgets
+ * below rise/fall — exactly like desktop. When GridCanvas is not in the tree
+ * (e.g. previews), this is null and useCollapseNote falls back to the DB collapse.
+ */
+const NoteCollapseOverrideContext =
+  React.createContext<CollapseNoteFn | null>(null);
+
+export function NoteCollapseOverrideProvider({
+  collapseNote,
+  children,
+}: {
+  collapseNote: CollapseNoteFn;
+  children: React.ReactNode;
+}) {
+  return (
+    <NoteCollapseOverrideContext.Provider value={collapseNote}>
+      {children}
+    </NoteCollapseOverrideContext.Provider>
+  );
+}
+
 /** Collapse a note tile to half its height (or restore). No-op without a provider. */
 export function useCollapseNote(): CollapseNoteFn {
-  return React.useContext(WidgetPersistenceContext)?.collapseNote ?? noopCollapse;
+  // GridCanvas's breakpoint-aware override wins (handles mobile device layouts);
+  // otherwise the plain DB collapse (lg only) from WidgetPersistenceProvider.
+  const override = React.useContext(NoteCollapseOverrideContext);
+  const base = React.useContext(WidgetPersistenceContext)?.collapseNote;
+  return override ?? base ?? noopCollapse;
 }
 
 const noopSave: SaveConfigFn = () => {};

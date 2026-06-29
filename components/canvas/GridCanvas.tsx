@@ -38,6 +38,11 @@ import {
 } from "react-grid-layout";
 import { calcXY } from "react-grid-layout";
 import type { WidgetRegistry, Density } from "@/lib/widgets/contract";
+import { NoteCollapseOverrideProvider } from "@/lib/widgets/persistence";
+import {
+  computeNoteCollapse,
+  type NoteCollapseConfig,
+} from "@/components/widgets/note/collapseLayout";
 import { WidgetFrame } from "./WidgetFrame";
 import { getDragType, clearDragType } from "@/lib/utils/dragSource";
 import { useDragAutoScroll } from "@/lib/utils/dragAutoScroll";
@@ -80,6 +85,12 @@ export interface GridCanvasProps {
   layout: CanvasLayoutItem[];
   /** Called when the user drags/resizes (lg layout only — see note below). */
   onLayoutChange?: (next: CanvasLayoutItem[]) => void;
+  /**
+   * 노트 접기(접기/더접기)의 DB 경로 — note config + 데스크톱(lg) 레이아웃을 갱신한다.
+   * GridCanvas는 이를 감싸 모바일/태블릿(md/sm)에서는 기기-로컬 레이아웃에도 같은
+   * 이동(노트 축소 + 아래 위젯 올림/내림)을 적용한다(요구: 모바일에서도 PC처럼 동작).
+   */
+  onCollapseNote?: (instanceId: string, level: "normal" | "more") => void;
   /**
    * Edit mode: when false, drag + resize are disabled (the 잠금 lock toggle in
    * Toolbar flips this). Defaults to true. Drop is also disabled while locked.
@@ -667,6 +678,7 @@ export function GridCanvas({
   instances,
   layout,
   onLayoutChange,
+  onCollapseNote,
   editable = true,
   onDropWidget,
   dropItemSize,
@@ -1173,6 +1185,72 @@ export function GridCanvas({
     [layout, instances, registry, deviceLayouts],
   );
 
+  // Latest derived layouts, read inside the collapse handler (avoids re-creating
+  // the callback every render). The note collapse on mobile transforms whatever
+  // is currently on screen for the active breakpoint.
+  const layoutsRef = React.useRef(layouts);
+  React.useEffect(() => {
+    layoutsRef.current = layouts;
+  }, [layouts]);
+  // Latest instances (for reading a note's collapse config in the handler).
+  const instancesRef = React.useRef(instances);
+  React.useEffect(() => {
+    instancesRef.current = instances;
+  }, [instances]);
+  // Latest stored device layouts (to only apply the device-local shift when one
+  // exists; otherwise the DERIVED layout already re-packs from lg, no freeze).
+  const deviceLayoutsRef = React.useRef(deviceLayouts);
+  React.useEffect(() => {
+    deviceLayoutsRef.current = deviceLayouts;
+  }, [deviceLayouts]);
+
+  // 노트 접기(접기/더접기) — 브레이크포인트 인식 핸들러.
+  //  • lg: DB 경로(onCollapseNote)만 호출 → note config + 데스크톱 레이아웃 갱신.
+  //  • md/sm: DB 경로로 config/상태를 영속한 뒤, 화면에 보이는 기기-로컬 레이아웃에도
+  //    동일한 computeNoteCollapse(노트 h 축소 + 아래 위젯 delta 이동)를 적용·저장한다.
+  //    기기-로컬 배치가 없을 때(파생 상태)는 lg 변경이 toFlowLayout로 재파생되며 자연히
+  //    재배치되므로 건드리지 않는다(불필요한 freeze 방지).
+  const handleCollapse = React.useCallback(
+    (instanceId: string, level: "normal" | "more") => {
+      // 1) DB 경로: note config(collapse/normalHeight) + lg 레이아웃(데스크톱 일관성).
+      onCollapseNote?.(instanceId, level);
+
+      // 2) 모바일/태블릿: 저장된 기기-로컬 배치가 있으면 거기에도 같은 이동을 적용.
+      const bp = activeBpRef.current;
+      if (bp !== "md" && bp !== "sm") return;
+      if (!deviceLayoutsRef.current[bp]) return; // 파생 상태는 lg 변경으로 재파생됨.
+
+      const note = instancesRef.current.find((i) => i.instanceId === instanceId);
+      if (!note) return;
+      const cfg = (note.config ?? {}) as NoteCollapseConfig;
+      const minH = registry["note"]?.minSize.h ?? 3;
+      const cur = layoutsRef.current[bp];
+      if (!cur) return;
+      const rects = cur
+        .filter((it) => it.i !== DROPPING_ITEM_ID)
+        .map((it) => ({
+          instanceId: it.i,
+          x: it.x,
+          y: it.y,
+          w: it.w,
+          h: it.h,
+        }));
+      const res = computeNoteCollapse(rects, instanceId, cfg, level, minH);
+      if (!res.changed) return;
+      persistDeviceLayout(
+        bp,
+        res.layout.map((r) => ({
+          i: r.instanceId,
+          x: r.x,
+          y: r.y,
+          w: r.w,
+          h: r.h,
+        })),
+      );
+    },
+    [onCollapseNote, registry, persistDeviceLayout],
+  );
+
   const children = React.useMemo(
     () =>
       instances.map((instance) => (
@@ -1464,6 +1542,7 @@ export function GridCanvas({
       className="w-full [&_.react-grid-layout]:min-h-[70vh]"
     >
       {mounted ? (
+        <NoteCollapseOverrideProvider collapseNote={handleCollapse}>
         <Responsive<BreakpointKey>
           width={width}
           breakpoints={BREAKPOINTS}
@@ -1497,6 +1576,7 @@ export function GridCanvas({
         >
           {children}
         </Responsive>
+        </NoteCollapseOverrideProvider>
       ) : null}
       {pushPromptId ? (
         <PushPrompt
