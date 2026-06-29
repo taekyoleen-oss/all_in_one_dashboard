@@ -34,6 +34,10 @@
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
 import { widgetRegistry } from "@/components/widgets/registry";
+import {
+  computeNoteCollapse,
+  type NoteCollapseConfig,
+} from "@/components/widgets/note/collapseLayout";
 import { createInstance } from "@/lib/utils/grid";
 import { useToast } from "@/components/ui/Toaster";
 import {
@@ -599,54 +603,27 @@ export function usePersistence(
       setBoards((prev) =>
         prev.map((b) => {
           if (b.meta.id !== activeId) return b;
-          const item = b.layout.find((l) => l.instanceId === instanceId);
           const inst = b.instances.find((i) => i.instanceId === instanceId);
-          if (!item || !inst) return b;
-          const cfg = (inst.config ?? {}) as {
-            collapse?: "normal" | "more";
-            normalHeight?: number;
-          };
-          const curLevel = cfg.collapse ?? "normal";
-          let newH = item.h;
-          let nextCfg = cfg;
-          if (level === "more") {
-            // 현재 'normal'이면 지금 h를 기준으로, 이미 'more'면 기억해 둔 높이를 기준으로
-            // 절반을 계산한다(연속 클릭이 1/4로 쪼개지지 않게).
-            const base =
-              curLevel === "more" ? cfg.normalHeight ?? item.h : item.h;
-            newH = Math.max(Math.round(base / 2), minH);
-            nextCfg = { ...cfg, collapse: "more", normalHeight: base };
-          } else {
-            newH = Math.max(cfg.normalHeight ?? item.h, minH);
-            nextCfg = { ...cfg, collapse: "normal" };
-          }
-          if (newH === item.h && curLevel === level) return b;
-          // 그리드는 자유 배치(type:null 컴팩터)라 노트 h만 바꿔서는 아래 위젯이
-          // 스스로 움직이지 않는다. 높이 변화량(delta)만큼 "노트 아래에 있고 노트의
-          // 열 범위와 가로로 겹치는" 위젯들을 직접 이동한다 — 더접기(delta<0)면 그만큼
-          // 위로, 접기(delta>0)면 정확히 그만큼 아래로. 같은 delta로 함께 옮기므로
-          // 위젯 간 간격·상대 위치가 보존되고 새 겹침도 생기지 않는다(옆 열 위젯은 제외).
-          const delta = newH - item.h;
-          const oldBottom = item.y + item.h;
-          const layout = b.layout.map((l) => {
-            if (l.instanceId === instanceId) return { ...l, h: newH };
-            if (
-              delta !== 0 &&
-              l.y >= oldBottom &&
-              l.x < item.x + item.w &&
-              item.x < l.x + l.w
-            ) {
-              moved.push(l.instanceId);
-              return { ...l, y: Math.max(0, l.y + delta) };
-            }
-            return l;
-          });
+          if (!inst) return b;
+          const cfg = (inst.config ?? {}) as NoteCollapseConfig;
+          // 순수 함수가 노트 h 변경 + 아래 위젯 이동을 모두 계산(collapseLayout.ts).
+          const res = computeNoteCollapse(
+            b.layout,
+            instanceId,
+            cfg,
+            level,
+            minH,
+          );
+          if (!res.changed) return b;
+          res.movedIds.forEach((id) => moved.push(id));
           return {
             ...b,
             instances: b.instances.map((i) =>
-              i.instanceId === instanceId ? { ...i, config: nextCfg } : i,
+              i.instanceId === instanceId
+                ? { ...i, config: { ...cfg, ...res.config } }
+                : i,
             ),
-            layout,
+            layout: res.layout,
           };
         }),
       );
