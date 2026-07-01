@@ -10,7 +10,7 @@
  */
 
 import * as React from "react";
-import { Check, Copy, ClipboardPlus } from "lucide-react";
+import { Check, Copy, ClipboardPlus, Trash2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import {
   useClipboardHistory,
@@ -25,13 +25,16 @@ export function ClipboardCompactView({
   config,
   instanceId,
 }: CompactViewProps<ClipboardConfig>) {
-  const { items, add } = useClipboardHistory(instanceId, config.maxItems);
+  const { items, add, remove } = useClipboardHistory(instanceId, config.maxItems);
   const capture = config.captureOnCopy !== false;
   useCopyCapture(capture, add);
   // Auto-record OS clipboard when returning to the app (Ctrl+C elsewhere → here).
   useClipboardAutoCapture(capture, add);
 
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  // 삭제는 실수 방지 위해 2단계(휴지통 → '삭제?' 재확인). 기기 간 공유 저장이라
+  // 지우면 PC·모바일 모두에서 사라진다.
+  const [confirmDelId, setConfirmDelId] = React.useState<string | null>(null);
   const recopy = React.useCallback(async (id: string, text: string) => {
     if (await copyText(text)) {
       setCopiedId(id);
@@ -68,12 +71,15 @@ export function ClipboardCompactView({
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
           {items.map((it) => (
-            <li key={it.id}>
+            <li
+              key={it.id}
+              className="flex items-center gap-0.5 rounded-md transition-colors hover:bg-accent"
+            >
               <button
                 type="button"
                 onClick={() => recopy(it.id, it.text)}
                 title="클릭하면 다시 복사"
-                className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left outline-none focus-visible:bg-accent focus-visible:outline-none"
               >
                 <span
                   aria-hidden
@@ -94,6 +100,36 @@ export function ClipboardCompactView({
                   />
                 )}
               </button>
+              {confirmDelId === it.id ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    remove(it.id);
+                    setConfirmDelId(null);
+                  }}
+                  title="한 번 더 눌러 삭제"
+                  aria-label="삭제 확인"
+                  className="shrink-0 rounded-md px-1 py-0.5 text-[10px] font-medium text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  삭제?
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmDelId(it.id);
+                    window.setTimeout(
+                      () => setConfirmDelId((c) => (c === it.id ? null : c)),
+                      2500,
+                    );
+                  }}
+                  title="삭제"
+                  aria-label="삭제"
+                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Trash2 size={12} aria-hidden />
+                </button>
+              )}
             </li>
           ))}
         </ul>

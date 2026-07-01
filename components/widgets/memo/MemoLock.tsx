@@ -15,6 +15,10 @@ import { hashPassword, type MemoConfig } from "./types";
 
 export function useMemoLock(config: MemoConfig): {
   locked: boolean;
+  /** 비밀번호(잠금)가 설정돼 있는지 — '지금 잠금' 버튼 노출 판단용. */
+  hasLock: boolean;
+  /** 즉시 잠금(요구: 해제 상태에서 상단 버튼으로 바로 잠금). */
+  lock: () => void;
   tryUnlock: (pw: string) => Promise<boolean>;
 } {
   const hasLock = !!config.pwHash;
@@ -54,7 +58,12 @@ export function useMemoLock(config: MemoConfig): {
     [config.pwHash, arm],
   );
 
-  return { locked: hasLock && !unlocked, tryUnlock };
+  const lock = React.useCallback(() => {
+    if (timer.current != null) window.clearTimeout(timer.current);
+    setUnlocked(false);
+  }, []);
+
+  return { locked: hasLock && !unlocked, hasLock, lock, tryUnlock };
 }
 
 export function MemoLockPrompt({

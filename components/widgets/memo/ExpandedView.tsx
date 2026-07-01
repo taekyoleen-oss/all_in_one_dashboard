@@ -12,6 +12,7 @@
  */
 
 import * as React from "react";
+import { Lock } from "lucide-react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import {
   MEMO_COLORS,
@@ -25,7 +26,7 @@ const SIZE_ORDER: MemoSize[] = ["sm", "md", "lg"];
 const SIZE_LABEL: Record<MemoSize, string> = { sm: "작게", md: "보통", lg: "크게" };
 
 export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
-  const { locked, tryUnlock } = useMemoLock(config);
+  const { locked, hasLock, lock, tryUnlock } = useMemoLock(config);
   // View-only override of the rendered size (does NOT mutate config). Seeded from
   // config.size during render via initializer — no setState-in-effect.
   const [viewSize, setViewSize] = React.useState<MemoSize>(config.size);
@@ -36,7 +37,21 @@ export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center justify-between gap-2">
+        {/* 잠금이 설정된(해제 상태) 메모에만 '지금 잠금' 버튼. */}
+        {hasLock ? (
+          <button
+            type="button"
+            onClick={lock}
+            title="지금 잠금"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Lock size={13} aria-hidden /> 지금 잠금
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-1">
         <span className="mr-1 text-xs text-muted-foreground">글자 크기</span>
         <div
           role="group"
@@ -59,6 +74,7 @@ export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
               {SIZE_LABEL[s]}
             </button>
           ))}
+        </div>
         </div>
       </div>
 

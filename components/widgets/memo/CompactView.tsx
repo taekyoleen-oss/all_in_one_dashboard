@@ -8,6 +8,7 @@
  */
 
 import * as React from "react";
+import { Lock } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { MEMO_COLORS, MEMO_SIZE_CLASS, type MemoConfig } from "./types";
@@ -18,7 +19,7 @@ export function MemoCompactView({
   instanceId,
 }: CompactViewProps<MemoConfig>) {
   const save = useSaveWidgetConfig();
-  const { locked, tryUnlock } = useMemoLock(config);
+  const { locked, hasLock, lock, tryUnlock } = useMemoLock(config);
   const accent = MEMO_COLORS[config.color]?.swatch ?? MEMO_COLORS.default.swatch;
   const hasAccent = config.color !== "default";
 
@@ -51,15 +52,32 @@ export function MemoCompactView({
   if (locked) return <MemoLockPrompt tryUnlock={tryUnlock} size="compact" />;
 
   return (
-    <div className="flex h-full w-full gap-2">
-      {hasAccent ? (
-        <span
-          aria-hidden
-          className="w-1 shrink-0 rounded-full"
-          style={{ backgroundColor: accent }}
-        />
+    <div className="flex h-full w-full flex-col gap-1">
+      {/* 잠금이 설정된(그러나 해제된) 메모에만 '지금 잠금' 버튼 노출. */}
+      {hasLock ? (
+        <div className="flex shrink-0 items-center justify-end">
+          <button
+            type="button"
+            onClick={lock}
+            title="지금 잠금"
+            aria-label="지금 잠금"
+            data-pb-no-drag=""
+            className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Lock size={12} aria-hidden /> 잠금
+          </button>
+        </div>
       ) : null}
-      <textarea
+
+      <div className="flex min-h-0 flex-1 gap-2">
+        {hasAccent ? (
+          <span
+            aria-hidden
+            className="w-1 shrink-0 rounded-full"
+            style={{ backgroundColor: accent }}
+          />
+        ) : null}
+        <textarea
         // Uncontrolled (defaultValue) so optimistic config updates don't reset
         // the caret mid-typing; keyed by instanceId via the parent remount.
         defaultValue={config.text}
@@ -78,6 +96,7 @@ export function MemoCompactView({
           MEMO_SIZE_CLASS[config.size],
         ].join(" ")}
       />
+      </div>
     </div>
   );
 }

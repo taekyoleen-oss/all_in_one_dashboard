@@ -10,6 +10,7 @@
 import * as React from "react";
 import { Lock } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
+import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import {
   MEMO_COLORS,
   MEMO_TEXT_COLORS,
@@ -24,7 +25,11 @@ const SIZE_LABEL: Record<MemoSize, string> = { sm: "작게", md: "보통", lg: "
 const COLOR_ORDER = Object.keys(MEMO_COLORS) as MemoColor[];
 const LOCK_TIMEOUTS = [1, 5, 15, 30, 60];
 
-export function MemoConfigEditor({ config, onChange }: ConfigEditorProps<MemoConfig>) {
+export function MemoConfigEditor({
+  config,
+  onChange,
+  instanceId,
+}: ConfigEditorProps<MemoConfig>) {
   const locked = !!config.pwHash;
   return (
     <div className="flex flex-col gap-4">
@@ -50,7 +55,11 @@ export function MemoConfigEditor({ config, onChange }: ConfigEditorProps<MemoCon
         </label>
       )}
 
-      <MemoPasswordSection config={config} onChange={onChange} />
+      <MemoPasswordSection
+        config={config}
+        onChange={onChange}
+        instanceId={instanceId}
+      />
 
       <fieldset className="flex flex-col gap-2 text-sm">
         <legend className="mb-1 text-muted-foreground">강조 색상</legend>
@@ -178,10 +187,13 @@ export function MemoConfigEditor({ config, onChange }: ConfigEditorProps<MemoCon
 function MemoPasswordSection({
   config,
   onChange,
+  instanceId,
 }: {
   config: MemoConfig;
   onChange: (next: MemoConfig) => void;
+  instanceId?: string;
 }) {
+  const save = useSaveWidgetConfig();
   const has = !!config.pwHash;
   const [cur, setCur] = React.useState("");
   const [np, setNp] = React.useState("");
@@ -189,14 +201,25 @@ function MemoPasswordSection({
   const [msg, setMsg] = React.useState<string | null>(null);
   const lockMin = config.lockAfterMin || 5;
 
+  // 비밀번호 변경은 '즉시' 유지돼야 한다(요구: 설정하면 계속 유지, 취소로 사라지지
+  // 않음). draft 갱신(onChange) + 인스턴스 config 즉시 영속(save) 둘 다 수행 →
+  // 다이얼로그의 '저장'을 누르지 않아도 반영되고, 설정 즉시 타일이 잠긴다.
+  const apply = React.useCallback(
+    (next: MemoConfig) => {
+      onChange(next);
+      if (instanceId) save(instanceId, next);
+    },
+    [onChange, save, instanceId],
+  );
+
   const setPassword = async () => {
     if (np.trim().length < 4) return setMsg("비밀번호는 4자 이상이어야 합니다.");
     if (np !== np2) return setMsg("비밀번호 확인이 일치하지 않습니다.");
     const h = await hashPassword(np);
-    onChange({ ...config, pwHash: h, lockAfterMin: config.lockAfterMin ?? 5 });
+    apply({ ...config, pwHash: h, lockAfterMin: config.lockAfterMin ?? 5 });
     setNp("");
     setNp2("");
-    setMsg("잠금이 설정되었습니다.");
+    setMsg("잠금이 설정되었습니다. 타일이 바로 잠깁니다.");
   };
 
   const changePassword = async () => {
@@ -205,7 +228,7 @@ function MemoPasswordSection({
     if (np.trim().length < 4) return setMsg("새 비밀번호는 4자 이상이어야 합니다.");
     if (np !== np2) return setMsg("새 비밀번호 확인이 일치하지 않습니다.");
     const h = await hashPassword(np);
-    onChange({ ...config, pwHash: h });
+    apply({ ...config, pwHash: h });
     setCur("");
     setNp("");
     setNp2("");
@@ -215,11 +238,9 @@ function MemoPasswordSection({
   const removePassword = async () => {
     const ch = await hashPassword(cur);
     if (!ch || ch !== config.pwHash) return setMsg("현재 비밀번호가 올바르지 않습니다.");
-    const next: MemoConfig = { ...config };
-    next.pwHash = null;
-    onChange(next);
+    apply({ ...config, pwHash: null });
     setCur("");
-    setMsg(null);
+    setMsg("잠금이 해제되었습니다. 일반 메모로 사용합니다.");
   };
 
   const inputCls =
@@ -279,7 +300,7 @@ function MemoPasswordSection({
                   key={m}
                   type="button"
                   aria-pressed={lockMin === m}
-                  onClick={() => onChange({ ...config, lockAfterMin: m })}
+                  onClick={() => apply({ ...config, lockAfterMin: m })}
                   className={[
                     "rounded-md border px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                     lockMin === m

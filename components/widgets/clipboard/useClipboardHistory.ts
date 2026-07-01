@@ -54,6 +54,10 @@ export function useClipboardHistory(
   const [items, setItems] = React.useState<ClipItem[]>([]);
   const [nonce, setNonce] = React.useState(0);
   const refresh = React.useCallback(() => setNonce((n) => n + 1), []);
+  // 채널 토픽은 훅 인스턴스마다 유니크해야 한다: '전체'를 열면 타일(Compact)과
+  // 전체(Expanded)가 같은 instanceId로 동시에 마운트돼 토픽이 겹치면 realtime 채널
+  // 충돌로 에러가 난다. useId로 훅별 고유 접미사를 붙여 분리한다(둘 다 같은 필터 구독).
+  const channelUid = React.useId();
 
   // 조회 + 실시간 구독 + 포커스/가시성 복귀 재조회(기기 간 동기화).
   React.useEffect(() => {
@@ -78,19 +82,26 @@ export function useClipboardHistory(
     };
     void load();
 
-    const channel = supabase
-      .channel(`pb_clipboard:${instanceId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "pb_clipboard",
-          filter: `instance_id=eq.${instanceId}`,
-        },
-        () => void load(),
-      )
-      .subscribe();
+    // 실시간 구독은 best-effort — 실패해도 포커스 재조회로 동기화되므로, 어떤
+    // 이유로든 채널 생성/구독이 throw해도 뷰가 죽지 않게 감싼다.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase.channel(`pb_clipboard:${instanceId}:${channelUid}`);
+      channel
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "pb_clipboard",
+            filter: `instance_id=eq.${instanceId}`,
+          },
+          () => void load(),
+        )
+        .subscribe();
+    } catch {
+      channel = null;
+    }
 
     const onFocus = () => void load();
     const onVisible = () => {
@@ -101,11 +112,11 @@ export function useClipboardHistory(
 
     return () => {
       alive = false;
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [supabase, instanceId, cap, nonce]);
+  }, [supabase, instanceId, cap, nonce, channelUid]);
 
   const add = React.useCallback(
     async (text: string) => {
