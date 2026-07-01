@@ -105,7 +105,7 @@ export function EssentialInfoConfigEditor({
           })}
         </div>
         <p className="text-[11px] text-muted-foreground">
-          마지막 사용 후 이 시간이 지나면 자동으로 다시 잠깁니다(비밀번호 설정 시).
+          잠금 해제 후 이 시간이 지나면 사용 중이어도 자동으로 다시 잠깁니다(비밀번호 설정 시).
         </p>
       </fieldset>
 

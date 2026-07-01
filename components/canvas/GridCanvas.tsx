@@ -945,6 +945,12 @@ export function GridCanvas({
   const swapTargetRef = React.useRef<string | null>(null);
   // Highlighted swap-target element (cleared on tick/stop).
   const swapHoverElRef = React.useRef<HTMLElement | null>(null);
+  // 요구: 다른 위젯 위에 겹쳐도 즉시 자리 교환되지 않고, ~1초 머물러야 대상으로 확정된다.
+  // dwell 후보(현재 포인터 밑 타일)와 확정 타이머. 후보가 바뀌면 타이머를 재시작하고,
+  // 같은 타일 위에서 SWAP_DWELL_MS가 지나야 swapTargetRef가 확정(+하이라이트)된다.
+  const SWAP_DWELL_MS = 1000;
+  const swapDwellCandidateRef = React.useRef<string | null>(null);
+  const swapDwellTimerRef = React.useRef<number | null>(null);
 
   /* ----------------- drag-onto-tab (다른 탭으로 이동) ---------------------- */
   // While dragging a tile, if the pointer is over a board TAB (data-pb-board-tab),
@@ -1039,6 +1045,15 @@ export function GridCanvas({
     swapHoverElRef.current = null;
   }, []);
 
+  // 겹침 dwell(후보 + 확정 타이머) 초기화 — 드래그 시작/종료·후보 이탈 시 호출.
+  const clearSwapDwell = React.useCallback(() => {
+    if (swapDwellTimerRef.current != null) {
+      window.clearTimeout(swapDwellTimerRef.current);
+      swapDwellTimerRef.current = null;
+    }
+    swapDwellCandidateRef.current = null;
+  }, []);
+
   const setSwapHover = React.useCallback(
     (instanceId: string) => {
       const el = containerRef.current?.querySelector<HTMLElement>(
@@ -1058,6 +1073,7 @@ export function GridCanvas({
       clearPushPrompt();
       clearTabHover();
       clearSwapHover();
+      clearSwapDwell();
       swapTargetRef.current = null;
       // 가장자리 자동 스크롤 시작(상단 메뉴까지 끌면 캔버스가 따라 내려가도록).
       autoScroll.start();
@@ -1071,7 +1087,7 @@ export function GridCanvas({
       dragIdRef.current = oldItem.i;
       dragOldPosRef.current = { x: oldItem.x, y: oldItem.y };
     },
-    [clearPushPrompt, clearTabHover, clearSwapHover, autoScroll],
+    [clearPushPrompt, clearTabHover, clearSwapHover, clearSwapDwell, autoScroll],
   );
 
   const onDragTick = React.useCallback(
@@ -1087,16 +1103,39 @@ export function GridCanvas({
         if (tab && tab.boardId !== storageKey) {
           setTabHover(tab.el, tab.boardId);
           clearSwapHover();
+          clearSwapDwell();
           swapTargetRef.current = null;
           return;
         }
         clearTabHover();
       }
-      // 2) Over another tile? Mark it as the swap target and highlight it.
+      // 2) Over another tile? Require a ~1s dwell before it becomes the swap
+      //    target (요구: 겹쳐도 바로 안 되고 1초 머물러야 자리에 들어간다). While the
+      //    dwell timer runs (or the pointer isn't over any tile) there is NO armed
+      //    swap target and no highlight; only after SWAP_DWELL_MS on the SAME tile
+      //    do we arm it + highlight.
       const target = tileAtPointer(e, id);
-      swapTargetRef.current = target;
-      if (target) setSwapHover(target);
-      else clearSwapHover();
+      if (target !== swapDwellCandidateRef.current) {
+        // 후보 변경 → 타이머 재시작, 아직 확정된 대상/하이라이트는 해제.
+        swapDwellCandidateRef.current = target;
+        if (swapDwellTimerRef.current != null) {
+          window.clearTimeout(swapDwellTimerRef.current);
+          swapDwellTimerRef.current = null;
+        }
+        swapTargetRef.current = null;
+        clearSwapHover();
+        if (target) {
+          swapDwellTimerRef.current = window.setTimeout(() => {
+            swapDwellTimerRef.current = null;
+            // 여전히 같은 타일 위이면 swap 대상으로 확정 + 하이라이트.
+            if (swapDwellCandidateRef.current === target) {
+              swapTargetRef.current = target;
+              setSwapHover(target);
+            }
+          }, SWAP_DWELL_MS);
+        }
+      }
+      // target === candidate: 유지(타이머 진행 중이거나 이미 확정됨) — 아무 것도 안 함.
     },
     [
       onTransferInstance,
@@ -1106,6 +1145,7 @@ export function GridCanvas({
       tileAtPointer,
       setSwapHover,
       clearSwapHover,
+      clearSwapDwell,
       storageKey,
       autoScroll,
     ],
@@ -1121,6 +1161,7 @@ export function GridCanvas({
       dragIdRef.current = null;
       swapTargetRef.current = null;
       clearSwapHover();
+      clearSwapDwell();
       // Dropped onto a board tab → move the widget to that board (요구: 다른 탭으로 이동).
       const hover = hoveredTabRef.current;
       clearTabHover();
@@ -1168,6 +1209,7 @@ export function GridCanvas({
       onTransferInstance,
       clearTabHover,
       clearSwapHover,
+      clearSwapDwell,
       onLayoutChange,
       autoScroll,
     ],
@@ -1409,6 +1451,8 @@ export function GridCanvas({
         window.clearTimeout(promptTimerRef.current);
       if (autoPushTimerRef.current != null)
         window.clearTimeout(autoPushTimerRef.current);
+      if (swapDwellTimerRef.current != null)
+        window.clearTimeout(swapDwellTimerRef.current);
       // Reset any leftover tab highlight (tabs outlive this component).
       const tab = hoveredTabRef.current;
       if (tab) {

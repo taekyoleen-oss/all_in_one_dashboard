@@ -27,10 +27,8 @@ export function OutfitCompactView({
   instanceId,
 }: CompactViewProps<OutfitConfig>) {
   const { data, loading, error, lastUpdated, refresh } = useOutfit(config);
-  const { selection, periodId, setSelection, slots } = useSelectedPeriod(
-    instanceId,
-    config.periodId,
-  );
+  const { selection, periodId, setSelection, slots } =
+    useSelectedPeriod(instanceId);
 
   const computed = React.useMemo(() => {
     if (!data) return null;

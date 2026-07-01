@@ -626,3 +626,56 @@ export const TranslateSchema = z.object({
   note: z.string().optional(),
 });
 export type Translate = z.infer<typeof TranslateSchema>;
+
+/* ===========================================================================
+ *  CIRCLE-SCHEDULE — 지인 일정 정리  (LLM 추출 + DB 저장)
+ * ===========================================================================
+ *
+ *  POST /api/circle-schedule/extract { text } → 카카오톡 텍스트에서 뽑아낸 약속
+ *  후보 목록. 대상/구분은 서버가 판단하지 않는다(사용자가 UI에서 지정). 저장 전
+ *  '검토' 단계의 원천 데이터라 target_id는 여기 없다.
+ *
+ *  Target / Appointment 스키마는 pb_circle_targets / pb_circle_appointments 행을
+ *  방어적으로 검증하기 위한 것(useCircleData가 safeParse) — DB Row와 형태 일치.
+ */
+
+/** 추출된 약속 후보 1건(저장 전, 대상 미지정 상태). */
+export const ExtractedAppointmentSchema = z.object({
+  /** 한 문장 요약(시간 있으면 문장 뒤 괄호 포함). */
+  content: z.string(),
+  /** 정렬용 ISO8601(+09:00) 또는 null. */
+  when_at: z.string().nullable(),
+  /** 추출 근거 원본(선택). */
+  source: z.string().optional(),
+});
+export type ExtractedAppointment = z.infer<typeof ExtractedAppointmentSchema>;
+
+/** /api/circle-schedule/extract 응답. */
+export const ExtractSchema = z.object({
+  appointments: z.array(ExtractedAppointmentSchema),
+});
+export type Extract = z.infer<typeof ExtractSchema>;
+
+/** 대상(구분) — pb_circle_targets 행. */
+export const CircleTargetSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  name: z.string(),
+  email: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  sort_order: z.number(),
+  created_at: z.string(),
+});
+export type CircleTarget = z.infer<typeof CircleTargetSchema>;
+
+/** 약속 — pb_circle_appointments 행. */
+export const CircleAppointmentSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  target_id: z.string().nullable(),
+  content: z.string(),
+  when_at: z.string().nullable(),
+  source: z.string().nullable(),
+  created_at: z.string(),
+});
+export type CircleAppointment = z.infer<typeof CircleAppointmentSchema>;

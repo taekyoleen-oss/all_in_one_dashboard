@@ -52,6 +52,7 @@ export function ImageSliderExpandedView({
 
   const current = images[index];
   const failed = errored.has(current.id);
+  const title = config.title?.trim();
 
   return (
     <div
@@ -62,26 +63,38 @@ export function ImageSliderExpandedView({
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <div className="relative flex-1 overflow-hidden rounded-[var(--radius)] bg-muted">
+      {title ? (
+        <h2 className="shrink-0 truncate text-center text-lg font-semibold text-foreground">
+          {title}
+        </h2>
+      ) : null}
+
+      {/* 큰 이미지는 폭에 맞추고 세로로 스크롤해 전체 내용을 볼 수 있다(요구). */}
+      <div className="relative min-h-[40dvh] max-h-[75dvh] flex-1 overflow-hidden rounded-[var(--radius)] bg-muted">
         {failed ? (
           <div className="flex h-full min-h-[40dvh] w-full items-center justify-center text-muted-foreground">
             <ImageOff size={28} aria-hidden />
           </div>
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL (Storage upload deferred); can't be allowlisted in next.config, and onError drives the placeholder.
-          <img
-            key={current.id}
-            src={current.url}
-            alt={current.caption ?? `슬라이드 ${index + 1}`}
-            className="h-full max-h-[60dvh] w-full object-contain"
-            onError={() =>
-              setErrored((s) => {
-                const n = new Set(s);
-                n.add(current.id);
-                return n;
-              })
-            }
-          />
+          <div
+            data-pb-no-drag=""
+            className="h-full w-full overflow-y-auto pb-scroll"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied URL (Storage upload deferred); can't be allowlisted in next.config, and onError drives the placeholder. */}
+            <img
+              key={current.id}
+              src={current.url}
+              alt={current.caption ?? `슬라이드 ${index + 1}`}
+              className="mx-auto block h-auto w-full"
+              onError={() =>
+                setErrored((s) => {
+                  const n = new Set(s);
+                  n.add(current.id);
+                  return n;
+                })
+              }
+            />
+          </div>
         )}
 
         {images.length > 1 ? (

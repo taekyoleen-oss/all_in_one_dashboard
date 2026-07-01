@@ -2,9 +2,12 @@
 
 /**
  * LockedMemo — the shared body for the password-memo widget. When a password is
- * set, shows an unlock prompt and AUTO-RELOCKS after `lockAfterMin` of inactivity;
- * once unlocked (or when no password) it's an inline-editable textarea that
- * persists via the widget-persistence context (debounced).
+ * set, shows an unlock prompt and AUTO-RELOCKS a fixed `lockAfterMin` AFTER
+ * unlocking — an ABSOLUTE timer that keeps running even while you're editing
+ * (요구: 해제 후 일정 시간이 지나면 무조건 다시 잠긴다). It also starts locked on every
+ * reload (unlocked state is in-memory only). Once unlocked (or when no password)
+ * it's an inline-editable textarea that persists via the widget-persistence
+ * context (debounced).
  */
 
 import * as React from "react";
@@ -38,6 +41,8 @@ export function LockedMemo({
     setUnlocked(!hasLock);
   }, [hasLock, instanceId]);
 
+  // Arm the ABSOLUTE relock timer: relocks `relockMs` after unlocking and is NOT
+  // rearmed by editing, so the memo always relocks a fixed time after it opened.
   const armRelock = React.useCallback(() => {
     if (!hasLock) return;
     if (relockTimer.current != null) window.clearTimeout(relockTimer.current);
@@ -73,7 +78,7 @@ export function LockedMemo({
       () => save(instanceId, { ...configRef.current, text }),
       500,
     );
-    armRelock();
+    // Absolute relock: editing must NOT postpone the timer (요구).
   };
 
   if (hasLock && !unlocked) {

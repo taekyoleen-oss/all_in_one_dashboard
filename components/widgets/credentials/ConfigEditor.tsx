@@ -28,7 +28,7 @@ export function CredentialsConfigEditor({
           자동 잠금
         </legend>
         <label className="flex items-center justify-between gap-3 text-sm text-foreground">
-          <span>이만큼 사용이 없으면 자동으로 잠금</span>
+          <span>잠금 해제 후 이 시간이 지나면 자동으로 잠금</span>
           <select
             value={lockAfterMin}
             onChange={(e) =>
@@ -44,8 +44,8 @@ export function CredentialsConfigEditor({
           </select>
         </label>
         <p className="text-[11px] text-muted-foreground">
-          잠금 해제 상태에서 이 시간 동안 조작이 없으면 다시 마스터 비밀번호를
-          물어봅니다.
+          잠금 해제 후 이 시간이 지나면 사용 중이어도 다시 마스터 비밀번호를
+          물어봅니다. 앱을 새로 실행해도 다시 잠깁니다.
         </p>
       </fieldset>
 

@@ -3,16 +3,17 @@
 /**
  * useSelectedPeriod — 외출옷 추천의 '선택 시간대' 해석 훅.
  *
- *  저장된 선택(usePersistedPeriod, 인스턴스별)·config 기본값·자동('지금')을 합쳐
- *  실제 추천에 쓸 시간대(periodId)로 변환한다. 타일(CompactView)과 '전체'(ExpandedView)가
- *  같은 인스턴스 선택을 공유하므로 두 뷰가 항상 같은 시간대를 본다.
+ *  기본값은 항상 '지금'(auto)이다(요구: 기본값이 지금). 특정 시간대 칩을 누르면 그
+ *  구간으로 '고정'되지만, 그 선택은 일정 시간(REVERT_MS)이 지나면 자동으로 '지금'으로
+ *  되돌아간다(요구: 다른 시간대를 골라도 시간이 지나면 지금으로 복귀). 지나간 구간도
+ *  롤링 윈도우에서 사라지면 마찬가지로 '지금'으로 자가 복원된다.
  *
- *  - selection: 사용자가 고른 값. 'auto'(지금) 또는 특정 시간대 id → PeriodPicker 하이라이트.
+ *  타일(CompactView)과 '전체'(ExpandedView)가 같은 인스턴스 선택을 공유하므로 두 뷰가
+ *  항상 같은 시간대를 본다(usePersistedPeriod).
+ *
+ *  - selection: 사용자가 고른 값. 'auto'(지금) 또는 특정 시간대 key → PeriodPicker 하이라이트.
  *  - periodId : 추천 계산에 쓰는 실제 시간대. selection이 'auto'면 현재 시각(useNow)으로
- *    매 분 재계산되어, 시간이 흐르면 다음 구간으로 자동으로 넘어간다(요구: 최근 시간 반영).
- *
- *  특정 시간대 칩을 누르면 그 구간으로 '고정'되고, 다시 '지금' 칩을 누르면 자동 추적으로
- *  돌아온다. 고정 상태에서는 불필요한 리렌더를 피하려고 틱 주기를 시간당 1회로 늦춘다.
+ *    매 분 재계산되어, 시간이 흐르면 다음 구간으로 자동으로 넘어간다.
  */
 
 import * as React from "react";
@@ -25,6 +26,35 @@ import {
   type PeriodSlot,
 } from "./constants";
 
+/** 비-'지금' 선택을 유지하는 시간(ms). 이만큼 지나면 자동으로 '지금'으로 복귀한다. */
+const REVERT_MS = 10 * 60_000; // 10분
+
+const AT_PREFIX = "pb:outfitPeriodAt:";
+const atKeyOf = (id: string) => AT_PREFIX + id;
+
+/** 선택 시각(epoch ms) 읽기 — 없으면 null. */
+function readSelectedAt(id: string): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(atKeyOf(id));
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 선택 시각 저장/삭제. */
+function writeSelectedAt(id: string, at: number | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (at == null) window.localStorage.removeItem(atKeyOf(id));
+    else window.localStorage.setItem(atKeyOf(id), String(at));
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
 export interface SelectedPeriod {
   /** 사용자 선택값('auto' 또는 시간대 키) — PeriodPicker 하이라이트용. */
   selection: string;
@@ -36,23 +66,26 @@ export interface SelectedPeriod {
   slots: PeriodSlot[];
 }
 
-export function useSelectedPeriod(
-  instanceId: string,
-  configPeriod?: string,
-): SelectedPeriod {
+export function useSelectedPeriod(instanceId: string): SelectedPeriod {
   const { period, setPeriod } = usePersistedPeriod(instanceId);
 
-  // config '기본 시간대'가 실제로 바뀔 때만 동기화('전체'를 열어도 선택 유지).
-  // 기본값 미설정이면 자동('지금')으로 둔다.
-  const prevConfig = React.useRef(configPeriod);
-  React.useEffect(() => {
-    if (prevConfig.current !== configPeriod) {
-      prevConfig.current = configPeriod;
-      setPeriod(configPeriod ?? AUTO_PERIOD_ID);
-    }
-  }, [configPeriod, setPeriod]);
+  // 칩 클릭: '지금'이면 고정 해제(선택 시각도 삭제), 특정 구간이면 그 구간으로 고정하고
+  // 선택 시각을 찍는다(REVERT_MS 후 자동 복귀 기준).
+  const setSelection = React.useCallback(
+    (id: string) => {
+      if (id === AUTO_PERIOD_ID) {
+        writeSelectedAt(instanceId, null);
+        setPeriod(null);
+      } else {
+        writeSelectedAt(instanceId, Date.now());
+        setPeriod(id);
+      }
+    },
+    [instanceId, setPeriod],
+  );
 
-  const stored = period ?? configPeriod ?? AUTO_PERIOD_ID;
+  // 저장된 선택(없으면 '지금'이 기본).
+  const stored = period ?? AUTO_PERIOD_ID;
 
   // 분 단위 틱: 시간이 흐르면 현재 구간이 넘어가고, 지나간 칩은 롤링 윈도우에서 사라진다.
   const now = useNow(60_000);
@@ -63,14 +96,25 @@ export function useSelectedPeriod(
     [Math.floor(now.getTime() / 60_000)],
   );
 
-  // 저장된 고정 선택이 이미 지나가 윈도우에 없으면 자동('지금')으로 자가 복원.
+  // 복귀 판정: (1) 선택 후 REVERT_MS 경과, 또는 (2) 롤링 윈도우에서 사라진 지난 구간이면
+  // '지금'으로 되돌린다.
+  const selectedAt = stored === AUTO_PERIOD_ID ? null : readSelectedAt(instanceId);
+  const expired = selectedAt != null && now.getTime() - selectedAt > REVERT_MS;
   const inWindow =
     stored === AUTO_PERIOD_ID || slots.some((s) => s.key === stored);
-  const selection = inWindow ? stored : AUTO_PERIOD_ID;
+  const selection = inWindow && !expired ? stored : AUTO_PERIOD_ID;
   const periodId =
     selection === AUTO_PERIOD_ID ? currentPeriodId(now) : selection;
 
-  return { selection, periodId, setSelection: setPeriod, slots };
+  // 만료/윈도우 이탈로 '지금'으로 판정됐는데 저장값이 아직 남아 있으면 정리한다.
+  React.useEffect(() => {
+    if (selection === AUTO_PERIOD_ID && period != null) {
+      writeSelectedAt(instanceId, null);
+      setPeriod(null);
+    }
+  }, [selection, period, instanceId, setPeriod]);
+
+  return { selection, periodId, setSelection, slots };
 }
 
 export default useSelectedPeriod;

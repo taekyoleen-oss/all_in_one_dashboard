@@ -66,7 +66,22 @@ export function QuoteRow({
         href={quoteInfoUrl(symbol)}
         target="_blank"
         rel="noopener noreferrer"
-        title={`${quote?.name || name} 주식정보 보기 (네이버 금융, 새 탭)`}
+        // 요구: 한 번 클릭은 무시하고, 더블클릭해야 종목 정보로 이동한다.
+        onClick={(e) => {
+          // 보조 키(Ctrl/⌘/Shift)·가운데 클릭은 브라우저 기본 동작(새 탭 등)을 유지.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+          e.preventDefault();
+        }}
+        onDoubleClick={() => {
+          window.open(quoteInfoUrl(symbol), "_blank", "noopener,noreferrer");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            window.open(quoteInfoUrl(symbol), "_blank", "noopener,noreferrer");
+          }
+        }}
+        title={`${quote?.name || name} 주식정보 보기 (더블클릭 · 네이버 금융, 새 탭)`}
         className="flex items-center justify-between gap-3 rounded-md px-1.5 py-1 hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
       <div className="flex min-w-0 flex-col">

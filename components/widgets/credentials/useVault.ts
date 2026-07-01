@@ -10,7 +10,9 @@
  *
  *  The plaintext entries and the derived key NEVER leave memory; only the
  *  AES-GCM ciphertext is persisted (localStorage, device-local — never Supabase).
- *  Auto-relocks after `lockAfterMin` of inactivity (clears key + entries).
+ *  Auto-relocks a fixed `lockAfterMin` AFTER unlocking — an ABSOLUTE timer that
+ *  keeps running regardless of activity (요구: 해제 후 일정 시간이 지나면 사용 중이어도
+ *  무조건 잠긴다), and the in-memory key is lost on reload so it re-locks on restart.
  */
 
 import * as React from "react";
@@ -78,7 +80,8 @@ export interface Vault {
   changePassword: (newPassword: string) => Promise<void>;
   /** Wipe the vault from this device (irreversible). */
   reset: () => void;
-  /** Rearm the inactivity relock timer (call on user interaction). */
+  /** No-op — kept for API compatibility. The relock timer is ABSOLUTE (armed at
+   *  unlock, never rearmed by activity), so interaction must NOT postpone it. */
   touch: () => void;
 }
 
@@ -113,6 +116,9 @@ export function useVault(instanceId: string, lockAfterMin: number): Vault {
     setStatus(readBlob(instanceId) ? "locked" : "setup");
   }, [instanceId]);
 
+  // Arm the ABSOLUTE relock timer: locks `relockMs` after unlock/setup and is
+  // NOT rearmed by subsequent activity (add/update/remove/touch), so the vault
+  // always relocks a fixed time after it was opened (요구).
   const armRelock = React.useCallback(() => {
     if (relockTimer.current != null) window.clearTimeout(relockTimer.current);
     relockTimer.current = window.setTimeout(doLock, relockMs);
@@ -198,28 +204,25 @@ export function useVault(instanceId: string, lockAfterMin: number): Vault {
 
   const add = React.useCallback(
     async (entry: Omit<Credential, "id">) => {
-      armRelock();
       const next = [{ id: newCredentialId(), ...entry }, ...entries];
       await persist(next);
     },
-    [entries, persist, armRelock],
+    [entries, persist],
   );
 
   const update = React.useCallback(
     async (id: string, patch: Partial<Omit<Credential, "id">>) => {
-      armRelock();
       const next = entries.map((e) => (e.id === id ? { ...e, ...patch } : e));
       await persist(next);
     },
-    [entries, persist, armRelock],
+    [entries, persist],
   );
 
   const remove = React.useCallback(
     async (id: string) => {
-      armRelock();
       await persist(entries.filter((e) => e.id !== id));
     },
-    [entries, persist, armRelock],
+    [entries, persist],
   );
 
   const changePassword = React.useCallback(
@@ -239,12 +242,13 @@ export function useVault(instanceId: string, lockAfterMin: number): Vault {
           return;
         }
         setError(null);
-        armRelock();
+        // Absolute timer: don't rearm on password change — the vault still relocks
+        // at its original unlock deadline.
       } finally {
         setBusy(false);
       }
     },
-    [entries, instanceId, armRelock],
+    [entries, instanceId],
   );
 
   const reset = React.useCallback(() => {
@@ -274,7 +278,8 @@ export function useVault(instanceId: string, lockAfterMin: number): Vault {
     remove,
     changePassword,
     reset,
-    touch: armRelock,
+    // Absolute relock: activity must not postpone it, so touch is a no-op.
+    touch: () => {},
   };
 }
 

@@ -22,11 +22,14 @@ export interface ImageSliderConfig {
   images: SlideImage[];
   /** Auto-advance interval in seconds (0 ⇒ no auto-advance). */
   intervalSec: number;
+  /** Optional slideshow title shown on the tile + expanded view (editable). */
+  title?: string;
 }
 
 export const DEFAULT_IMAGE_SLIDER_CONFIG: ImageSliderConfig = {
   images: [],
   intervalSec: 5,
+  title: "",
 };
 
 /** Clamp an interval to a sane range; 0 means "off". */

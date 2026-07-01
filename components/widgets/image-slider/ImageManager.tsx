@@ -182,6 +182,18 @@ export function ImageManager({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Slideshow title (shown on the tile + expanded view) */}
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-muted-foreground">제목 (선택)</span>
+        <input
+          type="text"
+          value={config.title ?? ""}
+          onChange={(e) => onChange({ ...config, title: e.target.value })}
+          placeholder="예: 여행 사진"
+          className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </label>
+
       {/* Interval control */}
       <label className="flex items-center justify-between gap-3 text-sm">
         <span className="text-muted-foreground">자동 전환 간격(초, 0=꺼짐)</span>

@@ -13,11 +13,7 @@ import { LocateFixed, MapPin, Search } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import type { OutfitConfig } from "./types";
 import type { ActivityType, GenderType } from "./illustration/types";
-import {
-  ACTIVITIES,
-  OUTFIT_PERIODS,
-  SENSITIVITY_OPTIONS,
-} from "./constants";
+import { ACTIVITIES, SENSITIVITY_OPTIONS } from "./constants";
 
 interface GeoHit {
   label: string;
@@ -381,34 +377,10 @@ export function OutfitConfigEditor({
         </p>
       </fieldset>
 
-      {/* 기본 시간대 */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <legend className="px-1 text-xs font-medium text-muted-foreground">
-          기본 시간대
-        </legend>
-        <div className="grid grid-cols-4 gap-1.5">
-          <button
-            type="button"
-            aria-pressed={!config.periodId}
-            onClick={() => onChange({ ...config, periodId: undefined })}
-            className={chipClass(!config.periodId)}
-          >
-            현재 시각
-          </button>
-          {OUTFIT_PERIODS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              aria-pressed={config.periodId === p.id}
-              onClick={() => onChange({ ...config, periodId: p.id })}
-              className={chipClass(config.periodId === p.id)}
-            >
-              <span aria-hidden>{p.emoji}</span>
-              <span className="truncate">{p.label}</span>
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <p className="text-[11px] text-muted-foreground">
+        시간대는 항상 ‘지금’이 기본입니다. 타일·전체에서 다른 시간대를 골라도 잠시 뒤
+        자동으로 ‘지금’으로 돌아갑니다.
+      </p>
     </div>
   );
 }

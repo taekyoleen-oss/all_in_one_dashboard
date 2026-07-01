@@ -56,6 +56,7 @@ import { translateWidget } from "./translate";
 import { vehicleWidget } from "./vehicle";
 import { noteWidget } from "./note";
 import { credentialsWidget } from "./credentials";
+import { circleScheduleWidget } from "./circle-schedule";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -102,6 +103,9 @@ const DEFINITIONS: WidgetDefinition[] = [
 
   // ── 비밀번호 금고 (암호화 로그인 저장 — 마스터 비번 잠금) ──
   credentialsWidget as WidgetDefinition,
+
+  // ── 지인 일정 정리 (카카오톡 텍스트 → 약속 추출, 구분별 정리) ──
+  circleScheduleWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */

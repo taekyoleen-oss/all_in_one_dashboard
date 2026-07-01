@@ -88,6 +88,74 @@ export type Database = {
         }
         Relationships: []
       }
+      pb_circle_appointments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          source: string | null
+          target_id: string | null
+          user_id: string
+          when_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          source?: string | null
+          target_id?: string | null
+          user_id: string
+          when_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          source?: string | null
+          target_id?: string | null
+          user_id?: string
+          when_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pb_circle_appointments_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "pb_circle_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pb_circle_targets: {
+        Row: {
+          color: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       pb_dashboards: {
         Row: {
           id: string

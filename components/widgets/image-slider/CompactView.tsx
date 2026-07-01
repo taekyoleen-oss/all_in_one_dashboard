@@ -34,45 +34,60 @@ export function ImageSliderCompactView({ config }: CompactViewProps<ImageSliderC
 
   const current = images[index];
   const failed = errored.has(current.id);
+  const title = config.title?.trim();
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-md bg-muted">
-      {failed ? (
-        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-          <ImageOff size={20} aria-hidden />
-        </div>
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL (Storage upload deferred); can't be allowlisted in next.config, and onError drives the placeholder.
-        <img
-          key={current.id}
-          src={current.url}
-          alt={current.caption ?? ""}
-          loading="lazy"
-          onError={() =>
-            setErrored((prev) => {
-              const n = new Set(prev);
-              n.add(current.id);
-              return n;
-            })
-          }
-          className="h-full w-full object-cover"
-        />
-      )}
-
-      {images.length > 1 ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-1 flex items-center justify-center gap-1">
-          {images.map((img, i) => (
-            <span
-              key={img.id}
-              aria-hidden
-              className={[
-                "rounded-full bg-white transition-all",
-                i === index ? "size-1.5 opacity-90" : "size-1 opacity-50",
-              ].join(" ")}
-            />
-          ))}
-        </div>
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-md bg-muted">
+      {title ? (
+        <p className="shrink-0 truncate bg-background/60 px-2 py-1 text-center text-xs font-medium text-foreground">
+          {title}
+        </p>
       ) : null}
+
+      {/* 이미지 영역: 큰 이미지는 폭에 맞추고 세로로 스크롤해 전체를 볼 수 있다(요구). */}
+      <div className="relative min-h-0 flex-1">
+        {failed ? (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <ImageOff size={20} aria-hidden />
+          </div>
+        ) : (
+          <div
+            data-pb-no-drag=""
+            className="h-full w-full overflow-y-auto pb-scroll"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied URL (Storage upload deferred); can't be allowlisted in next.config, and onError drives the placeholder. */}
+            <img
+              key={current.id}
+              src={current.url}
+              alt={current.caption ?? ""}
+              loading="lazy"
+              onError={() =>
+                setErrored((prev) => {
+                  const n = new Set(prev);
+                  n.add(current.id);
+                  return n;
+                })
+              }
+              className="block h-auto w-full"
+            />
+          </div>
+        )}
+
+        {images.length > 1 ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-1 flex items-center justify-center gap-1">
+            {images.map((img, i) => (
+              <span
+                key={img.id}
+                aria-hidden
+                className={[
+                  "rounded-full bg-white shadow transition-all",
+                  i === index ? "size-1.5 opacity-90" : "size-1 opacity-50",
+                ].join(" ")}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

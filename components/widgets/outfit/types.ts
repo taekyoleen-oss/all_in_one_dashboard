@@ -3,7 +3,8 @@
  *
  *  위치(label+lat/lon) + 개인 설정(성별·활동·체감 보정)을 저장한다. 날씨 데이터는
  *  config에 두지 않고 /api/weather에서 폴링한다(날씨 위젯과 동일 패턴, dataMode:'poll').
- *  기본 시간대는 config에 보관하되, 타일/전체에서 즉시 바꿀 수 있다(로컬 상태).
+ *  시간대는 항상 '지금'을 기본으로 타일/전체에서 즉시 바꿀 수 있고(로컬 상태,
+ *  useSelectedPeriod), 일정 시간이 지나면 '지금'으로 자동 복귀한다.
  */
 
 import type { ActivityType, GenderType } from "./illustration/types";
@@ -21,8 +22,6 @@ export interface OutfitConfig {
   activity: ActivityType;
   /** 체감 보정(추위/더위 민감도) 옵션 id (constants.SENSITIVITY_OPTIONS). */
   sensitivity: string;
-  /** 기본 시간대 id (constants.OUTFIT_PERIODS). 비우면 현재 시각 구간. */
-  periodId?: string;
 }
 
 /** 기본 설정: 서울 시청 · 남성 · 산책 · 보통 체감. */

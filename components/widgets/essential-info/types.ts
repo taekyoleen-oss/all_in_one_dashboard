@@ -2,7 +2,8 @@
  * essential-info → "메모장(비번설정)" — a FREEFORM memo you can lock with a
  * password (설계서 §2.1 #6 재정의). Free text (not structured fields). When a
  * password is set, the content is hidden behind an unlock prompt and AUTO-RELOCKS
- * after a period of inactivity. dataMode:'static'. copyBehavior:'custom'.
+ * a fixed time AFTER unlocking (absolute — keeps counting even while editing) and
+ * on every reload. dataMode:'static'. copyBehavior:'custom'.
  *
  *  Security note: the password is stored only as a SHA-256 HASH (never plaintext)
  *  and gates the UI; the note body itself is plaintext jsonb under RLS (user-only),
@@ -23,7 +24,8 @@ export interface EssentialInfoConfig {
   text: string;
   /** SHA-256 hash of the unlock password; null = no lock. */
   pwHash: string | null;
-  /** Minutes of inactivity before the note auto-relocks (when a password is set). */
+  /** Minutes after unlocking before the note auto-relocks (absolute; when a
+   *  password is set). */
   lockAfterMin: number;
   /** Legacy field — old structured rows, migrated to `text` on first read. */
   items?: InfoItem[];

@@ -30,10 +30,8 @@ export function OutfitExpandedView({
   instanceId,
 }: ExpandedViewProps<OutfitConfig>) {
   const { data, loading, error, refresh } = useOutfit(config);
-  const { selection, periodId, setSelection, slots } = useSelectedPeriod(
-    instanceId,
-    config.periodId,
-  );
+  const { selection, periodId, setSelection, slots } =
+    useSelectedPeriod(instanceId);
 
   const computed = React.useMemo(() => {
     if (!data) return null;
