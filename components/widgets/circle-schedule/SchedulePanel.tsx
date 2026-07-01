@@ -14,6 +14,7 @@
 
 import * as React from "react";
 import {
+  CalendarPlus,
   ClipboardPaste,
   Loader2,
   MessageSquarePlus,
@@ -41,6 +42,42 @@ type Size = "compact" | "expanded";
 
 function targetColor(t?: CircleTarget | null): string | null {
   return (t?.color ?? null) || null;
+}
+
+/** 오늘(KST) 날짜 YYYY-MM-DD. 서버 TZ와 무관하게 Asia/Seoul 기준. */
+function todayKstISODate(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/** "HH:MM"(24h) → "오전/오후 h시[m분]". */
+function formatKoreanTime(time: string): string {
+  const [hh, mm] = time.split(":").map(Number);
+  if (Number.isNaN(hh)) return "";
+  const ampm = hh < 12 ? "오전" : "오후";
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${ampm} ${h12}시${mm ? `${mm}분` : ""}`;
+}
+
+/**
+ * 직접 추가 폼의 날짜(YYYY-MM-DD)·시간(HH:MM)으로 정렬용 when_at(ISO)과 표시용
+ * 접미사(M/D [시각])를 만든다. 시간만 있으면 오늘 날짜로 저장한다. 둘 다 없으면 null.
+ */
+function buildWhenAt(
+  date: string,
+  time: string,
+): { whenAt: string | null; suffix: string } {
+  if (!date && !time) return { whenAt: null, suffix: "" };
+  const effDate = date || todayKstISODate();
+  const [, m, d] = effDate.split("-").map(Number);
+  const md = `${m}/${d}`;
+  const whenAt = `${effDate}T${time || "00:00"}:00+09:00`;
+  const suffix = time ? `${md} ${formatKoreanTime(time)}` : md;
+  return { whenAt, suffix };
 }
 
 /** 대상 배지(색상 있으면 색, 없으면 회색). */
@@ -76,7 +113,7 @@ export function SchedulePanel({
 }) {
   const data = useCircleData();
   const save = useSaveWidgetConfig();
-  const [mode, setMode] = React.useState<"list" | "compose">("list");
+  const [mode, setMode] = React.useState<"list" | "compose" | "manual">("list");
 
   if (data.status === "loading") {
     return (
@@ -99,6 +136,9 @@ export function SchedulePanel({
   if (mode === "compose") {
     return <Composer data={data} size={size} onDone={() => setMode("list")} />;
   }
+  if (mode === "manual") {
+    return <ManualAdd data={data} onDone={() => setMode("list")} />;
+  }
 
   return (
     <ListMode
@@ -107,6 +147,7 @@ export function SchedulePanel({
       filter={filter}
       setFilter={setFilter}
       onCompose={() => setMode("compose")}
+      onManual={() => setMode("manual")}
     />
   );
 }
@@ -119,12 +160,14 @@ function ListMode({
   filter,
   setFilter,
   onCompose,
+  onManual,
 }: {
   data: CircleData;
   size: Size;
   filter: string;
   setFilter: (f: string) => void;
   onCompose: () => void;
+  onManual: () => void;
 }) {
   const byId = React.useMemo(() => {
     const m = new Map<string, CircleTarget>();
@@ -224,14 +267,23 @@ function ListMode({
         <p className="shrink-0 text-[11px] text-destructive">{data.error}</p>
       ) : null}
 
-      {/* 카카오톡 정리 시작 */}
-      <button
-        type="button"
-        onClick={onCompose}
-        className="flex w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Sparkles size={14} aria-hidden /> 카카오톡 정리하기
-      </button>
+      {/* 추가: 직접 추가 + 카카오톡 정리 */}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onManual}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <CalendarPlus size={14} aria-hidden /> 직접 추가
+        </button>
+        <button
+          type="button"
+          onClick={onCompose}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Sparkles size={14} aria-hidden /> 카카오톡 정리
+        </button>
+      </div>
     </div>
   );
 }
@@ -658,6 +710,163 @@ function Composer({
         </>
       )}
     </div>
+  );
+}
+
+/* ------------------------------- manual add ------------------------------ */
+
+function ManualAdd({
+  data,
+  onDone,
+}: {
+  data: CircleData;
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [content, setContent] = React.useState("");
+  const [targetId, setTargetId] = React.useState("");
+  const [date, setDate] = React.useState("");
+  const [time, setTime] = React.useState("");
+  const [newTarget, setNewTarget] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  const addTargetInline = async () => {
+    const name = newTarget.trim();
+    if (!name) return;
+    const color = TARGET_COLORS[data.targets.length % TARGET_COLORS.length];
+    const created = await data.addTarget(name, color);
+    setNewTarget("");
+    if (created) setTargetId(created.id); // 방금 만든 구분을 바로 선택.
+  };
+
+  const handleSave = async () => {
+    const core = content.trim();
+    if (!core) return;
+    const { whenAt, suffix } = buildWhenAt(date, time);
+    const finalContent = suffix ? `${core} (${suffix})` : core;
+    setSaving(true);
+    await data.saveAppointments([
+      {
+        content: finalContent,
+        when_at: whenAt,
+        source: null,
+        target_id: targetId || null,
+      },
+    ]);
+    setSaving(false);
+    toast({ title: "일정을 추가했어요.", variant: "success" });
+    onDone();
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void handleSave();
+      }}
+      className="flex h-full flex-col gap-2"
+    >
+      {/* 헤더 */}
+      <div className="flex shrink-0 items-center justify-between gap-2">
+        <span className="text-xs font-medium text-foreground">일정 직접 추가</span>
+        <button
+          type="button"
+          onClick={onDone}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X size={13} aria-hidden /> 닫기
+        </button>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-scroll">
+        {/* 내용 */}
+        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+          내용
+          <input
+            autoFocus
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="예: 엄마와 병원, 저녁 약속"
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+
+        {/* 구분 */}
+        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+          구분 (선택)
+          <TargetSelect value={targetId} targets={data.targets} onChange={setTargetId} />
+        </label>
+
+        {/* 새 구분 빠른 추가 */}
+        <div className="flex items-center gap-1.5">
+          <input
+            value={newTarget}
+            onChange={(e) => setNewTarget(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addTargetInline();
+              }
+            }}
+            placeholder="새 구분(예: 소연)"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="button"
+            disabled={!newTarget.trim()}
+            onClick={() => void addTargetInline()}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+          >
+            <Plus size={12} aria-hidden /> 구분
+          </button>
+        </div>
+
+        {/* 날짜 · 시간 */}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+            날짜 (선택)
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+            시간 (선택)
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          날짜·시간은 선택이에요. 시간만 입력하면 오늘 날짜로 저장되고, 내용 뒤에
+          <span className="text-foreground"> (7/1 오후 5시)</span> 형태로 붙습니다.
+        </p>
+      </div>
+
+      {/* 액션 */}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onDone}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          취소
+        </button>
+        <button
+          type="submit"
+          disabled={saving || !content.trim()}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}
+          저장
+        </button>
+      </div>
+    </form>
   );
 }
 
