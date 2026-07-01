@@ -457,9 +457,12 @@ function Composer({
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [newTarget, setNewTarget] = React.useState("");
+  const [addingTarget, setAddingTarget] = React.useState(false);
+  // 이 대화의 '대상자(구분)'. 추출 후보의 기본 대상으로 적용된다("" = 미지정).
+  const [selectedTarget, setSelectedTarget] = React.useState("");
 
-  // 추출 결과 → 검토용 초안(모두 포함, 대상 미지정으로 시작). result가 새로 오면
-  // 렌더 중 초안을 파생(효과 없이 동기화 — 새 결과 도착 시 1회만 반영).
+  // 추출 결과 → 검토용 초안. result가 새로 오면 렌더 중 초안을 파생(효과 없이 동기화).
+  // 각 후보의 대상은 위에서 고른 '대화 상대'로 기본 지정한다.
   const [seenResult, setSeenResult] = React.useState(result);
   if (result !== seenResult) {
     setSeenResult(result);
@@ -470,12 +473,18 @@ function Composer({
             content: r.content,
             when_at: r.when_at,
             source: r.source ?? null,
-            targetId: "",
+            targetId: selectedTarget,
             excluded: false,
           }))
         : [],
     );
   }
+
+  // '대화 상대' 변경 시 모든 후보에 일괄 적용(카카오톡은 보통 한 사람과의 대화).
+  const applyTargetToAll = (id: string) => {
+    setSelectedTarget(id);
+    setDrafts((prev) => prev.map((d) => ({ ...d, targetId: id })));
+  };
 
   const pasteFromClipboard = async () => {
     try {
@@ -492,12 +501,9 @@ function Composer({
     const color = TARGET_COLORS[data.targets.length % TARGET_COLORS.length];
     const created = await data.addTarget(name, color);
     setNewTarget("");
-    if (created) {
-      // 새 구분을 미지정 초안들에 자동 배정(편의).
-      setDrafts((prev) =>
-        prev.map((d) => (d.targetId ? d : { ...d, targetId: created.id })),
-      );
-    }
+    setAddingTarget(false);
+    // 만든 대상자를 선택하고 모든 후보에 일괄 적용.
+    if (created) applyTargetToAll(created.id);
   };
 
   const handleSave = async () => {
@@ -527,18 +533,65 @@ function Composer({
 
   return (
     <div className="flex h-full flex-col gap-2">
-      {/* 헤더 */}
-      <div className="flex shrink-0 items-center justify-between gap-2">
-        <span className="text-xs font-medium text-foreground">
-          카카오톡 일정 정리
-        </span>
-        <button
-          type="button"
-          onClick={onDone}
-          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X size={13} aria-hidden /> 닫기
-        </button>
+      {/* 상단: 대상자 선택 + 새 대상자 추가(＋) + 닫기(✕) — 한 줄로 컴팩트 */}
+      <div className="flex shrink-0 flex-col gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <select
+            value={selectedTarget}
+            onChange={(e) => applyTargetToAll(e.target.value)}
+            aria-label="대상자(구분)"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">대상자 선택(미지정)</option>
+            {data.targets.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label="새 대상자 추가"
+            title="새 대상자 추가"
+            onClick={() => setAddingTarget((v) => !v)}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus size={15} aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="닫기"
+            title="닫기"
+            onClick={onDone}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X size={15} aria-hidden />
+          </button>
+        </div>
+        {addingTarget ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void addTargetInline();
+            }}
+            className="flex items-center gap-1.5"
+          >
+            <input
+              autoFocus
+              value={newTarget}
+              onChange={(e) => setNewTarget(e.target.value)}
+              placeholder="새 대상자 이름(예: 소연)"
+              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button
+              type="submit"
+              disabled={!newTarget.trim()}
+              className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+            >
+              추가
+            </button>
+          </form>
+        ) : null}
       </div>
 
       {!showReview ? (
@@ -547,7 +600,7 @@ function Composer({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="카카오톡 대화에서 약속 관련 내용을 복사해 붙여넣으세요."
+            placeholder="약속 관련 카톡 내용 붙여넣기"
             spellCheck={false}
             data-pb-no-drag=""
             className={[
@@ -586,14 +639,12 @@ function Composer({
           {/* 검토 */}
           {drafts.length === 0 ? (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 text-center text-muted-foreground">
-              <p className="text-sm">추출된 약속이 없습니다.</p>
-              <p className="text-xs">다른 대화 내용으로 다시 시도해 보세요.</p>
+              <p className="text-sm">약속을 찾지 못했어요.</p>
             </div>
           ) : (
             <>
               <p className="shrink-0 text-[11px] text-muted-foreground">
-                {drafts.filter((d) => !d.excluded).length}건 선택됨 · 문장·대상을
-                확인하고 저장하세요.
+                {drafts.filter((d) => !d.excluded).length}건 · 확인 후 저장
               </p>
               <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-scroll">
                 {drafts.map((d, i) => (
@@ -657,29 +708,6 @@ function Composer({
                   </li>
                 ))}
               </ul>
-
-              {/* 새 구분 빠른 추가 */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void addTargetInline();
-                }}
-                className="flex shrink-0 items-center gap-1.5"
-              >
-                <input
-                  value={newTarget}
-                  onChange={(e) => setNewTarget(e.target.value)}
-                  placeholder="새 구분(예: 회사)"
-                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <button
-                  type="submit"
-                  disabled={!newTarget.trim()}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
-                >
-                  <Plus size={12} aria-hidden /> 구분
-                </button>
-              </form>
             </>
           )}
 

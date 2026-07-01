@@ -64,6 +64,16 @@ export async function POST(request: NextRequest) {
         { status: 503, headers: noStore },
       );
     }
+    if (result.reason === "auth") {
+      return Response.json(
+        {
+          error: "invalid_key",
+          message:
+            "AI 키(ANTHROPIC_API_KEY)가 유효하지 않습니다. 유효한 키로 교체 후 다시 실행하세요.",
+        },
+        { status: 502, headers: noStore },
+      );
+    }
     if (result.reason === "parse") {
       return Response.json(
         {

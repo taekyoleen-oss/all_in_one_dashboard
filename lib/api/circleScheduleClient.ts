@@ -93,7 +93,7 @@ async function fetchWithTimeout(
 
 export type ExtractResult =
   | { ok: true; data: Extract }
-  | { ok: false; reason: "no_key" | "upstream" | "parse" };
+  | { ok: false; reason: "no_key" | "auth" | "upstream" | "parse" };
 
 /**
  * 카카오톡 텍스트에서 약속 후보를 추출한다. 실패는 이유 코드로 반환(throw 하지 않음).
@@ -125,7 +125,12 @@ export async function extractAppointments(
     }),
   });
 
-  if (!res || !res.ok) return { ok: false, reason: "upstream" };
+  if (!res) return { ok: false, reason: "upstream" };
+  // 401/403 → 키가 무효/권한없음(재시도 무의미) → 별도 사유로 분리.
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, reason: "auth" };
+  }
+  if (!res.ok) return { ok: false, reason: "upstream" };
 
   let payload: unknown;
   try {
