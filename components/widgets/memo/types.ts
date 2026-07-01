@@ -18,6 +18,18 @@ export interface MemoConfig {
    * theme foreground (라이트=검정 · 다크=흰색). A concrete color overrides that.
    */
   textColor?: string;
+  /**
+   * Optional per-memo password as a SHA-256 HASH (never plaintext). When set the
+   * memo is SCREEN-LOCKED: the tile hides the body behind an unlock prompt and
+   * the editor hides the text field. null/undefined = no lock.
+   *
+   * ⚠ Screen-lock only — the body itself is stored PLAINTEXT in pb_widgets.config
+   *   (RLS, user-only). Suitable for hiding notes from casual view; for true
+   *   secrets prefer the 비밀번호 금고(credentials) widget (AES-GCM encrypted).
+   */
+  pwHash?: string | null;
+  /** Minutes after unlocking before the memo auto-relocks (when a password is set). */
+  lockAfterMin?: number;
 }
 
 export type MemoColor = "default" | "amber" | "rose" | "green" | "blue" | "violet";
@@ -67,3 +79,14 @@ export const DEFAULT_MEMO_CONFIG: MemoConfig = {
   color: "default",
   size: "md",
 };
+
+/** SHA-256 hex of a password (with a fixed app salt). Empty → null (no lock). */
+export async function hashPassword(pw: string): Promise<string | null> {
+  const p = pw.trim();
+  if (!p) return null;
+  const data = new TextEncoder().encode(`pb:memo-pw:${p}`);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(buf)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}

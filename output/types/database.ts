@@ -156,6 +156,33 @@ export type Database = {
         }
         Relationships: []
       }
+      pb_clipboard: {
+        Row: {
+          created_at: string
+          device: string
+          id: string
+          instance_id: string
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device?: string
+          id?: string
+          instance_id: string
+          text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device?: string
+          id?: string
+          instance_id?: string
+          text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pb_dashboards: {
         Row: {
           id: string

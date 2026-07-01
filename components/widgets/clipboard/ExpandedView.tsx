@@ -17,7 +17,7 @@ import {
   copyText,
   readClipboardText,
 } from "./useClipboardHistory";
-import type { ClipboardConfig } from "./types";
+import { DEVICE_META, type ClipboardConfig } from "./types";
 
 function formatWhen(ts: number): string {
   return new Date(ts).toLocaleString("ko-KR", {
@@ -129,6 +129,7 @@ export function ClipboardExpandedView({
           {filtered.map((it) => (
             <li
               key={it.id}
+              style={{ borderLeft: `3px solid ${DEVICE_META[it.device].color}` }}
               className="flex items-start gap-2 rounded-md border border-border bg-background/40 p-2"
             >
               <button
@@ -140,8 +141,16 @@ export function ClipboardExpandedView({
                 <span className="line-clamp-3 w-full whitespace-pre-wrap break-words text-sm text-foreground">
                   {it.text}
                 </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatWhen(it.ts)}
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span
+                    aria-hidden
+                    className="size-1.5 rounded-full"
+                    style={{ backgroundColor: DEVICE_META[it.device].color }}
+                  />
+                  <span style={{ color: DEVICE_META[it.device].color }}>
+                    {DEVICE_META[it.device].label}
+                  </span>
+                  · {formatWhen(it.ts)}
                 </span>
               </button>
               <div className="flex shrink-0 items-center gap-1">

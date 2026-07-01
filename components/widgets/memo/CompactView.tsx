@@ -11,12 +11,14 @@ import * as React from "react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { MEMO_COLORS, MEMO_SIZE_CLASS, type MemoConfig } from "./types";
+import { MemoLockPrompt, useMemoLock } from "./MemoLock";
 
 export function MemoCompactView({
   config,
   instanceId,
 }: CompactViewProps<MemoConfig>) {
   const save = useSaveWidgetConfig();
+  const { locked, tryUnlock } = useMemoLock(config);
   const accent = MEMO_COLORS[config.color]?.swatch ?? MEMO_COLORS.default.swatch;
   const hasAccent = config.color !== "default";
 
@@ -45,6 +47,8 @@ export function MemoCompactView({
     },
     [],
   );
+
+  if (locked) return <MemoLockPrompt tryUnlock={tryUnlock} size="compact" />;
 
   return (
     <div className="flex h-full w-full gap-2">

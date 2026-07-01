@@ -19,7 +19,7 @@ import {
   copyText,
   readClipboardText,
 } from "./useClipboardHistory";
-import type { ClipboardConfig } from "./types";
+import { DEVICE_META, type ClipboardConfig } from "./types";
 
 export function ClipboardCompactView({
   config,
@@ -75,6 +75,12 @@ export function ClipboardCompactView({
                 title="클릭하면 다시 복사"
                 className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
               >
+                <span
+                  aria-hidden
+                  title={`${DEVICE_META[it.device].label}에서 복사`}
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: DEVICE_META[it.device].color }}
+                />
                 <span className="min-w-0 flex-1 truncate text-xs text-foreground">
                   {it.text}
                 </span>

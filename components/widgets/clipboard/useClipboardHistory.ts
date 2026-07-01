@@ -1,117 +1,38 @@
 "use client";
 
 /**
- * useClipboardHistory — per-instance clipboard history backed by localStorage.
+ * useClipboardHistory — 위젯 인스턴스별 클립보드 기록(Supabase 백엔드).
  *
- *  WHY localStorage (not pb_widgets.config): clipboard entries are device-local
- *  and change frequently (every copy). Storing them in `config` would round-trip
- *  through Supabase on every capture. Same pattern as usePersistedFontScale —
- *  useSyncExternalStore keeps React + localStorage in sync with no
- *  setState-in-effect, keyed per instanceId so two clipboard widgets stay
- *  independent. A `copy`-capture helper is included for the views to share.
+ *  요구: 같은 계정으로 모바일·PC에서 로그인하면 같은 위젯(instance_id = pb_widgets.id,
+ *  기기 무관 동일)의 기록을 **기기 간 동기화**한다. 저장소를 localStorage(기기 전용)에서
+ *  pb_clipboard(RLS)로 옮기고, Supabase Realtime으로 즉시 반영 + 포커스 복귀 시 재조회로
+ *  보완한다. 각 기록의 `device`(모바일/PC)로 어느 기기에서 복사됐는지 구분한다.
+ *
+ *  ⚠ 클립보드 텍스트가 서버에 저장된다(RLS 보호). 비밀번호 등 민감값 복사는 주의.
  */
 
 import * as React from "react";
-import { clampMaxItems, type ClipItem } from "./types";
+import { createClient } from "@/lib/supabase/client";
+import {
+  clampMaxItems,
+  detectDevice,
+  type ClipItem,
+  type DeviceKind,
+} from "./types";
 
-const PREFIX = "pb:clipboard:";
-const EMPTY: ClipItem[] = [];
-/** Per-entry text cap — keeps one huge paste from blowing the localStorage quota. */
+/** 한 항목 텍스트 상한(거대한 붙여넣기 방지). */
 const MAX_TEXT_LEN = 100_000;
 
-const keyOf = (id: string) => PREFIX + id;
-const listeners = new Map<string, Set<() => void>>();
-// raw-string → parsed cache so getSnapshot returns a STABLE reference when the
-// stored value is unchanged (required by useSyncExternalStore).
-const cache = new Map<string, { raw: string | null; parsed: ClipItem[] }>();
-
-function newId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(36).slice(2, 10);
+interface Row {
+  id: string;
+  text: string;
+  device: string;
+  created_at: string;
 }
 
-function readRaw(id: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(keyOf(id));
-  } catch {
-    return null;
-  }
-}
-
-function readItems(id: string): ClipItem[] {
-  const raw = readRaw(id);
-  const cached = cache.get(id);
-  if (cached && cached.raw === raw) return cached.parsed;
-  let parsed: ClipItem[] = [];
-  if (raw) {
-    try {
-      const arr = JSON.parse(raw) as unknown;
-      if (Array.isArray(arr)) {
-        parsed = arr.filter(
-          (x): x is ClipItem =>
-            !!x &&
-            typeof (x as ClipItem).text === "string" &&
-            typeof (x as ClipItem).id === "string",
-        );
-      }
-    } catch {
-      /* corrupt → empty */
-    }
-  }
-  cache.set(id, { raw, parsed });
-  return parsed;
-}
-
-function writeItems(id: string, items: ClipItem[]): void {
-  if (typeof window === "undefined") return;
-  // Persist immediately + DURABLY. A naive setItem that throws on quota (e.g. a
-  // huge pasted entry) used to be swallowed silently — the entry then lived only
-  // in the in-memory cache and vanished on window close ("기록이 사라짐"). Instead,
-  // on failure we progressively drop the OLDEST entries (newest are at the front)
-  // and retry, so the most recent records always reach disk and survive a reload.
-  let persisted = items;
-  for (let attempt = items.length; attempt >= 0; attempt--) {
-    const slice = items.slice(0, attempt);
-    try {
-      window.localStorage.setItem(keyOf(id), JSON.stringify(slice));
-      persisted = slice;
-      break;
-    } catch {
-      if (attempt === 0) {
-        // Even an empty array failed (privacy mode / disabled storage) — keep the
-        // in-memory cache so the session still works; nothing more we can do.
-        persisted = items;
-        break;
-      }
-      // else: shrink and retry
-    }
-  }
-  const raw = JSON.stringify(persisted);
-  cache.set(id, { raw, parsed: persisted });
-  listeners.get(id)?.forEach((l) => l());
-}
-
-function subscribe(id: string, cb: () => void): () => void {
-  let set = listeners.get(id);
-  if (!set) {
-    set = new Set();
-    listeners.set(id, set);
-  }
-  set.add(cb);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === keyOf(id)) {
-      cache.delete(id); // force re-parse from the new cross-tab value
-      cb();
-    }
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    set?.delete(cb);
-    if (set && set.size === 0) listeners.delete(id);
-    window.removeEventListener("storage", onStorage);
-  };
+function toItem(r: Row): ClipItem {
+  const device: DeviceKind = r.device === "mobile" ? "mobile" : "pc";
+  return { id: r.id, text: r.text, ts: Date.parse(r.created_at) || 0, device };
 }
 
 export interface ClipboardHistory {
@@ -128,47 +49,111 @@ export function useClipboardHistory(
   instanceId: string,
   maxItems: number,
 ): ClipboardHistory {
-  const sub = React.useCallback(
-    (cb: () => void) => subscribe(instanceId, cb),
-    [instanceId],
-  );
-  const items = React.useSyncExternalStore(
-    sub,
-    React.useCallback(() => readItems(instanceId), [instanceId]),
-    () => EMPTY,
-  );
-
+  const supabase = React.useMemo(() => createClient(), []);
   const cap = clampMaxItems(maxItems);
+  const [items, setItems] = React.useState<ClipItem[]>([]);
+  const [nonce, setNonce] = React.useState(0);
+  const refresh = React.useCallback(() => setNonce((n) => n + 1), []);
+
+  // 조회 + 실시간 구독 + 포커스/가시성 복귀 재조회(기기 간 동기화).
+  React.useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!alive) return;
+      if (!user) {
+        setItems([]);
+        return;
+      }
+      const { data } = await supabase
+        .from("pb_clipboard")
+        .select("id,text,device,created_at")
+        .eq("instance_id", instanceId)
+        .order("created_at", { ascending: false })
+        .limit(cap);
+      if (!alive) return;
+      setItems((data ?? []).map((r) => toItem(r as Row)));
+    };
+    void load();
+
+    const channel = supabase
+      .channel(`pb_clipboard:${instanceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pb_clipboard",
+          filter: `instance_id=eq.${instanceId}`,
+        },
+        () => void load(),
+      )
+      .subscribe();
+
+    const onFocus = () => void load();
+    const onVisible = () => {
+      if (!document.hidden) void load();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      alive = false;
+      void supabase.removeChannel(channel);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [supabase, instanceId, cap, nonce]);
 
   const add = React.useCallback(
-    (text: string) => {
+    async (text: string) => {
       const t = text.trim().slice(0, MAX_TEXT_LEN);
       if (!t) return;
-      const cur = readItems(instanceId);
-      // Move an existing identical entry to the top instead of duplicating.
-      const deduped = cur.filter((i) => i.text !== t);
-      const next = [{ id: newId(), text: t, ts: Date.now() }, ...deduped].slice(
-        0,
-        cap,
-      );
-      writeItems(instanceId, next);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      // 같은 텍스트는 위로 올림: 기존 동일 텍스트 삭제 후 새로 삽입.
+      await supabase
+        .from("pb_clipboard")
+        .delete()
+        .eq("instance_id", instanceId)
+        .eq("text", t);
+      await supabase.from("pb_clipboard").insert({
+        user_id: user.id,
+        instance_id: instanceId,
+        text: t,
+        device: detectDevice(),
+      });
+      // cap 초과분(오래된 것) 정리.
+      const { data } = await supabase
+        .from("pb_clipboard")
+        .select("id")
+        .eq("instance_id", instanceId)
+        .order("created_at", { ascending: false });
+      const ids = (data ?? []).map((r) => (r as { id: string }).id);
+      if (ids.length > cap) {
+        await supabase.from("pb_clipboard").delete().in("id", ids.slice(cap));
+      }
+      refresh();
     },
-    [instanceId, cap],
+    [supabase, instanceId, cap, refresh],
   );
 
   const remove = React.useCallback(
-    (id: string) =>
-      writeItems(
-        instanceId,
-        readItems(instanceId).filter((i) => i.id !== id),
-      ),
-    [instanceId],
+    async (id: string) => {
+      await supabase.from("pb_clipboard").delete().eq("id", id);
+      refresh();
+    },
+    [supabase, refresh],
   );
 
-  const clear = React.useCallback(
-    () => writeItems(instanceId, []),
-    [instanceId],
-  );
+  const clear = React.useCallback(async () => {
+    await supabase.from("pb_clipboard").delete().eq("instance_id", instanceId);
+    refresh();
+  }, [supabase, instanceId, refresh]);
 
   return { items, add, remove, clear };
 }

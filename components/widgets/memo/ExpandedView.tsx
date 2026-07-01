@@ -19,16 +19,20 @@ import {
   type MemoConfig,
   type MemoSize,
 } from "./types";
+import { MemoLockPrompt, useMemoLock } from "./MemoLock";
 
 const SIZE_ORDER: MemoSize[] = ["sm", "md", "lg"];
 const SIZE_LABEL: Record<MemoSize, string> = { sm: "작게", md: "보통", lg: "크게" };
 
 export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
+  const { locked, tryUnlock } = useMemoLock(config);
   // View-only override of the rendered size (does NOT mutate config). Seeded from
   // config.size during render via initializer — no setState-in-effect.
   const [viewSize, setViewSize] = React.useState<MemoSize>(config.size);
   const accent = MEMO_COLORS[config.color]?.swatch ?? MEMO_COLORS.default.swatch;
   const hasAccent = config.color !== "default";
+
+  if (locked) return <MemoLockPrompt tryUnlock={tryUnlock} size="expanded" />;
 
   return (
     <div className="flex h-full flex-col gap-4">
