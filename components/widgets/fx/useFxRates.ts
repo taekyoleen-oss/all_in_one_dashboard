@@ -10,7 +10,6 @@
  *  the previous rate per quote (the server only publishes the level).
  */
 
-import * as React from "react";
 import { FxRatesSchema, type FxRates } from "@/output/api-shapes";
 import { usePoll } from "@/components/widgets/shared/usePoll";
 import { fxDirectionFromPct, type FxDirection } from "./format";

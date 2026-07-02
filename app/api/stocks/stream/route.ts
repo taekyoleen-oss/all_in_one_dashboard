@@ -27,6 +27,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import { getProvider } from "@/lib/api/stock/provider";
 import { parseSymbolsParam } from "@/lib/api/stock/symbols-param";
 import type {
@@ -48,6 +49,11 @@ function frame(event: StockStreamEvent): string {
 }
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — SSE 셋업(구독·하트비트) 전에 401 JSON으로 종료해
+  // 익명 연결이 KIS 구독/타이머를 점유하지 못하게 한다.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const symbols = parseSymbolsParam(searchParams.get("symbols"));
 

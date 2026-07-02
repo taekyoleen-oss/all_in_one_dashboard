@@ -75,6 +75,26 @@ function ConfigDialogBody({
   const def = registry[instance.type];
   const Editor = def?.ConfigEditor;
 
+  // Esc → 취소(닫기) — X·스크림과 같은 경로. (SettingsDialog와 동일 패턴)
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // 모달이 떠 있는 동안 배경(캔버스) 스크롤 잠금 — FocusOverlay와 동일 패턴.
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
       <button
@@ -102,7 +122,7 @@ function ConfigDialogBody({
           </IconButton>
         </header>
 
-        <div className="max-h-[75dvh] overflow-y-auto p-4">
+        <div className="max-h-[75dvh] overflow-y-auto overscroll-contain p-4">
           {Editor ? (
             <Editor
               config={draft}
@@ -116,7 +136,8 @@ function ConfigDialogBody({
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-border px-4 py-3">
+        {/* 모바일 바텀시트: 홈 인디케이터(safe-area)를 피해 하단 패딩 확보. */}
+        <footer className="flex justify-end gap-2 border-t border-border px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}

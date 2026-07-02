@@ -3,9 +3,10 @@
 /**
  * todo · CompactView — checklist preview + progress (설계서 §2.2).
  *
- *  Renders from `config`; checkboxes are READ-ONLY status (toggling/editing in the
- *  ConfigEditor). 타일 하단의 QuickAdd로 새 할 일을 바로 추가할 수 있다(저장은
- *  useSaveWidgetConfig). Progress is BOTH a bar and a count (never color-only).
+ *  Renders from `config`; 체크박스는 타일에서 바로 토글(완료 처리)되며
+ *  useSaveWidgetConfig로 즉시 저장한다(항목 추가/편집/순서는 ConfigEditor).
+ *  타일 하단의 QuickAdd로 새 할 일을 바로 추가할 수 있다.
+ *  Progress is BOTH a bar and a count (never color-only).
  */
 
 import * as React from "react";
@@ -22,7 +23,17 @@ export function TodoCompactView({
   config,
   instanceId,
 }: CompactViewProps<TodoConfig>) {
+  const save = useSaveWidgetConfig();
   const progress = computeProgress(config.items);
+
+  // 체크박스 토글 → 해당 항목 done 반전 후 즉시 저장.
+  const toggle = (id: string) =>
+    save(instanceId, {
+      ...config,
+      items: config.items.map((it) =>
+        it.id === id ? { ...it, done: !it.done } : it,
+      ),
+    });
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
@@ -56,13 +67,14 @@ export function TodoCompactView({
         <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-scroll">
           {config.items.map((it) => (
             <li key={it.id} className="flex items-center gap-2">
+              {/* data-pb-no-drag: 클릭이 그리드 드래그로 새지 않게. */}
               <input
                 type="checkbox"
                 checked={it.done}
-                readOnly
-                disabled
+                onChange={() => toggle(it.id)}
+                data-pb-no-drag=""
                 aria-label={it.text || "할 일"}
-                className="size-4 shrink-0 accent-[var(--primary)]"
+                className="size-4 shrink-0 cursor-pointer accent-[var(--primary)]"
               />
               <span
                 className={[

@@ -129,6 +129,7 @@ export function useTimer(instanceId: string, config: TimerConfig): TimerView {
   }, [rt.status, rt.mode]);
 
   // Compute display.
+  // eslint-disable-next-line react-hooks/purity -- 인터벌(force) 재렌더마다 현재 시각 기준으로 표시값을 계산하는 설계(절대시각 기반, 드리프트 방지)
   const now = Date.now();
   let displayMs: number;
   let totalMs: number;
@@ -148,6 +149,20 @@ export function useTimer(instanceId: string, config: TimerConfig): TimerView {
           : rt.remainingMs;
   }
 
+  // (완료 감지 effect보다 먼저 선언 — 선언 전 접근 없이 최신 콜백을 쓰게 한다.)
+  const handleFinish = React.useCallback(() => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    setRt((s) => ({ ...s, status: "done", endAt: null, remainingMs: 0 }));
+    if (config.sound) playBeep();
+    if (config.notify) {
+      notify(
+        "⏰ 시간 종료",
+        config.mode === "pomodoro" ? "다음 단계로 넘어가세요." : "타이머가 끝났습니다.",
+      );
+    }
+  }, [config.sound, config.notify, config.mode]);
+
   // Detect countdown completion (timer/pomodoro).
   React.useEffect(() => {
     if (rt.mode === "stopwatch") return;
@@ -163,22 +178,8 @@ export function useTimer(instanceId: string, config: TimerConfig): TimerView {
     }
     const id = window.setTimeout(handleFinish, ms + 30);
     return () => window.clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleFinish는 finishedRef 가드로 멱등: 상태 전이 키만 의존
   }, [rt.status, rt.endAt, rt.mode]);
-
-  const handleFinish = React.useCallback(() => {
-    if (finishedRef.current) return;
-    finishedRef.current = true;
-    setRt((s) => ({ ...s, status: "done", endAt: null, remainingMs: 0 }));
-    if (config.sound) playBeep();
-    if (config.notify) {
-      notify(
-        "⏰ 시간 종료",
-        config.mode === "pomodoro" ? "다음 단계로 넘어가세요." : "타이머가 끝났습니다.",
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.sound, config.notify, config.mode]);
 
   /* ------------------------------- actions ------------------------------- */
 
@@ -222,7 +223,7 @@ export function useTimer(instanceId: string, config: TimerConfig): TimerView {
         s.mode === "pomodoro" ? phaseDuration(config, s.pomoPhase) : config.timerSeconds * 1000;
       return { ...s, status: "idle", endAt: null, durationMs: dur, remainingMs: dur };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [config]);
 
   const next = React.useCallback(() => {
@@ -248,7 +249,7 @@ export function useTimer(instanceId: string, config: TimerConfig): TimerView {
         endAt: null,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [config]);
 
   const setMode = React.useCallback(

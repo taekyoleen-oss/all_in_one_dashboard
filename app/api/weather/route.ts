@@ -19,6 +19,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import { fetchWeather } from "@/lib/api/weatherClient";
 import { reverseGeocode } from "@/lib/api/geocodeClient";
 import { WeatherSchema, type Weather } from "@/output/api-shapes";
@@ -93,6 +94,10 @@ function resolveLocation(searchParams: URLSearchParams): {
 }
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — 익명 호출로 유료 upstream(KMA·Kakao 역지오코딩) 소모 방지.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const loc = resolveLocation(searchParams);
 

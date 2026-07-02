@@ -19,6 +19,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import { fetchNews, normalizeQuery } from "@/lib/api/newsClient";
 import { NewsListSchema, type NewsList } from "@/output/api-shapes";
 
@@ -29,6 +30,10 @@ const CACHE_HEADERS = {
 } as const;
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — 익명 호출로 유료 upstream(Naver API 쿼터) 소모 방지.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const query = normalizeQuery(searchParams.get("query"));
 

@@ -18,6 +18,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import {
   DEFAULT_FX_BASE,
   fetchRates,
@@ -35,6 +36,10 @@ const CACHE_HEADERS = {
 } as const;
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — 익명 호출로 upstream 소모 방지.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const base = normalizeCode(searchParams.get("base") ?? "") ?? DEFAULT_FX_BASE;
   const symbols = parseSymbolsParam(searchParams.get("symbols"));

@@ -38,10 +38,14 @@ import {
 } from "react-grid-layout";
 import { calcXY } from "react-grid-layout";
 import type { WidgetRegistry, Density } from "@/lib/widgets/contract";
-import { NoteCollapseOverrideProvider } from "@/lib/widgets/persistence";
+import {
+  NoteCollapseOverrideProvider,
+  WidgetFocusProvider,
+} from "@/lib/widgets/persistence";
 import {
   computeNoteCollapse,
   type NoteCollapseConfig,
+  type NoteCollapseLevel,
 } from "@/components/widgets/note/collapseLayout";
 import { WidgetFrame } from "./WidgetFrame";
 import { getDragType, clearDragType } from "@/lib/utils/dragSource";
@@ -86,11 +90,19 @@ export interface GridCanvasProps {
   /** Called when the user drags/resizes (lg layout only — see note below). */
   onLayoutChange?: (next: CanvasLayoutItem[]) => void;
   /**
-   * 노트 접기(접기/더접기)의 DB 경로 — note config + 데스크톱(lg) 레이아웃을 갱신한다.
+   * 노트 접기(접기/더접기/제목만)의 DB 경로 — note config + 데스크톱(lg) 레이아웃을 갱신한다.
    * GridCanvas는 이를 감싸 모바일/태블릿(md/sm)에서는 기기-로컬 레이아웃에도 같은
    * 이동(노트 축소 + 아래 위젯 올림/내림)을 적용한다(요구: 모바일에서도 PC처럼 동작).
    */
-  onCollapseNote?: (instanceId: string, level: "normal" | "more") => void;
+  onCollapseNote?: (instanceId: string, level: NoteCollapseLevel) => void;
+  /**
+   * 브레이크포인트 인식 접기 핸들러(handleCollapse)를 셸에 등록한다. CanvasShell이
+   * 이를 FocusOverlay(그리드 밖) 쪽 NoteCollapseOverrideProvider로 전달해, 전체보기의
+   * '제목만 접기'도 모바일 기기-로컬 레이아웃까지 갱신하게 한다.
+   */
+  onRegisterCollapse?: (
+    fn: (instanceId: string, level: NoteCollapseLevel) => void,
+  ) => void;
   /**
    * Edit mode: when false, drag + resize are disabled (the 잠금 lock toggle in
    * Toolbar flips this). Defaults to true. Drop is also disabled while locked.
@@ -679,6 +691,7 @@ export function GridCanvas({
   layout,
   onLayoutChange,
   onCollapseNote,
+  onRegisterCollapse,
   editable = true,
   onDropWidget,
   dropItemSize,
@@ -931,7 +944,10 @@ export function GridCanvas({
   }, [layout, onLayoutChange, clearPushPrompt]);
   // Keep the ref pointing at the latest applyPush so the auto-push timer (set in
   // onResizeTick) always pushes using the current layout/desired state.
-  applyPushRef.current = applyPush;
+  React.useEffect(() => {
+     
+    applyPushRef.current = applyPush;
+  }, [applyPush]);
 
   /* ----------------------- drag-onto-tile SWAP (자리 맞바꾸기) -------------- */
   // 요구: 개별 앱을 다른 앱 위로 드래그하면 두 앱의 자리를 맞바꾼다. The target tile is
@@ -1246,14 +1262,14 @@ export function GridCanvas({
     deviceLayoutsRef.current = deviceLayouts;
   }, [deviceLayouts]);
 
-  // 노트 접기(접기/더접기) — 브레이크포인트 인식 핸들러.
+  // 노트 접기(접기/더접기/제목만) — 브레이크포인트 인식 핸들러.
   //  • lg: DB 경로(onCollapseNote)만 호출 → note config + 데스크톱 레이아웃 갱신.
   //  • md/sm: DB 경로로 config/상태를 영속한 뒤, 화면에 보이는 기기-로컬 레이아웃에도
   //    동일한 computeNoteCollapse(노트 h 축소 + 아래 위젯 delta 이동)를 적용·저장한다.
   //    기기-로컬 배치가 없을 때(파생 상태)는 lg 변경이 toFlowLayout로 재파생되며 자연히
   //    재배치되므로 건드리지 않는다(불필요한 freeze 방지).
   const handleCollapse = React.useCallback(
-    (instanceId: string, level: "normal" | "more") => {
+    (instanceId: string, level: NoteCollapseLevel) => {
       // 1) DB 경로: note config(collapse/normalHeight) + lg 레이아웃(데스크톱 일관성).
       onCollapseNote?.(instanceId, level);
 
@@ -1292,6 +1308,11 @@ export function GridCanvas({
     },
     [onCollapseNote, registry, persistDeviceLayout],
   );
+
+  // 셸(FocusOverlay 쪽)도 같은 브레이크포인트 인식 접기를 쓰도록 등록한다.
+  React.useEffect(() => {
+    onRegisterCollapse?.(handleCollapse);
+  }, [onRegisterCollapse, handleCollapse]);
 
   const children = React.useMemo(
     () =>
@@ -1400,6 +1421,7 @@ export function GridCanvas({
   // written during render — React 19 strict).
   const layoutRef = React.useRef(layout);
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- 최신 prop 미러(ref) 패턴: 이벤트 핸들러가 스테일 layout을 읽지 않게 커밋 후 동기화
     layoutRef.current = layout;
   }, [layout]);
   const dropDefaultRef = React.useRef(dropDefault);
@@ -1587,6 +1609,7 @@ export function GridCanvas({
     >
       {mounted ? (
         <NoteCollapseOverrideProvider collapseNote={handleCollapse}>
+        <WidgetFocusProvider openFocus={onFocusInstance ?? null}>
         <Responsive<BreakpointKey>
           width={width}
           breakpoints={BREAKPOINTS}
@@ -1620,6 +1643,7 @@ export function GridCanvas({
         >
           {children}
         </Responsive>
+        </WidgetFocusProvider>
         </NoteCollapseOverrideProvider>
       ) : null}
       {pushPromptId ? (

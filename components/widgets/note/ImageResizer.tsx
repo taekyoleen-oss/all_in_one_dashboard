@@ -103,6 +103,7 @@ export function ImageResizer({
     return editor ? Math.max(60, editor.clientWidth - 28) : 800;
   };
 
+  /* eslint-disable react-hooks/immutability -- contentEditable 에디터의 이미지 inline width 직접 조작: 에디터 DOM은 언컨트롤드 외부 시스템(변경분은 onChange→살균→config로 왕복) */
   const startDrag = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -139,6 +140,7 @@ export function ImageResizer({
     onChange();
     reposition();
   };
+  // (enable은 컴포넌트 끝에서 — JSX의 setPreset/startDrag 클로저 호출도 같은 이유로 허용)
 
   if (!img || !rect) return null;
 
@@ -185,5 +187,6 @@ export function ImageResizer({
     </div>
   );
 }
+/* eslint-enable react-hooks/immutability */
 
 export default ImageResizer;

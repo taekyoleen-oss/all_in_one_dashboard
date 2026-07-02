@@ -53,8 +53,9 @@ export function setForeColor(color: string) {
 export function setHiliteColor(color: string) {
   enableCssStyling();
   // hiliteColor is the spec name; backColor is the WebKit fallback.
-  document.execCommand("hiliteColor", false, color) ||
+  if (!document.execCommand("hiliteColor", false, color)) {
     document.execCommand("backColor", false, color);
+  }
 }
 
 /** Format the current block as a heading/paragraph/quote/code. */

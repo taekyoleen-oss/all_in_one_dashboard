@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 예시 파일(키 이름·용도 문서화, 값 없음)은 커밋 대상
+!.env.example
 
 # KIS token/approval-key persistent cache (holds live secrets — never commit)
 /.cache

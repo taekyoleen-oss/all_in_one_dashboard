@@ -3,17 +3,31 @@
 /**
  * todo · ExpandedView — full checklist, large (설계서 §2.2).
  *
- *  Renders purely from `config`. Per the frozen contract there is no onChange
- *  here, so checkboxes are READ-ONLY status indicators — add/edit/remove/reorder
- *  and toggling flow through the ConfigEditor (편집); a hint points there.
+ *  Renders from `config`; 체크박스는 여기서 바로 토글(완료 처리)되며
+ *  useSaveWidgetConfig로 즉시 저장한다 — 항목 추가/편집/순서 변경은
+ *  ConfigEditor (편집); a hint points there.
  */
 
 import * as React from "react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
+import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { computeProgress, type TodoConfig } from "./types";
 
-export function TodoExpandedView({ config }: ExpandedViewProps<TodoConfig>) {
+export function TodoExpandedView({
+  config,
+  instanceId,
+}: ExpandedViewProps<TodoConfig>) {
+  const save = useSaveWidgetConfig();
   const progress = computeProgress(config.items);
+
+  // 체크박스 토글 → 해당 항목 done 반전 후 즉시 저장.
+  const toggle = (id: string) =>
+    save(instanceId, {
+      ...config,
+      items: config.items.map((it) =>
+        it.id === id ? { ...it, done: !it.done } : it,
+      ),
+    });
 
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4">
@@ -55,10 +69,9 @@ export function TodoExpandedView({ config }: ExpandedViewProps<TodoConfig>) {
               <input
                 type="checkbox"
                 checked={it.done}
-                readOnly
-                disabled
+                onChange={() => toggle(it.id)}
                 aria-label={it.text || "할 일"}
-                className="size-5 shrink-0 accent-[var(--primary)]"
+                className="size-5 shrink-0 cursor-pointer accent-[var(--primary)]"
               />
               <span
                 className={[
@@ -76,7 +89,7 @@ export function TodoExpandedView({ config }: ExpandedViewProps<TodoConfig>) {
       )}
 
       <p className="text-xs text-muted-foreground">
-        항목 추가·완료 체크·순서 변경은 위젯 메뉴의 “편집”에서 할 수 있습니다.
+        항목 추가·수정·순서 변경은 위젯 메뉴의 “편집”에서 할 수 있습니다.
       </p>
     </div>
   );

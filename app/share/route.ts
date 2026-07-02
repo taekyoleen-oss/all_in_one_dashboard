@@ -112,7 +112,8 @@ export async function GET(request: NextRequest) {
     .order("updated_at", { ascending: false });
 
   if (error) {
-    console.error("[share] note lookup failed", error);
+    // 에러 객체 전체가 아닌 message/code만 — 로그에 불필요한 내부정보 미노출.
+    console.error("[share] note lookup failed:", error.message, error.code ?? "");
     return NextResponse.redirect(doneUrl(request, "error"));
   }
   if (!notes || notes.length === 0) {
@@ -145,7 +146,7 @@ export async function GET(request: NextRequest) {
     .eq("id", target.id);
 
   if (updErr) {
-    console.error("[share] note update failed", updErr);
+    console.error("[share] note update failed:", updErr.message, updErr.code ?? "");
     return NextResponse.redirect(doneUrl(request, "error"));
   }
 

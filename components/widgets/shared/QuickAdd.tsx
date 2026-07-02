@@ -62,7 +62,7 @@ export function QuickAdd({
           type="button"
           aria-label="추가 닫기"
           onClick={close}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-9"
         >
           <X size={14} />
         </button>

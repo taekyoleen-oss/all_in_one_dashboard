@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 오케스트레이션 스크래치·로컬 도구 — 앱 번들이 아니므로 lint 대상에서 제외.
+    "_workspace/**",
+    "scripts/**",
   ]),
   {
     rules: {

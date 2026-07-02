@@ -38,6 +38,14 @@ function newImageId(): string {
 const MAX_DIM = 1280;
 const JPEG_QUALITY = 0.82;
 
+// config(jsonb) 인라인 저장 상한 — 초과 파일은 건너뛰고 안내한다(기존 이미지는 불변).
+const MAX_IMAGES = 20;
+const MAX_TOTAL_CHARS = 2_000_000; // dataUrl 길이 합으로 총 ~2MB 근사
+
+/** 현재 config에 저장된 이미지 url(대부분 dataUrl)의 총 길이. */
+const totalUrlChars = (images: SlideImage[]) =>
+  images.reduce((sum, im) => sum + im.url.length, 0);
+
 /**
  * Read an image File → (optionally) downscale on a canvas → return a data URL.
  * Downscaling keeps the stored config small; on any failure we fall back to the
@@ -88,6 +96,8 @@ export function ImageManager({
   const [urlInput, setUrlInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [dragOver, setDragOver] = React.useState(false);
+  // 저장 상한 초과로 건너뛴 파일 안내(마지막 추가 시도 기준).
+  const [limitMsg, setLimitMsg] = React.useState<string | null>(null);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
 
   const setImages = (images: SlideImage[]) => onChange({ ...config, images });
@@ -116,25 +126,46 @@ export function ImageManager({
     setUrlInput("");
   };
 
-  /** Compress image files → data URLs → append (preserves reload/sync). */
+  /**
+   * Compress image files → data URLs → append (preserves reload/sync).
+   * 장수(MAX_IMAGES)·총량(MAX_TOTAL_CHARS) 상한 초과분은 건너뛰고 안내한다.
+   */
   const addFiles = async (files: Iterable<File> | null) => {
     const arr = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
     if (arr.length === 0) return;
     setBusy(true);
+    setLimitMsg(null);
     try {
       const added: SlideImage[] = [];
+      let count = config.images.length;
+      let chars = totalUrlChars(config.images);
+      let skipped = 0;
       for (const file of arr) {
         try {
+          if (count >= MAX_IMAGES) {
+            skipped++;
+            continue;
+          }
           const url = await fileToDataUrl(file);
+          if (chars + url.length > MAX_TOTAL_CHARS) {
+            skipped++;
+            continue;
+          }
           added.push({
             id: newImageId(),
             url,
             caption: file.name.replace(/\.[^.]+$/, ""),
           });
+          count++;
+          chars += url.length;
         } catch {
           /* skip an undecodable file */
         }
       }
+      if (skipped > 0)
+        setLimitMsg(
+          `저장 한도(최대 ${MAX_IMAGES}장 · 총 약 2MB) 초과로 ${skipped}개 파일을 건너뛰었습니다. 기존 이미지를 삭제한 뒤 다시 추가해 주세요.`,
+        );
       if (added.length > 0)
         onChange({ ...config, images: [...config.images, ...added] });
     } finally {
@@ -243,7 +274,7 @@ export function ImageManager({
               aria-label={`${i + 1}번 이미지 위로`}
               disabled={i === 0}
               onClick={() => move(i, -1)}
-              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30"
+              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30 pointer-coarse:size-9"
             >
               <ArrowUp size={15} />
             </button>
@@ -252,7 +283,7 @@ export function ImageManager({
               aria-label={`${i + 1}번 이미지 아래로`}
               disabled={i === config.images.length - 1}
               onClick={() => move(i, 1)}
-              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30"
+              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30 pointer-coarse:size-9"
             >
               <ArrowDown size={15} />
             </button>
@@ -260,7 +291,7 @@ export function ImageManager({
               type="button"
               aria-label={`${i + 1}번 이미지 삭제`}
               onClick={() => remove(im.id)}
-              className="inline-flex size-7 items-center justify-center rounded-md text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex size-7 items-center justify-center rounded-md text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-9"
             >
               <Trash2 size={15} />
             </button>
@@ -320,6 +351,12 @@ export function ImageManager({
           }}
         />
       </div>
+
+      {limitMsg ? (
+        <p role="status" className="text-[11px] text-destructive">
+          {limitMsg}
+        </p>
+      ) : null}
 
       {/* Add by URL */}
       <div className="flex items-center gap-2">

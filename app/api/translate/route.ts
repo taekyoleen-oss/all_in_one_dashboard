@@ -15,12 +15,17 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import { translate, MAX_TRANSLATE_CHARS } from "@/lib/api/translateClient";
 import { TranslateSchema, type Translate } from "@/output/api-shapes";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — 익명 호출로 유료 upstream(DeepL 등) 소모 방지.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").slice(0, MAX_TRANSLATE_CHARS);
   const source = (searchParams.get("source") ?? "auto").trim() || "auto";

@@ -24,9 +24,11 @@ export function MemoCompactView({
   const hasAccent = config.color !== "default";
 
   // Latest config in a ref so the debounced save always merges the current
-  // color/size, not a stale closure.
+  // color/size, not a stale closure. (렌더 중 ref 쓰기 대신 커밋 후 동기화)
   const configRef = React.useRef(config);
-  configRef.current = config;
+  React.useEffect(() => {
+    configRef.current = config;
+  }, [config]);
   const timer = React.useRef<number | null>(null);
 
   const persist = React.useCallback(

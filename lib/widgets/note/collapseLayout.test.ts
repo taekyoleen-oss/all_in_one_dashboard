@@ -12,10 +12,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   computeNoteCollapse,
+  TITLE_COLLAPSE_H,
   type Rect,
 } from "../../../components/widgets/note/collapseLayout.ts";
 
-const MIN_H = 3; // note.minSize.h
+const MIN_H = 3; // (구) minSize.h — 기존 케이스의 파라미터 회귀 유지용
+const MIN_H2 = 2; // 현행 note.minSize.h ('제목만' 접기 허용 높이)
 
 /** 보드 한 칸. */
 function tile(instanceId: string, x: number, y: number, w: number, h: number): Rect {
@@ -130,6 +132,79 @@ test("normal에서 접기 재클릭은 no-op", () => {
   const layout = [tile("note", 0, 0, 8, 8), tile("B", 0, 8, 8, 4)];
   const res = computeNoteCollapse(layout, "note", { collapse: "normal" }, "normal", MIN_H);
   assert.equal(res.changed, false);
+});
+
+test("제목만(normal→title): 노트 h가 TITLE_COLLAPSE_H로 + 아래 위젯이 그만큼 위로", () => {
+  const layout = [tile("note", 0, 0, 8, 8), tile("B", 0, 8, 8, 4)];
+  const res = computeNoteCollapse(layout, "note", {}, "title", MIN_H2);
+
+  assert.equal(res.changed, true);
+  assert.equal(byId(res.layout, "note").h, TITLE_COLLAPSE_H); // 8 → 2
+  assert.equal(res.config.collapse, "title");
+  assert.equal(res.config.normalHeight, 8); // 접기 직전 높이 캡처
+  assert.equal(byId(res.layout, "B").y, 2); // 8 → 2 (delta -6 만큼 위로)
+  assert.deepEqual(res.movedIds, ["B"]);
+});
+
+test("제목만 → 펼침(normal): normalHeight로 복원 + 아래 위젯 원위치(왕복 대칭)", () => {
+  const original = [tile("note", 0, 0, 8, 8), tile("B", 0, 8, 8, 4)];
+
+  const title = computeNoteCollapse(original, "note", {}, "title", MIN_H2);
+  const back = computeNoteCollapse(
+    title.layout,
+    "note",
+    title.config,
+    "normal",
+    MIN_H2,
+  );
+
+  assert.equal(byId(back.layout, "note").h, 8);
+  assert.equal(byId(back.layout, "B").y, 8);
+});
+
+test("절반(more) → 제목만(title): 원래 높이(normalHeight) 보존", () => {
+  // more 상태: h=4, normalHeight=8.
+  const layout = [tile("note", 0, 0, 8, 4), tile("B", 0, 4, 8, 4)];
+  const res = computeNoteCollapse(
+    layout,
+    "note",
+    { collapse: "more", normalHeight: 8 },
+    "title",
+    MIN_H2,
+  );
+
+  assert.equal(byId(res.layout, "note").h, TITLE_COLLAPSE_H); // 4 → 2
+  assert.equal(res.config.normalHeight, 8); // 절반 높이(4)가 아니라 원래 높이 보존
+  assert.equal(byId(res.layout, "B").y, 2); // delta -2
+});
+
+test("제목만(title) → 절반(more): normalHeight 기준 절반으로", () => {
+  // title 상태: h=2, normalHeight=8.
+  const layout = [tile("note", 0, 0, 8, 2), tile("B", 0, 2, 8, 4)];
+  const res = computeNoteCollapse(
+    layout,
+    "note",
+    { collapse: "title", normalHeight: 8 },
+    "more",
+    MIN_H2,
+  );
+
+  assert.equal(byId(res.layout, "note").h, 4); // 8/2 (2/2가 아님)
+  assert.equal(res.config.normalHeight, 8);
+  assert.equal(byId(res.layout, "B").y, 4); // delta +2 만큼 아래로
+});
+
+test("이미 title에서 제목만 재클릭은 no-op", () => {
+  const layout = [tile("note", 0, 0, 8, 2), tile("B", 0, 2, 8, 4)];
+  const res = computeNoteCollapse(
+    layout,
+    "note",
+    { collapse: "title", normalHeight: 8 },
+    "title",
+    MIN_H2,
+  );
+  assert.equal(res.changed, false);
+  assert.equal(byId(res.layout, "B").y, 2);
 });
 
 test("가로로 일부만 겹쳐도 '아래'로 보고 이동", () => {

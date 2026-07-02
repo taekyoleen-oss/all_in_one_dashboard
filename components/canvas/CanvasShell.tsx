@@ -59,7 +59,10 @@ import { usePersistedArrangeJustify } from "@/lib/utils/arrangeJustify";
 import { arrangeLayout } from "@/lib/utils/arrange";
 import { useToast } from "@/components/ui/Toaster";
 import { usePersistence } from "@/lib/persistence/usePersistence";
-import { WidgetPersistenceProvider } from "@/lib/widgets/persistence";
+import {
+  WidgetPersistenceProvider,
+  NoteCollapseOverrideProvider,
+} from "@/lib/widgets/persistence";
 import type { BoardState } from "@/lib/persistence/types";
 const LG_COLS = 24; // v2 grid: 24 columns (finer placement/resize)
 
@@ -133,6 +136,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     saveConfig,
     setShareTargetNote,
     collapseNote,
+    flushNow,
     compactActive,
     addBoard,
     renameBoard,
@@ -172,6 +176,25 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
   // Overlay ids edited/focused: track WHICH instance each overlay targets.
   const [focusId, setFocusId] = React.useState<string | null>(null);
   const [editId, setEditId] = React.useState<string | null>(null);
+
+  // GridCanvas가 등록하는 브레이크포인트 인식 노트 접기 핸들러. FocusOverlay(그리드
+  // 밖)의 '제목만 접기'도 이 경로를 타야 모바일 기기-로컬 레이아웃까지 갱신된다.
+  // 등록 전(마운트 직전)엔 DB 경로(collapseNote)로 폴백.
+  const gridCollapseRef = React.useRef<
+    ((instanceId: string, level: "normal" | "more" | "title") => void) | null
+  >(null);
+  const registerGridCollapse = React.useCallback(
+    (fn: (instanceId: string, level: "normal" | "more" | "title") => void) => {
+      gridCollapseRef.current = fn;
+    },
+    [],
+  );
+  const collapseViaGrid = React.useCallback(
+    (instanceId: string, level: "normal" | "more" | "title") => {
+      (gridCollapseRef.current ?? collapseNote)(instanceId, level);
+    },
+    [collapseNote],
+  );
 
   const { openOverlay, closeTop, isOpen } = useBackStack();
   const clipboard = useClipboard();
@@ -384,10 +407,12 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         data-pb-sticky-header
         className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur"
       >
-        {/* Single-row header: 제목 | 보드탭(가로 스크롤) | 툴바. The title and
-            toolbar stay fixed (shrink-0); the tabs take the middle and scroll
-            horizontally (min-w-0) so everything fits on ONE line at any width. */}
-        <div className="mx-auto flex max-w-screen-2xl items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-6 lg:px-8">
+        {/* Responsive header.
+            • sm+ : 한 줄 — 제목 | 보드탭(가로 스크롤) | 툴바.
+            • 좁은 모바일(< sm): 두 줄로 줄바꿈 — 1줄(제목 · 툴바), 2줄(보드탭 전체 폭
+              가로 스크롤). 좁은 폭에서 제목·툴바가 가운데 탭 영역을 0으로 찌그러뜨려
+              탭이 안 보이던 문제를 해결(탭이 자기 줄에서 전체 폭을 확보). */}
+        <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-2.5 sm:flex-nowrap sm:gap-3 sm:px-6 lg:px-8">
           {/* 왼쪽 상단 브랜드: tkLeen 마크 + 대시보드 제목 */}
           <div className="flex shrink-0 items-center gap-2">
             <BrandMark height={24} className="text-foreground" />
@@ -395,7 +420,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               모두의 Dashboard
             </h1>
           </div>
-          <div className="min-w-0 flex-1">
+          {/* 탭: 모바일에선 order로 둘째 줄 전체 폭(w-full), sm+에선 가운데 flex-1. */}
+          <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
             <BoardTabs
               boards={boards.map((b) => ({
                 id: b.meta.id,
@@ -411,7 +437,8 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               onReorder={reorderBoards}
             />
           </div>
-          <div className="shrink-0">
+          {/* 툴바: 모바일에선 첫 줄 우측(ml-auto)으로 붙고, sm+에선 맨 끝 고정. */}
+          <div className="ml-auto shrink-0 sm:ml-0">
             <Toolbar
               editable={editable}
               onToggleEditable={() => setEditable(!editable)}
@@ -462,6 +489,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
               layout={active.layout}
               onLayoutChange={handleLayoutChange}
               onCollapseNote={collapseNote}
+              onRegisterCollapse={registerGridCollapse}
               editable={editable}
               onDropWidget={addByDrop}
               renderActions={renderActions}
@@ -474,8 +502,9 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         </section>
       </div>
 
-      {/* Account control — bottom-left avatar → email + 로그아웃 */}
-      <AccountMenu email={userEmail} />
+      {/* Account control — bottom-left avatar → email + 로그아웃.
+          onBeforeSignOut: 세션 소멸 전에 대기 중 저장을 flush(유실 방지). */}
+      <AccountMenu email={userEmail} onBeforeSignOut={flushNow} />
 
       {/* 설정 — 팔레트 앱 표시 토글 + 계정(비밀번호 변경) */}
       <SettingsDialog
@@ -484,13 +513,17 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         email={userEmail}
       />
 
-      {/* Overlays — share ONE back-stack LIFO with the mobile palette sheet. */}
-      <FocusOverlay
-        registry={widgetRegistry}
-        instance={focusInstance}
-        open={focusOpen}
-        onClose={closeTop}
-      />
+      {/* Overlays — share ONE back-stack LIFO with the mobile palette sheet.
+          NoteCollapseOverrideProvider: 전체보기(ExpandedView)의 '제목만 접기'도
+          GridCanvas의 브레이크포인트 인식 접기를 타게 한다(모바일 레이아웃 일관성). */}
+      <NoteCollapseOverrideProvider collapseNote={collapseViaGrid}>
+        <FocusOverlay
+          registry={widgetRegistry}
+          instance={focusInstance}
+          open={focusOpen}
+          onClose={closeTop}
+        />
+      </NoteCollapseOverrideProvider>
       <ConfigDialog
         registry={widgetRegistry}
         instance={editInstance}

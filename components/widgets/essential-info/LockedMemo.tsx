@@ -31,13 +31,17 @@ export function LockedMemo({
   const [err, setErr] = React.useState(false);
 
   const configRef = React.useRef(config);
-  configRef.current = config;
+  // 최신 config 미러 — 렌더 중 ref 쓰기 대신 커밋 후 동기화(react-hooks/refs).
+  React.useEffect(() => {
+    configRef.current = config;
+  }, [config]);
   const relockTimer = React.useRef<number | null>(null);
   const saveTimer = React.useRef<number | null>(null);
   const relockMs = Math.max(1, config.lockAfterMin || 5) * 60_000;
 
   // Re-lock whenever the password presence changes (e.g. set in the editor).
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 비밀번호 존재 변화(외부 저장 config)에 맞춰 잠금 상태 재파생
     setUnlocked(!hasLock);
   }, [hasLock, instanceId]);
 

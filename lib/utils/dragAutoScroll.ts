@@ -69,6 +69,8 @@ export function useDragAutoScroll(
     }
   }, []);
 
+  // 자기 재스케줄(rAF 루프)은 선언 전 자기참조가 되므로 ref를 경유한다.
+  const tickRef = React.useRef<(() => void) | null>(null);
   const tick = React.useCallback(() => {
     rafRef.current = null;
     if (!activeRef.current) return;
@@ -100,8 +102,11 @@ export function useDragAutoScroll(
         }
       }
     }
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(() => tickRef.current?.());
   }, [bottomZone, maxSpeed]);
+  React.useEffect(() => {
+    tickRef.current = tick;
+  }, [tick]);
 
   const start = React.useCallback(() => {
     if (typeof document !== "undefined") {

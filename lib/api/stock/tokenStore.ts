@@ -33,6 +33,7 @@
  */
 
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -97,10 +98,18 @@ async function writeSupabase(data: CacheFile): Promise<boolean> {
   }
 }
 
-/** Resolve the cache-file path once (env override → repo-local .cache default). */
+/**
+ * Resolve the cache-file path once (env override → default). 기본 경로:
+ *  - 로컬/자체 호스팅: <project>/.cache (재시작에도 살아남는 안정 경로)
+ *  - Vercel 등 서버리스(read-only FS, process.env.VERCEL): cwd가 읽기 전용이라
+ *    매번 EROFS가 나므로 os.tmpdir() 하위로 — 어차피 콜드스타트에 날아가지만
+ *    주력 영속 계층은 Supabase Storage이므로 웜 인스턴스용 best-effort로 충분.
+ */
 export const KIS_CACHE_FILE =
   process.env.KIS_TOKEN_CACHE_FILE?.trim() ||
-  path.join(process.cwd(), ".cache", "kis-token-cache.json");
+  (process.env.VERCEL
+    ? path.join(os.tmpdir(), "paneboard", "kis-token-cache.json")
+    : path.join(process.cwd(), ".cache", "kis-token-cache.json"));
 
 /** Fast per-process mirror so warm requests never touch the disk. */
 const memory = new Map<string, CacheEntry>();
@@ -116,11 +125,14 @@ async function readFile(): Promise<CacheFile> {
   }
 }
 
+/** 파일 계층 실패 경고는 프로세스당 1회만 — 주력 계층은 Supabase Storage라 과도한 로그 불필요. */
+let fileWriteWarned = false;
+
 /**
- * Overwrite the cache file. Best-effort for control flow (we never throw), BUT a
- * failure is LOGGED — a silent write failure is indistinguishable from the bug
- * where every request re-issues a token (and re-pushes a KakaoTalk). Ensures the
- * parent dir exists first so a fresh checkout works.
+ * Overwrite the cache file. Best-effort for control flow (we never throw). 실패는
+ * 프로세스당 1회 console.warn — Supabase Storage 계층이 주력이라 파일 실패는
+ * 치명적이지 않지만, 완전 무음이면 "매번 재발급" 버그와 구분이 안 되므로 남긴다.
+ * Ensures the parent dir exists first so a fresh checkout works.
  */
 async function writeFile(data: CacheFile): Promise<void> {
   try {
@@ -129,10 +141,13 @@ async function writeFile(data: CacheFile): Promise<void> {
     // restricts to the owner where the FS honors it (no-op on Windows).
     await fs.writeFile(KIS_CACHE_FILE, JSON.stringify(data), { mode: 0o600 });
   } catch (e) {
-    console.error(
-      `[KIS] 토큰 캐시 저장 실패 (${KIS_CACHE_FILE}). 재시작 시 토큰이 다시 발급됩니다:`,
-      e instanceof Error ? e.message : e,
-    );
+    if (!fileWriteWarned) {
+      fileWriteWarned = true;
+      console.warn(
+        `[KIS] 토큰 파일캐시 저장 불가 (${KIS_CACHE_FILE}) — Supabase Storage 캐시로 동작:`,
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
 }
 

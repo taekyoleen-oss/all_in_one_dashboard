@@ -47,6 +47,16 @@ export function SettingsDialog({ open, onClose, email }: SettingsDialogProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // 모달이 떠 있는 동안 배경 스크롤 잠금 — FocusOverlay/ConfigDialog와 동일 패턴.
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -84,7 +94,8 @@ export function SettingsDialog({ open, onClose, email }: SettingsDialogProps) {
           </TabButton>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {/* 모바일 바텀시트: safe-area 하단 패딩 + 스크롤 체이닝 차단. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {tab === "apps" ? <AppVisibility /> : <AccountSettings email={email} />}
         </div>
       </div>

@@ -11,15 +11,21 @@
 import * as React from "react";
 import { NotebookPen, Paperclip, Share2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
-import { useCollapseNote } from "@/lib/widgets/persistence";
+import { useCollapseNote, useOpenWidgetFocus } from "@/lib/widgets/persistence";
+import type { NoteCollapseLevel } from "./collapseLayout";
 import { sanitizeHtml, htmlToText } from "./sanitize";
 import { NOTE_PROSE_CLASS } from "./NoteEditor";
 import type { NoteConfig } from "./types";
 
+/** uSES mounted 게이트용 no-op 구독(항상 동일 참조). */
+const emptySubscribe = () => () => {};
+
 /**
- * 접기 토글 — 노트 타일 본문 상단의 2분할 컨트롤(접기 | 더접기).
- *  • 접기(normal) = 사용자가 설정한 높이 그대로(기본). 드래그로 자유롭게 조절.
- *  • 더접기(more) = 그 높이의 절반으로 접어 아래 위젯이 올라옴.
+ * 접기 토글 — 노트 타일 본문 상단의 3분할 컨트롤(펼침 | 절반 | 제목만).
+ *  • 펼침(normal)  = 사용자가 설정한 높이 그대로(기본). 드래그로 자유롭게 조절.
+ *  • 절반(more)    = 그 높이의 절반으로 접어 아래 위젯이 올라옴.
+ *  • 제목만(title) = 제목 한 줄 높이(최소)로 접음 — 일기·긴 기록용. 제목 클릭이
+ *                    곧 '전체' 열기라 내용 확인·복귀가 한 클릭이다.
  * collapseNote가 실제 그리드 h를 바꾸므로(세로 컴팩션) 이웃 위젯이 따라 이동한다.
  */
 function CollapseToggle({
@@ -27,7 +33,7 @@ function CollapseToggle({
   level,
 }: {
   instanceId: string;
-  level: "normal" | "more";
+  level: NoteCollapseLevel;
 }) {
   const collapseNote = useCollapseNote();
   const seg = (active: boolean) =>
@@ -37,6 +43,11 @@ function CollapseToggle({
         ? "bg-primary/15 text-primary"
         : "text-muted-foreground hover:text-foreground",
     ].join(" ");
+  const items: Array<{ key: NoteCollapseLevel; label: string }> = [
+    { key: "normal", label: "펼침" },
+    { key: "more", label: "절반" },
+    { key: "title", label: "제목만" },
+  ];
   return (
     <div
       className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
@@ -46,22 +57,17 @@ function CollapseToggle({
       // 건드리지 않도록 포인터 이벤트를 여기서 멈춘다.
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <button
-        type="button"
-        onClick={() => collapseNote(instanceId, "normal")}
-        aria-pressed={level === "normal"}
-        className={seg(level === "normal")}
-      >
-        접기
-      </button>
-      <button
-        type="button"
-        onClick={() => collapseNote(instanceId, "more")}
-        aria-pressed={level === "more"}
-        className={seg(level === "more")}
-      >
-        더접기
-      </button>
+      {items.map((it) => (
+        <button
+          key={it.key}
+          type="button"
+          onClick={() => collapseNote(instanceId, it.key)}
+          aria-pressed={level === it.key}
+          className={seg(level === it.key)}
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -72,20 +78,46 @@ export function NoteCompactView({
 }: CompactViewProps<NoteConfig>) {
   // Render the HTML preview only after mount: sanitizeHtml is DOM-based, so its
   // result differs between SSR (regex fallback) and the client — gating on mount
-  // avoids a hydration mismatch.
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  // avoids a hydration mismatch. (uSES 서버/클라 스냅샷 분기 = 권장 mounted 패턴)
+  const mounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+
+  const openFocus = useOpenWidgetFocus();
+  const level: NoteCollapseLevel =
+    config.collapse === "more" || config.collapse === "title"
+      ? config.collapse
+      : "normal";
+  const titleOnly = level === "title";
 
   const safe = React.useMemo(() => sanitizeHtml(config.html), [config.html]);
   const isEmpty = htmlToText(config.html).length === 0;
+  const titleText = config.title || "제목 없는 노트";
 
   return (
     <div className="flex h-full w-full flex-col gap-1.5">
       <div className="flex shrink-0 items-center gap-1.5">
         <NotebookPen size={14} aria-hidden className="shrink-0 text-primary" />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-          {config.title || "제목 없는 노트"}
-        </span>
+        {/* 제목 = '전체' 바로가기(요구: 제목에서 바로 전체보기). '제목만' 접기에서도
+            이 한 줄이 남아 클릭 한 번으로 전체 편집/보기로 진입한다. */}
+        {openFocus ? (
+          <button
+            type="button"
+            data-pb-no-drag=""
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => openFocus(instanceId)}
+            title="클릭하여 전체보기"
+            className="min-w-0 flex-1 truncate rounded text-left text-sm font-semibold text-foreground outline-none transition-colors hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {titleText}
+          </button>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+            {titleText}
+          </span>
+        )}
         {config.shareTarget ? (
           <Share2
             size={12}
@@ -98,13 +130,14 @@ export function NoteCompactView({
             <Paperclip size={11} aria-hidden /> {config.attachments.length}
           </span>
         ) : null}
-        <CollapseToggle
-          instanceId={instanceId}
-          level={config.collapse === "more" ? "more" : "normal"}
-        />
+        <CollapseToggle instanceId={instanceId} level={level} />
       </div>
 
-      {!mounted ? (
+      {titleOnly ? (
+        // '제목만' — 본문을 아예 렌더하지 않아 타일이 제목 한 줄로 최소화된다.
+        // 내용은 제목 클릭(전체보기)으로 확인.
+        null
+      ) : !mounted ? (
         // Server + first client render are identical (htmlToText/sanitizeHtml are
         // DOM-based) — defer the content branch to after mount.
         <div className="min-h-0 flex-1" aria-hidden />

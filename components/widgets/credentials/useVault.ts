@@ -101,6 +101,7 @@ export function useVault(instanceId: string, lockAfterMin: number): Vault {
 
   // On mount (and whenever the instance changes) derive the lock state from
   // storage. Runs client-only, so it never mismatches the server render.
+  /* eslint-disable react-hooks/set-state-in-effect -- 외부 시스템(localStorage) 동기화: 인스턴스 전환 시 잠금 상태를 저장소에서 재파생(SSR 안전 게이트) */
   React.useEffect(() => {
     vkRef.current = null;
     setEntries([]);
@@ -108,6 +109,7 @@ export function useVault(instanceId: string, lockAfterMin: number): Vault {
     setStatus(readBlob(instanceId) ? "locked" : "setup");
     setReady(true);
   }, [instanceId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const doLock = React.useCallback(() => {
     vkRef.current = null;

@@ -55,6 +55,12 @@ export function usePoll<S extends z.ZodTypeAny>(
   type T = z.infer<S>;
 
   const [data, setData] = React.useState<T | null>(null);
+  // tick 클로저가 초기 data(null)를 영구 캡처하지 않도록 최신 data를 ref로 미러링
+  // — "데이터가 있으면 에러를 숨긴다" 판정은 항상 dataRef.current로 한다.
+  const dataRef = React.useRef<T | null>(null);
+  React.useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
   const [error, setError] = React.useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = React.useState<number | null>(null);
   // Bumping this re-runs the effect for a manual refresh.
@@ -76,14 +82,14 @@ export function usePoll<S extends z.ZodTypeAny>(
         if (cancelled) return;
         if (!res.ok) {
           // Keep showing stale data if we have any; only surface an error when empty.
-          setError((prev) => (data === null ? "request_failed" : prev));
+          setError((prev) => (dataRef.current === null ? "request_failed" : prev));
           return;
         }
         const json: unknown = await res.json();
         if (cancelled) return;
         const parsed = schema.safeParse(json);
         if (!parsed.success) {
-          setError((prev) => (data === null ? "bad_shape" : prev));
+          setError((prev) => (dataRef.current === null ? "bad_shape" : prev));
           return;
         }
         setData(parsed.data as T);
@@ -91,7 +97,7 @@ export function usePoll<S extends z.ZodTypeAny>(
         setError(null);
       } catch {
         if (cancelled) return;
-        setError((prev) => (data === null ? "network_error" : prev));
+        setError((prev) => (dataRef.current === null ? "network_error" : prev));
       }
     };
 
@@ -113,9 +119,9 @@ export function usePoll<S extends z.ZodTypeAny>(
       }
     };
     // Re-subscribe when the target URL, cadence, enabled flag, or manual nonce change.
-    // `data` is intentionally excluded: it's read inside closures only to decide
-    // whether to surface an error, and including it would reset the interval on
-    // every successful poll.
+    // `data` is intentionally excluded (including it would reset the interval on
+    // every successful poll); error-suppression checks read the latest value via
+    // `dataRef` instead, so the tick closure never goes stale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, intervalMs, enabled, nonce]);
 

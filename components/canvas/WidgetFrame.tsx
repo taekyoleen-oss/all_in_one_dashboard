@@ -140,10 +140,12 @@ export function WidgetFrame({
         className ?? "",
       ].join(" ")}
     >
-      {/* Header — also the RGL drag handle (see GridCanvas dragConfig.handle). */}
+      {/* Header — also the RGL drag handle (see GridCanvas dragConfig.handle).
+          touch-none: 팔레트 헤더와 동일하게, 터치 드래그가 브라우저 스크롤/제스처에
+          가로채이지 않도록(모바일 타일 이동이 어긋나던 문제). */}
       <header
         data-pb-drag-handle
-        className="flex shrink-0 cursor-grab items-center gap-2 border-b border-border px-[var(--density-pad)] py-1 active:cursor-grabbing"
+        className="flex shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border px-[var(--density-pad)] py-1 active:cursor-grabbing"
       >
         {icon ? (
           <span className="flex size-4 items-center justify-center text-muted-foreground">

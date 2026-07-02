@@ -34,9 +34,11 @@ import type {
 const CURRENCIES: SubCurrency[] = ["KRW", "USD", "EUR", "JPY"];
 const CYCLES: BillingCycle[] = ["weekly", "monthly", "yearly"];
 
+// 임박(오늘/3일 이내)은 text-destructive — text-positive는 주식 등락 시맨틱
+// 토큰(사용자 토글로 색 반전)이라 경고 표시에 쓰지 않는다.
 function dueBadge(daysUntil: number): { text: string; cls: string } {
-  if (daysUntil <= 0) return { text: "오늘", cls: "text-positive" };
-  if (daysUntil <= 3) return { text: `${daysUntil}일 후`, cls: "text-positive" };
+  if (daysUntil <= 0) return { text: "오늘", cls: "text-destructive" };
+  if (daysUntil <= 3) return { text: `${daysUntil}일 후`, cls: "text-destructive" };
   if (daysUntil <= 7) return { text: `${daysUntil}일 후`, cls: "text-amber-600 dark:text-amber-400" };
   return { text: `${daysUntil}일 후`, cls: "text-muted-foreground" };
 }

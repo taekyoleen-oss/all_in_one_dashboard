@@ -26,6 +26,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import type { WidgetRegistry } from "@/lib/widgets/contract";
 import type { WidgetInstance } from "@/components/canvas/GridCanvas";
+import { FocusCloseProvider } from "@/lib/widgets/persistence";
 import { IconButton } from "@/components/ui/primitives";
 
 const DURATION_MS = 220;
@@ -94,6 +95,18 @@ export function FocusOverlay({
     };
   }, [visible]);
 
+  // Esc → 닫기 (키보드 사용자용 — X·뒤로가기와 같은 closeTop 경로).
+  React.useEffect(() => {
+    if (!visible) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visible, onClose]);
+
   if (!mounted || !shown) return null;
 
   const def = registry[shown.type];
@@ -127,11 +140,15 @@ export function FocusOverlay({
       <div className="@container/focus min-h-0 flex-1 overflow-auto p-4 sm:p-6">
         <div className="mx-auto h-full w-full max-w-screen-lg">
           {def ? (
-            <def.ExpandedView
-              key={shown.instanceId}
-              config={shown.config}
-              instanceId={shown.instanceId}
-            />
+            // ExpandedView 내부에서 오버레이를 닫을 수 있게(예: 노트 '제목만 접기'
+            // = 접기 + 닫기 한 번에) 닫기 경로를 컨텍스트로 노출한다.
+            <FocusCloseProvider onClose={onClose}>
+              <def.ExpandedView
+                key={shown.instanceId}
+                config={shown.config}
+                instanceId={shown.instanceId}
+              />
+            </FocusCloseProvider>
           ) : (
             <p className="text-sm text-muted-foreground">
               레지스트리에 등록되지 않은 타입입니다: {shown.type}

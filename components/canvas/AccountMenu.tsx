@@ -30,6 +30,11 @@ import {
 export interface AccountMenuProps {
   /** Signed-in owner email (from the verified server session). */
   email: string | null;
+  /**
+   * 로그아웃 직전에 await되는 훅 — 디바운스 저장 큐를 flush한다. 세션이 사라진 뒤엔
+   * RLS 때문에 대기 중이던 upsert가 실패하므로 signOut 전에 완료돼야 한다.
+   */
+  onBeforeSignOut?: () => Promise<void> | void;
 }
 
 /** Derive a 1-char avatar glyph from the email (fallends back to "N"). */
@@ -38,7 +43,7 @@ function initialOf(email: string | null): string {
   return c ? c.toUpperCase() : "N";
 }
 
-export function AccountMenu({ email }: AccountMenuProps) {
+export function AccountMenu({ email, onBeforeSignOut }: AccountMenuProps) {
   const router = useRouter();
   const [signingOut, setSigningOut] = React.useState(false);
 
@@ -48,13 +53,19 @@ export function AccountMenu({ email }: AccountMenuProps) {
       e.preventDefault();
       if (signingOut) return;
       setSigningOut(true);
+      // 대기 중인 저장을 세션이 살아있는 동안 마저 보낸다(실패해도 로그아웃은 진행).
+      try {
+        await onBeforeSignOut?.();
+      } catch {
+        /* best-effort */
+      }
       const supabase = createClient();
       await supabase.auth.signOut();
       // Full navigation so the proxy re-evaluates and server state is clean.
       router.replace("/login");
       router.refresh();
     },
-    [router, signingOut],
+    [router, signingOut, onBeforeSignOut],
   );
 
   return (

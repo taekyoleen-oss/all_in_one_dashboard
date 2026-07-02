@@ -13,10 +13,11 @@
  */
 
 import * as React from "react";
+import type { NoteCollapseLevel } from "@/components/widgets/note/collapseLayout";
 
 type SaveConfigFn = (instanceId: string, nextConfig: unknown) => void;
 type SetShareTargetFn = (instanceId: string, on: boolean) => void;
-type CollapseNoteFn = (instanceId: string, level: "normal" | "more") => void;
+type CollapseNoteFn = (instanceId: string, level: NoteCollapseLevel) => void;
 
 interface WidgetPersistenceValue {
   save: SaveConfigFn;
@@ -98,3 +99,57 @@ export function useCollapseNote(): CollapseNoteFn {
 const noopSave: SaveConfigFn = () => {};
 const noopShareTarget: SetShareTargetFn = () => {};
 const noopCollapse: CollapseNoteFn = () => {};
+
+/* ---------------------- widget focus (전체보기 열기/닫기) ---------------------- */
+
+type OpenFocusFn = (instanceId: string) => void;
+
+/**
+ * GridCanvas가 제공 — 위젯 내부(예: 노트 '제목만' 타일의 제목 클릭)에서 자신의
+ * '전체'(FocusOverlay)를 연다. WidgetFrame의 전체 버튼과 같은 onFocusInstance 경로.
+ */
+const WidgetFocusContext = React.createContext<OpenFocusFn | null>(null);
+
+export function WidgetFocusProvider({
+  openFocus,
+  children,
+}: {
+  openFocus: OpenFocusFn | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <WidgetFocusContext.Provider value={openFocus}>
+      {children}
+    </WidgetFocusContext.Provider>
+  );
+}
+
+/** '전체' 열기 함수 — 제공자가 없으면 null(호출부에서 어포던스를 숨긴다). */
+export function useOpenWidgetFocus(): OpenFocusFn | null {
+  return React.useContext(WidgetFocusContext);
+}
+
+/**
+ * FocusOverlay가 제공 — ExpandedView 내부에서 오버레이 자신을 닫는다(백스택 경유).
+ * 예: 노트 전체보기의 '제목만 접기'가 접기+닫기를 한 번에 수행할 때.
+ */
+const FocusCloseContext = React.createContext<(() => void) | null>(null);
+
+export function FocusCloseProvider({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <FocusCloseContext.Provider value={onClose}>
+      {children}
+    </FocusCloseContext.Provider>
+  );
+}
+
+/** 포커스 오버레이 닫기 함수 — 오버레이 밖(타일 등)에서는 null. */
+export function useCloseWidgetFocus(): (() => void) | null {
+  return React.useContext(FocusCloseContext);
+}

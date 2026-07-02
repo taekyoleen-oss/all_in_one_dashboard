@@ -179,7 +179,10 @@ export function useCopyCapture(
   onText: (text: string) => void,
 ): void {
   const ref = React.useRef(onText);
-  ref.current = onText;
+  // 최신 콜백 미러 — 렌더 중 ref 쓰기 대신 커밋 후 동기화(react-hooks/refs).
+  React.useEffect(() => {
+    ref.current = onText;
+  }, [onText]);
   React.useEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const handler = () => {
@@ -240,7 +243,10 @@ export function useClipboardAutoCapture(
   onText: (text: string) => void,
 ): void {
   const ref = React.useRef(onText);
-  ref.current = onText;
+  // 최신 콜백 미러 — 렌더 중 ref 쓰기 대신 커밋 후 동기화(react-hooks/refs).
+  React.useEffect(() => {
+    ref.current = onText;
+  }, [onText]);
   React.useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
     let denials = 0;

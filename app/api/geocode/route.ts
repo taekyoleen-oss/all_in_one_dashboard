@@ -13,11 +13,16 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import { reverseGeocode, searchPlaces } from "@/lib/api/geocodeClient";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — 익명 호출로 유료 upstream(Kakao 등) 소모 방지.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
 
   // Reverse mode: ?lat=&lon= → a friendly 동-level place name (현재 위치 라벨).

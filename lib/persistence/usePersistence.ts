@@ -99,7 +99,12 @@ export interface UsePersistenceResult {
    * 올라오고 접기 시 정확히 그만큼 내려가게 한다. layout과 config(collapse/normalHeight)를
    * 한 번에 갱신하고 옮겨진 위젯까지 dirty 마킹(디바운스 flush로 영속).
    */
-  collapseNote: (instanceId: string, level: "normal" | "more") => void;
+  collapseNote: (instanceId: string, level: "normal" | "more" | "title") => void;
+  /**
+   * 대기 중인 디바운스 저장을 즉시 flush하고 완료까지 기다린다 — 로그아웃 등
+   * 세션이 사라지기 전에 호출(세션 소멸 후엔 RLS로 upsert가 실패).
+   */
+  flushNow: () => Promise<void>;
   compactActive: (compactor: (l: CanvasLayoutItem[]) => CanvasLayoutItem[]) => void;
   /**
    * Restore a SPECIFIC board's layout to an exact snapshot (자동정렬 되돌리기). Unlike
@@ -400,6 +405,40 @@ export function usePersistence(
     };
   }, []);
 
+  // 언로드 유실 방지: 디바운스(600ms) 창 안에서 탭 닫기/새로고침/앱 전환이 일어나면
+  // 대기 중이던 upsert가 사라진다. pagehide + visibilitychange(hidden)에서 즉시
+  // flush를 시작한다(숨김 전환은 보통 실제 언로드보다 충분히 일찍 와서 요청이 완료됨).
+  React.useEffect(() => {
+    const flushNow = () => {
+      const q = queueRef.current;
+      if (
+        !q.boards.size &&
+        !q.widgets.size &&
+        !q.deletedBoards.size &&
+        !q.deletedWidgets.size
+      ) {
+        return;
+      }
+      if (timerRef.current != null) window.clearTimeout(timerRef.current);
+      void flushRef.current();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushNow();
+    };
+    window.addEventListener("pagehide", flushNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  // 로그아웃 등 세션 소멸 직전에 호출 — 디바운스 타이머를 걷어내고 즉시 flush.
+  const flushNow = React.useCallback(async () => {
+    if (timerRef.current != null) window.clearTimeout(timerRef.current);
+    await flushRef.current();
+  }, []);
+
   /* ---------------------------- dirty markers ----------------------------- */
 
   const markBoard = React.useCallback(
@@ -540,6 +579,8 @@ export function usePersistence(
         ),
       );
       markWidgetDeleted(instanceId);
+      // 기기-로컬 키(제목/색/글자크기)도 함께 정리 — 고아 키 누적 방지.
+      removeInstanceLocalKeys(instanceId);
     },
     [activeId, markWidgetDeleted],
   );
@@ -642,7 +683,7 @@ export function usePersistence(
   );
 
   const collapseNote = React.useCallback(
-    (instanceId: string, level: "normal" | "more") => {
+    (instanceId: string, level: "normal" | "more" | "title") => {
       const minH = widgetRegistry["note"]?.minSize.h ?? 3;
       // 노트 외에 위치가 바뀐(아래로/위로 따라 이동한) 위젯 id를 모아 dirty 마킹한다.
       const moved: string[] = [];
@@ -763,7 +804,11 @@ export function usePersistence(
       for (const inst of target.instances) {
         queueRef.current.widgets.delete(inst.instanceId);
         queueRef.current.deletedWidgets.delete(inst.instanceId);
+        // 위젯별 기기-로컬 키 정리(제목/색/글자크기) — 고아 키 누적 방지.
+        removeInstanceLocalKeys(inst.instanceId);
       }
+      // 보드별 모바일/태블릿 기기-로컬 배치도 정리.
+      removeBoardLocalKeys(boardId);
       markBoardDeleted(boardId);
       if (promotedId) markBoard(promotedId);
     },
@@ -846,6 +891,7 @@ export function usePersistence(
     saveConfig,
     setShareTargetNote,
     collapseNote,
+    flushNow,
     compactActive,
     addBoard,
     renameBoard,
@@ -854,6 +900,33 @@ export function usePersistence(
     reorderBoards,
     saving,
   };
+}
+
+/**
+ * 삭제된 위젯의 기기-로컬(localStorage) 키 정리 — pb:title/color/fontscale:{id}.
+ * 인스턴스를 반복 생성·삭제할 때 죽은 uuid 키가 누적되어 quota를 압박하지 않게 한다.
+ * best-effort: 실패(사파리 프라이빗 등)해도 삭제 흐름은 계속.
+ */
+function removeInstanceLocalKeys(instanceId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(`pb:title:${instanceId}`);
+    window.localStorage.removeItem(`pb:color:${instanceId}`);
+    window.localStorage.removeItem(`pb:fontscale:${instanceId}`);
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** 삭제된 보드의 모바일/태블릿 기기-로컬 배치 키 정리 — pb:mlayout:{board}:{bp}. */
+function removeBoardLocalKeys(boardId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(`pb:mlayout:${boardId}:md`);
+    window.localStorage.removeItem(`pb:mlayout:${boardId}:sm`);
+  } catch {
+    /* best-effort */
+  }
 }
 
 /** A throwaway empty board (only used if the server passed zero boards). */

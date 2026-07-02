@@ -19,9 +19,25 @@ export interface Rect {
   h: number;
 }
 
+/**
+ * 접기 레벨.
+ *  - 'normal' → 사용자가 설정한 높이 그대로(기본).
+ *  - 'more'   → 그 높이의 절반.
+ *  - 'title'  → 제목 한 줄만 보이는 최소 높이(TITLE_COLLAPSE_H). 일기·기능 소개처럼
+ *               긴 노트가 캔버스를 점유하지 않게 하고, 제목 클릭으로 바로 '전체'를 연다.
+ */
+export type NoteCollapseLevel = "normal" | "more" | "title";
+
+/**
+ * '제목만' 접기의 그리드 높이(행 수). ROW_HEIGHT 48px 기준 2행(≈102px)이면
+ * WidgetFrame 헤더 + 노트 제목 한 줄이 잘리지 않고 들어간다. note minSize.h와
+ * 같아야 buildResponsiveLayout의 min 클램프에 되말리지 않는다.
+ */
+export const TITLE_COLLAPSE_H = 2;
+
 /** 노트 config 중 접기 관련 필드. */
 export interface NoteCollapseConfig {
-  collapse?: "normal" | "more";
+  collapse?: NoteCollapseLevel;
   normalHeight?: number;
 }
 
@@ -38,16 +54,18 @@ export interface CollapseResult<T extends Rect> {
 
 /**
  * 노트를 `level`로 접거나 펴는 새 레이아웃·config를 계산한다.
- *  - level 'more'   → 현재 h(또는 이미 more면 기억해 둔 normalHeight)의 절반으로.
- *                     normalHeight에 접기 직전 높이를 캡처.
+ *  - level 'more'   → 기준 높이(base)의 절반으로. normalHeight에 접기 직전 높이를 캡처.
+ *  - level 'title'  → 제목 한 줄 높이(TITLE_COLLAPSE_H)로. normalHeight 캡처는 동일.
  *  - level 'normal' → 기억해 둔 normalHeight로 h 복원.
- * 두 경우 모두 아래 위젯을 delta만큼 함께 이동. minH(노트 minSize.h) 미만으로는 안 줄임.
+ * base = 현재 'normal'이면 지금 h, 이미 접혀 있으면 기억해 둔 normalHeight — 그래서
+ * more↔title을 오가도 원래 높이가 보존되고, 연속 클릭이 1/4로 쪼개지지 않는다.
+ * 모든 경우 아래 위젯을 delta만큼 함께 이동. minH(노트 minSize.h) 미만으로는 안 줄임.
  */
 export function computeNoteCollapse<T extends Rect>(
   layout: T[],
   noteId: string,
   noteConfig: NoteCollapseConfig,
-  level: "normal" | "more",
+  level: NoteCollapseLevel,
   minH: number,
 ): CollapseResult<T> {
   const item = layout.find((l) => l.instanceId === noteId);
@@ -61,16 +79,20 @@ export function computeNoteCollapse<T extends Rect>(
     };
   }
 
+  // 접기 기준 높이: 펼쳐진(normal) 상태면 지금 h, 이미 접힌 상태면 접기 직전 높이.
+  const base =
+    curLevel === "normal" ? item.h : noteConfig.normalHeight ?? item.h;
+
   let newH = item.h;
   let config: NoteCollapseConfig;
   if (level === "more") {
-    // 현재 'normal'이면 지금 h를 기준으로, 이미 'more'면 기억해 둔 높이를 기준으로 절반
-    // (연속 클릭이 1/4로 쪼개지지 않게).
-    const base = curLevel === "more" ? noteConfig.normalHeight ?? item.h : item.h;
     newH = Math.max(Math.round(base / 2), minH);
     config = { collapse: "more", normalHeight: base };
+  } else if (level === "title") {
+    newH = Math.max(TITLE_COLLAPSE_H, minH);
+    config = { collapse: "title", normalHeight: base };
   } else {
-    newH = Math.max(noteConfig.normalHeight ?? item.h, minH);
+    newH = Math.max(base, minH);
     config = { collapse: "normal", normalHeight: noteConfig.normalHeight };
   }
 

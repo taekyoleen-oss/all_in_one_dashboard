@@ -89,11 +89,11 @@ export function useSelectedPeriod(instanceId: string): SelectedPeriod {
 
   // 분 단위 틱: 시간이 흐르면 현재 구간이 넘어가고, 지나간 칩은 롤링 윈도우에서 사라진다.
   const now = useNow(60_000);
+  // 분 단위로만 재계산(초 변동 무시)되도록 분 타임스탬프를 키로 파생.
+  const minuteKey = Math.floor(now.getTime() / 60_000);
   const slots = React.useMemo(
-    // 분 단위로만 재계산(초 변동 무시)되도록 분 타임스탬프를 키로.
-    () => buildForwardPeriods(now),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [Math.floor(now.getTime() / 60_000)],
+    () => buildForwardPeriods(new Date(minuteKey * 60_000)),
+    [minuteKey],
   );
 
   // 복귀 판정: (1) 선택 후 REVERT_MS 경과, 또는 (2) 롤링 윈도우에서 사라진 지난 구간이면

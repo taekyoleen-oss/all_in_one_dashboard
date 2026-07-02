@@ -16,6 +16,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/api/requireUser";
 import { getProvider } from "@/lib/api/stock/provider";
 import { parseSymbolsParam } from "@/lib/api/stock/symbols-param";
 import {
@@ -27,6 +28,10 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // 인증 게이트 — 익명 호출로 KIS 시세 쿼터 소모 방지.
+  const gate = await requireUser();
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const symbols = parseSymbolsParam(searchParams.get("symbols"));
 

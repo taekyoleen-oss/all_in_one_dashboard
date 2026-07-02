@@ -19,7 +19,9 @@ export const noteWidget: WidgetDefinition<NoteConfig> = {
   category: "extended",
   defaultConfig: DEFAULT_NOTE_CONFIG,
   defaultSize: { w: 8, h: 8 },
-  minSize: { w: 4, h: 3 },
+  // minSize.h=2: '제목만' 접기(TITLE_COLLAPSE_H=2)가 buildResponsiveLayout의
+  // min 클램프에 되말리지 않도록 한 줄 높이까지 허용.
+  minSize: { w: 4, h: 2 },
   maxSize: { w: 16, h: 20 },
   CompactView: NoteCompactView,
   ExpandedView: NoteExpandedView,

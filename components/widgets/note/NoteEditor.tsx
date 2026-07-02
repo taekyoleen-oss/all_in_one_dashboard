@@ -53,7 +53,10 @@ export function NoteEditor({
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const imageInputRef = React.useRef<HTMLInputElement | null>(null);
   const configRef = React.useRef(config);
-  configRef.current = config;
+  // 최신 config 미러 — 렌더 중 ref 쓰기 대신 커밋 후 동기화(react-hooks/refs).
+  React.useEffect(() => {
+    configRef.current = config;
+  }, [config]);
   const timer = React.useRef<number | null>(null);
 
   const [active, setActive] = React.useState<ActiveMarks>({

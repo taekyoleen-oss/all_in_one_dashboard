@@ -165,6 +165,7 @@ export function DropdownMenuContent({
   // into the viewport. Re-runs on open + scroll/resize so it tracks the trigger.
   React.useLayoutEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 포털 메뉴 위치 초기화: 닫힘 시 DOM 측정 상태를 레이아웃 단계에서 리셋(깜빡임 방지)
       setPos(null);
       return;
     }
