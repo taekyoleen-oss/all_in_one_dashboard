@@ -267,21 +267,21 @@ function ListMode({
         <p className="shrink-0 text-[11px] text-destructive">{data.error}</p>
       ) : null}
 
-      {/* 추가: 직접 추가 + 카카오톡 정리 */}
-      <div className="flex shrink-0 items-center gap-1.5">
+      {/* 추가: 직접 추가 + 카카오톡 정리 — 얇은 한 줄(타일 하단 공백 최소화 요구). */}
+      <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
           onClick={onManual}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <CalendarPlus size={14} aria-hidden /> 직접 추가
+          <CalendarPlus size={12} aria-hidden /> 직접 추가
         </button>
         <button
           type="button"
           onClick={onCompose}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Sparkles size={14} aria-hidden /> 카카오톡 정리
+          <Sparkles size={12} aria-hidden /> 카카오톡 정리
         </button>
       </div>
     </div>

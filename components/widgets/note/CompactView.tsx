@@ -159,7 +159,7 @@ export function NoteCompactView({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={addSection}
       title="소제목을 추가하고 바로 입력"
-      className="inline-flex w-fit shrink-0 items-center gap-1 rounded px-1 py-1 text-xs text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex w-fit shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Plus size={12} aria-hidden /> 소제목
     </button>

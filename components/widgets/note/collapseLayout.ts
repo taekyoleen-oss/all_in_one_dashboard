@@ -22,13 +22,30 @@ export interface Rect {
 /**
  * 접기 레벨. (저장 키는 하위호환을 위해 'more'를 유지 — UI 라벨은 '소제목')
  *  - 'normal' → 펼침: 머리말+소제목+내용 전부 리스트. 높이는 사용자가 정한 그대로.
- *  - 'more'   → 소제목: 타일에 소제목 목차만 표시(내용·머리말 숨김). **높이 자동
- *               변경 없음** — 크기는 사용자가 정한다(요구). 제목만에서 전환 시에만
- *               기억해 둔 높이로 복원.
+ *  - 'more'   → 소제목: 타일에 소제목 목차만 표시(내용·머리말 숨김). 높이는 목차에
+ *               **딱 맞게 축소**(tocCollapseH — 아래 공백 제거 요구), 사용자 높이
+ *               (base)보다 크게는 안 늘림. 펼침 복귀 시 base로 복원.
  *  - 'title'  → 제목 한 줄만 보이는 최소 높이(TITLE_COLLAPSE_H). 일기·기능 소개처럼
  *               긴 노트가 캔버스를 점유하지 않게 하고, 헤더 '전체'로 내용을 연다.
  */
 export type NoteCollapseLevel = "normal" | "more" | "title";
+
+/* ── 소제목(more) 모드 fit 높이 ──────────────────────────────────────────────
+ * 그리드 행 수 ↔ px 환산은 GridCanvas의 ROW_HEIGHT(48)·margin(6)과 같아야 한다:
+ * heightPx(h) = 48h + 6(h-1) = 54h - 6  →  h = ceil((px + 6) / 54).
+ */
+const GRID_STEP_PX = 54;
+const GRID_MARGIN_PX = 6;
+/** 고정 오버헤드(px): 프레임 헤더(~34) + 본문 패딩(~16) + 토글 줄(~30) + '＋ 소제목'(~24). */
+const TOC_BASE_PX = 104;
+/** 소제목 한 행(px): py-1(8) + text-sm 줄높이(20). */
+const TOC_ROW_PX = 28;
+
+/** 소제목 모드에서 목차(n행)에 딱 맞는 그리드 높이(행 수). */
+export function tocCollapseH(sectionCount: number): number {
+  const px = TOC_BASE_PX + TOC_ROW_PX * Math.max(sectionCount, 0);
+  return Math.ceil((px + GRID_MARGIN_PX) / GRID_STEP_PX);
+}
 
 /**
  * '제목만' 접기의 그리드 높이(행 수). ROW_HEIGHT 48px 기준 2행(≈102px)이면
@@ -37,10 +54,12 @@ export type NoteCollapseLevel = "normal" | "more" | "title";
  */
 export const TITLE_COLLAPSE_H = 2;
 
-/** 노트 config 중 접기 관련 필드. */
+/** 노트 config 중 접기 관련 필드(+ 소제목 fit 높이 계산용 sections 개수). */
 export interface NoteCollapseConfig {
   collapse?: NoteCollapseLevel;
   normalHeight?: number;
+  /** NoteConfig.sections — 'more' fit 높이에 개수만 사용(구조적 캐스트로 전달됨). */
+  sections?: readonly unknown[];
 }
 
 export interface CollapseResult<T extends Rect> {
@@ -56,13 +75,13 @@ export interface CollapseResult<T extends Rect> {
 
 /**
  * 노트를 `level`로 접거나 펴는 새 레이아웃·config를 계산한다.
- *  - level 'more'   → 높이 변화 없음(표시만 소제목 목차) — base로 복원만(제목만에서
- *                     전환 시). normalHeight에 기준 높이를 캡처(이후 title 복원용).
+ *  - level 'more'   → 목차 fit 높이(tocCollapseH, base 상한)로 축소 — 소제목만
+ *                     보이는 만큼만 차지(아래 공백 제거). normalHeight에 기준 높이 캡처.
  *  - level 'title'  → 제목 한 줄 높이(TITLE_COLLAPSE_H)로. normalHeight 캡처는 동일.
  *  - level 'normal' → 기억해 둔 normalHeight로 h 복원.
  * base = 현재 'normal'이면 지금 h, 이미 접혀 있으면 기억해 둔 normalHeight — 그래서
- * more↔title을 오가도 원래 높이가 보존된다. 높이가 바뀌는 경우(title 진입/이탈)
- * 아래 위젯을 delta만큼 함께 이동. minH(노트 minSize.h) 미만으로는 안 줄임.
+ * more↔title을 오가도 원래 높이가 보존된다. 높이 변화량(delta)만큼 아래 위젯을
+ * 함께 이동. minH(노트 minSize.h) 미만으로는 안 줄임.
  */
 export function computeNoteCollapse<T extends Rect>(
   layout: T[],
@@ -89,9 +108,10 @@ export function computeNoteCollapse<T extends Rect>(
   let newH = item.h;
   let config: NoteCollapseConfig;
   if (level === "more") {
-    // 소제목 모드는 표시 필터일 뿐 — 크기는 사용자가 정한다(자동 절반 제거).
-    // 제목만(title)에서 전환해 오면 base(기억된 높이)로 복원된다.
-    newH = Math.max(base, minH);
+    // 소제목 모드: 목차(소제목 개수)에 딱 맞게 축소(아래 공백 제거 요구) —
+    // 사용자 높이(base)보다 크게는 안 늘리고(넘치면 내부 스크롤), minH 이상.
+    const fit = tocCollapseH(noteConfig.sections?.length ?? 0);
+    newH = Math.max(Math.min(fit, base), minH);
     config = { collapse: "more", normalHeight: base };
   } else if (level === "title") {
     newH = Math.max(TITLE_COLLAPSE_H, minH);

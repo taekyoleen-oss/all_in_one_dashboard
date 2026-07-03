@@ -43,19 +43,20 @@ export function QuickAdd({
   const close = React.useCallback(() => setOpen(false), []);
 
   if (!open) {
+    // 여백 최소화(요구: 타일 하단 공백 축소) — 얇은 한 줄 버튼(py-0.5)·좁은 마진.
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-1 flex w-full shrink-0 items-center justify-center gap-1 rounded-md border border-dashed border-border px-2 py-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="mt-0.5 flex w-full shrink-0 items-center justify-center gap-1 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Plus size={14} aria-hidden /> {label}
+        <Plus size={12} aria-hidden /> {label}
       </button>
     );
   }
 
   return (
-    <div className="mt-1 shrink-0 rounded-md border border-border bg-background/40 p-1.5">
+    <div className="mt-0.5 shrink-0 rounded-md border border-border bg-background/40 p-1">
       <div className="flex items-start gap-1.5">
         <div className="min-w-0 flex-1">{children(close)}</div>
         <button
