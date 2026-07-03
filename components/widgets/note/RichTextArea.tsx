@@ -26,6 +26,7 @@ export function RichTextArea({
   resetKey,
   placeholder,
   fill,
+  slim,
   ariaLabel,
   registerEl,
   onPersist,
@@ -39,6 +40,11 @@ export function RichTextArea({
   placeholder: string;
   /** true = 남은 높이를 채우고 내부 스크롤(단독 편집), false = 내용만큼 자라남(스택). */
   fill: boolean;
+  /**
+   * 스택(fill=false) 전용: 최소 높이를 한 줄로 줄인다 — 비어 있을 때 큰 빈 영역을
+   * 차지하지 않는 선택 영역(머리말)용. 내용이 생기면 그만큼 자라는 건 동일.
+   */
+  slim?: boolean;
   ariaLabel: string;
   registerEl: (key: string, el: HTMLDivElement | null) => void;
   onPersist: (key: string, debounce: boolean) => void;
@@ -141,7 +147,9 @@ export function RichTextArea({
         className={[
           fill
             ? "h-full w-full overflow-y-auto pb-scroll"
-            : "min-h-28 w-full",
+            : slim
+              ? "min-h-10 w-full"
+              : "min-h-28 w-full",
           "rounded-md border border-border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground [&:empty]:before:italic",
           NOTE_PROSE_CLASS,

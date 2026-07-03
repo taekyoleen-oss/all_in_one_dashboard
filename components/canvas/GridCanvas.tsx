@@ -91,7 +91,7 @@ export interface GridCanvasProps {
   /** Called when the user drags/resizes (lg layout only — see note below). */
   onLayoutChange?: (next: CanvasLayoutItem[]) => void;
   /**
-   * 노트 접기(접기/더접기/제목만)의 DB 경로 — note config + 데스크톱(lg) 레이아웃을 갱신한다.
+   * 노트 접기(펼침/소제목/제목만)의 DB 경로 — note config + 데스크톱(lg) 레이아웃을 갱신한다.
    * GridCanvas는 이를 감싸 모바일/태블릿(md/sm)에서는 기기-로컬 레이아웃에도 같은
    * 이동(노트 축소 + 아래 위젯 올림/내림)을 적용한다(요구: 모바일에서도 PC처럼 동작).
    */
@@ -1279,7 +1279,7 @@ export function GridCanvas({
     deviceLayoutsRef.current = deviceLayouts;
   }, [deviceLayouts]);
 
-  // 노트 접기(접기/더접기/제목만) — 브레이크포인트 인식 핸들러.
+  // 노트 접기(펼침/소제목/제목만) — 브레이크포인트 인식 핸들러.
   //  • lg: DB 경로(onCollapseNote)만 호출 → note config + 데스크톱 레이아웃 갱신.
   //  • md/sm: DB 경로로 config/상태를 영속한 뒤, 화면에 보이는 기기-로컬 레이아웃에도
   //    동일한 computeNoteCollapse(노트 h 축소 + 아래 위젯 delta 이동)를 적용·저장한다.

@@ -92,12 +92,13 @@ export interface UsePersistenceResult {
    */
   setShareTargetNote: (instanceId: string, on: boolean) => void;
   /**
-   * 노트 타일 접기(본문 상단 토글). level 'more' = 현재 그리드 h를 normalHeight로
-   * 기억하고 h를 절반(round, note minSize.h 이상)으로 줄임. level 'normal' = 기억해
-   * 둔 normalHeight로 h 복원. 그리드가 자유 배치(컴팩션 없음)라 높이 변화량(delta)만큼
-   * "노트 아래에 있고 노트 열과 가로로 겹치는" 위젯들을 함께 이동시켜, 더접기 시 그만큼
-   * 올라오고 접기 시 정확히 그만큼 내려가게 한다. layout과 config(collapse/normalHeight)를
-   * 한 번에 갱신하고 옮겨진 위젯까지 dirty 마킹(디바운스 flush로 영속).
+   * 노트 타일 표시/접기(본문 상단 토글 — 펼침/소제목/제목만). 높이가 바뀌는 건
+   * 'title'(제목 한 줄) 진입/이탈뿐 — 'more'(소제목 목차)는 표시 필터라 크기를
+   * 바꾸지 않는다(사용자 크기 유지, computeNoteCollapse 참조). 그리드가 자유
+   * 배치(컴팩션 없음)라 높이 변화량(delta)만큼 "노트 아래에 있고 노트 열과 가로로
+   * 겹치는" 위젯들을 함께 이동시켜, 접을 때 그만큼 올라오고 펼 때 정확히 그만큼
+   * 내려가게 한다. layout과 config(collapse/normalHeight)를 한 번에 갱신하고
+   * 옮겨진 위젯까지 dirty 마킹(디바운스 flush로 영속).
    */
   collapseNote: (instanceId: string, level: "normal" | "more" | "title") => void;
   /**

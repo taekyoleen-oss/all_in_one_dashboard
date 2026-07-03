@@ -20,11 +20,13 @@ export interface Rect {
 }
 
 /**
- * 접기 레벨.
- *  - 'normal' → 사용자가 설정한 높이 그대로(기본).
- *  - 'more'   → 그 높이의 절반.
+ * 접기 레벨. (저장 키는 하위호환을 위해 'more'를 유지 — UI 라벨은 '소제목')
+ *  - 'normal' → 펼침: 머리말+소제목+내용 전부 리스트. 높이는 사용자가 정한 그대로.
+ *  - 'more'   → 소제목: 타일에 소제목 목차만 표시(내용·머리말 숨김). **높이 자동
+ *               변경 없음** — 크기는 사용자가 정한다(요구). 제목만에서 전환 시에만
+ *               기억해 둔 높이로 복원.
  *  - 'title'  → 제목 한 줄만 보이는 최소 높이(TITLE_COLLAPSE_H). 일기·기능 소개처럼
- *               긴 노트가 캔버스를 점유하지 않게 하고, 제목 클릭으로 바로 '전체'를 연다.
+ *               긴 노트가 캔버스를 점유하지 않게 하고, 헤더 '전체'로 내용을 연다.
  */
 export type NoteCollapseLevel = "normal" | "more" | "title";
 
@@ -54,12 +56,13 @@ export interface CollapseResult<T extends Rect> {
 
 /**
  * 노트를 `level`로 접거나 펴는 새 레이아웃·config를 계산한다.
- *  - level 'more'   → 기준 높이(base)의 절반으로. normalHeight에 접기 직전 높이를 캡처.
+ *  - level 'more'   → 높이 변화 없음(표시만 소제목 목차) — base로 복원만(제목만에서
+ *                     전환 시). normalHeight에 기준 높이를 캡처(이후 title 복원용).
  *  - level 'title'  → 제목 한 줄 높이(TITLE_COLLAPSE_H)로. normalHeight 캡처는 동일.
  *  - level 'normal' → 기억해 둔 normalHeight로 h 복원.
  * base = 현재 'normal'이면 지금 h, 이미 접혀 있으면 기억해 둔 normalHeight — 그래서
- * more↔title을 오가도 원래 높이가 보존되고, 연속 클릭이 1/4로 쪼개지지 않는다.
- * 모든 경우 아래 위젯을 delta만큼 함께 이동. minH(노트 minSize.h) 미만으로는 안 줄임.
+ * more↔title을 오가도 원래 높이가 보존된다. 높이가 바뀌는 경우(title 진입/이탈)
+ * 아래 위젯을 delta만큼 함께 이동. minH(노트 minSize.h) 미만으로는 안 줄임.
  */
 export function computeNoteCollapse<T extends Rect>(
   layout: T[],
@@ -86,7 +89,9 @@ export function computeNoteCollapse<T extends Rect>(
   let newH = item.h;
   let config: NoteCollapseConfig;
   if (level === "more") {
-    newH = Math.max(Math.round(base / 2), minH);
+    // 소제목 모드는 표시 필터일 뿐 — 크기는 사용자가 정한다(자동 절반 제거).
+    // 제목만(title)에서 전환해 오면 base(기억된 높이)로 복원된다.
+    newH = Math.max(base, minH);
     config = { collapse: "more", normalHeight: base };
   } else if (level === "title") {
     newH = Math.max(TITLE_COLLAPSE_H, minH);

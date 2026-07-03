@@ -335,6 +335,8 @@ export function NoteEditor({
                 : "여기에 강의 내용을 기록하세요… (붙여넣기·이미지·표·이미지 크기조절 지원)"
             }
             fill={!hasSections}
+            // 머리말은 선택 영역 — 비어 있을 때 한 줄만 차지(요구), 쓰면 자라남.
+            slim={hasSections}
             ariaLabel="노트 본문"
             registerEl={registerEl}
             onPersist={persistKey}

@@ -9,9 +9,10 @@
  *  Editing happens in the full view — the WidgetFrame "전체" button opens
  *  NoteEditor. Keeping the tile read-only keeps small tiles clean.
  *
- *  소제목(sections)이 있으면 본문 미리보기 대신 머리말(있을 때) + 소제목 리스트를
- *  보여준다. 소제목 클릭 = 그 섹션만 열기(focusSection 핸드오프 → ExpandedView
- *  단일 섹션 모드), 전체(머리말+전 섹션)는 헤더의 '전체' 버튼.
+ *  소제목(sections)이 있으면 표시 모드 3단계(펼침=머리말+소제목+내용 전부 /
+ *  소제목=목차만 / 제목만=한 줄)를 토글로 오간다. 소제목 클릭 = 그 섹션만 열기
+ *  (focusSection 핸드오프 → ExpandedView 단일 섹션 모드), 전체(머리말+전 섹션)는
+ *  헤더의 '전체' 버튼.
  */
 
 import * as React from "react";
@@ -33,12 +34,13 @@ import type { NoteConfig } from "./types";
 const emptySubscribe = () => () => {};
 
 /**
- * 접기 토글 — 노트 타일 본문 상단의 3분할 컨트롤(펼침 | 절반 | 제목만).
- *  • 펼침(normal)  = 사용자가 설정한 높이 그대로(기본). 드래그로 자유롭게 조절.
- *  • 절반(more)    = 그 높이의 절반으로 접어 아래 위젯이 올라옴.
- *  • 제목만(title) = 제목 한 줄 높이(최소)로 접음 — 일기·긴 기록용. 제목 클릭이
- *                    곧 '전체' 열기라 내용 확인·복귀가 한 클릭이다.
- * collapseNote가 실제 그리드 h를 바꾸므로(세로 컴팩션) 이웃 위젯이 따라 이동한다.
+ * 표시 토글 — 노트 타일 본문 상단의 3분할 컨트롤(펼침 | 소제목 | 제목만).
+ *  • 펼침(normal)  = 머리말+소제목+내용 전부 세로 리스트. 높이는 사용자가 정한
+ *                    그대로(자동 변경 없음, 넘치면 스크롤).
+ *  • 소제목(more)  = 소제목 목차만 표시(머리말·내용 숨김). 높이 자동 변경 없음.
+ *  • 제목만(title) = 제목 한 줄 높이(최소)로 접음 — 일기·긴 기록용. 내용은 헤더의
+ *                    '전체' 버튼으로.
+ * '제목만' 진입/이탈 시에만 collapseNote가 그리드 h를 바꿔 이웃 위젯이 따라 이동한다.
  */
 function CollapseToggle({
   instanceId,
@@ -57,7 +59,7 @@ function CollapseToggle({
     ].join(" ");
   const items: Array<{ key: NoteCollapseLevel; label: string }> = [
     { key: "normal", label: "펼침" },
-    { key: "more", label: "절반" },
+    { key: "more", label: "소제목" },
     { key: "title", label: "제목만" },
   ];
   return (
@@ -104,11 +106,26 @@ export function NoteCompactView({
       ? config.collapse
       : "normal";
   const titleOnly = level === "title";
+  /** '소제목' 모드 — 소제목 목차만 표시(머리말·내용 숨김), 높이는 사용자 크기 유지. */
+  const tocOnly = level === "more";
 
   const safe = React.useMemo(() => sanitizeHtml(config.html), [config.html]);
   const isEmpty = htmlToText(config.html).length === 0;
-  const sections = config.sections ?? [];
+  // ?? [] 를 memoize — 인라인이면 sections 미보유 노트에서 렌더마다 새 배열이라
+  // 아래 safeSections useMemo가 매번 재계산된다(react-hooks/exhaustive-deps).
+  const sections = React.useMemo(() => config.sections ?? [], [config.sections]);
   const hasSections = sections.length > 0;
+  // 펼침 모드에서 소제목 아래에 내용까지 렌더 — 살균(2중) + 빈 본문 여부를 함께 계산.
+  const safeSections = React.useMemo(
+    () =>
+      sections.map((s) => ({
+        id: s.id,
+        title: s.title,
+        safe: sanitizeHtml(s.html),
+        empty: htmlToText(s.html).trim().length === 0,
+      })),
+    [sections],
+  );
 
   /** 소제목 클릭 → 다음 전체보기가 그 섹션만 열도록 예약 후 오버레이 오픈. */
   const openSection = (sectionId: string) => {
@@ -174,10 +191,12 @@ export function NoteCompactView({
         // 된다. 내용은 헤더의 '전체' 버튼으로 확인.
         null
       ) : hasSections ? (
-        // 소제목 리스트 — 같은 분류의 기록을 목차처럼. 머리말(본문)이 있으면 위에
-        // 미리보기(mounted 게이트, 살균 HTML), 소제목 제목은 평문이라 SSR 안전.
+        // 소제목 스택 — 펼침(normal)은 머리말 미리보기 + 각 소제목과 그 내용을 전부
+        // 아래로 리스트(넘치면 스크롤, 크기는 사용자가 정한 그대로). 소제목(more)
+        // 모드는 소제목 목차만. 소제목 제목은 평문이라 SSR 안전, 본문 HTML은
+        // mounted 게이트(살균이 DOM 기반이라 하이드레이션 분기 방지).
         <div className="min-h-0 flex-1 overflow-y-auto pb-scroll">
-          {mounted && !isEmpty ? (
+          {!tocOnly && mounted && !isEmpty ? (
             <div
               className={`mb-1.5 text-sm ${NOTE_PROSE_CLASS}`}
               // Sanitized at write-time AND here at render-time (defense in depth).
@@ -185,8 +204,8 @@ export function NoteCompactView({
             />
           ) : null}
           <ul className="flex flex-col">
-            {sections.map((s) => (
-              <li key={s.id}>
+            {safeSections.map((s) => (
+              <li key={s.id} className="flex flex-col">
                 {openFocus ? (
                   <button
                     type="button"
@@ -194,7 +213,7 @@ export function NoteCompactView({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={() => openSection(s.id)}
                     title="클릭하여 이 소제목만 보기"
-                    className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <ChevronRight
                       size={12}
@@ -206,7 +225,7 @@ export function NoteCompactView({
                     </span>
                   </button>
                 ) : (
-                  <span className="flex items-center gap-1.5 px-1 py-1 text-sm text-foreground">
+                  <span className="flex items-center gap-1.5 px-1 py-1 text-sm font-medium text-foreground">
                     <ChevronRight
                       size={12}
                       aria-hidden
@@ -217,11 +236,22 @@ export function NoteCompactView({
                     </span>
                   </span>
                 )}
+                {/* 펼침 모드에서만 소제목 내용까지 표시 — 목차(소제목 모드)에선 숨김. */}
+                {!tocOnly && mounted && !s.empty ? (
+                  <div
+                    className={`mb-1 pl-[22px] text-sm ${NOTE_PROSE_CLASS}`}
+                    // Sanitized at write-time AND here at render-time (defense in depth).
+                    dangerouslySetInnerHTML={{ __html: s.safe }}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>
           {addSectionButton}
         </div>
+      ) : tocOnly ? (
+        // 소제목 모드인데 소제목이 없음 — 본문 대신 빈 영역(하단 '＋ 소제목'만 노출).
+        <div className="min-h-0 flex-1" aria-hidden />
       ) : !mounted ? (
         // Server + first client render are identical (htmlToText/sanitizeHtml are
         // DOM-based) — defer the content branch to after mount.
