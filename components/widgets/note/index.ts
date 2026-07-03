@@ -28,6 +28,14 @@ export const noteWidget: WidgetDefinition<NoteConfig> = {
   ConfigEditor: NoteConfigEditor,
   copyBehavior: "config",
   dataMode: "static",
+  // 헤더 제목 = 노트 제목(config.title) — 프레임 헤더·전체보기가 이 제목을 쓰고,
+  // 헤더 더블클릭 변경이 config로 저장돼 기기 간 동기화된다(기기별 pb:title 미사용).
+  instanceTitle: (config) => config.title.trim() || null,
+  renameInstance: (config, title) => ({
+    ...config,
+    title: title.trim(),
+    updatedAt: Date.now(),
+  }),
 };
 
 export default noteWidget;

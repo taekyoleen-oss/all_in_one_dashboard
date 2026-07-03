@@ -110,6 +110,12 @@ export function FocusOverlay({
   if (!mounted || !shown) return null;
 
   const def = registry[shown.type];
+  // 상단 이름 — instanceTitle 위젯(노트)은 인스턴스 제목(config.title)을 표시하고,
+  // 없거나 비었으면 displayName. config가 라이브로 내려오므로 제목 입력이 즉시 반영.
+  const overlayTitle =
+    (def?.instanceTitle ? def.instanceTitle(shown.config) : null) ||
+    def?.displayName ||
+    shown.type;
   // Exit animation plays while the node is alive but no longer "visible".
   const leaving = mounted && !visible;
 
@@ -121,7 +127,7 @@ export function FocusOverlay({
       }}
       role="dialog"
       aria-modal="true"
-      aria-label={def ? `${def.displayName} 자세히 보기` : "위젯 자세히 보기"}
+      aria-label={def ? `${overlayTitle} 자세히 보기` : "위젯 자세히 보기"}
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 sm:px-6">
         {def && typeof def.icon !== "string" && def.icon ? (
@@ -130,7 +136,7 @@ export function FocusOverlay({
           </span>
         ) : null}
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
-          {def?.displayName ?? shown.type}
+          {overlayTitle}
         </h2>
         <IconButton ref={closeRef} label="닫기" onClick={onClose}>
           <X size={18} />

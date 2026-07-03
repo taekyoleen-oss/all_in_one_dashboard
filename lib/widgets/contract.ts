@@ -117,6 +117,22 @@ export interface WidgetDefinition<C = unknown> {
   sensitive?: boolean;
   /** Requires Google OAuth scope (calendar). */
   needsGoogleScope?: boolean;
+
+  /**
+   * Per-instance title read from config (e.g. note → config.title). When
+   * provided, the tile frame header AND the focus overlay show this title
+   * (falling back to `displayName` when it returns null/empty) instead of the
+   * device-local custom title — so the name is one place, synced via config.
+   */
+  instanceTitle?: (config: C) => string | null;
+  /**
+   * Companion setter for `instanceTitle` — returns a NEW full config with the
+   * title applied. The caller persists the returned value as the instance's
+   * config (jsonb), which is why the return is erased to `unknown` (same shape
+   * as the persistence layer's SaveConfigFn). Header double-click rename routes
+   * here instead of the device-local title when present.
+   */
+  renameInstance?: (config: C, title: string) => unknown;
 }
 
 /**

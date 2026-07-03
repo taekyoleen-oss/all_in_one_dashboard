@@ -41,6 +41,7 @@ import type { WidgetRegistry, Density } from "@/lib/widgets/contract";
 import {
   NoteCollapseOverrideProvider,
   WidgetFocusProvider,
+  useSaveWidgetConfig,
 } from "@/lib/widgets/persistence";
 import {
   computeNoteCollapse,
@@ -441,6 +442,8 @@ function CanvasCell({
   // Per-instance custom title (double-click the header to rename). Stored in
   // localStorage (per device) so a widget's ConfigEditor can't drop it.
   const { title: customTitle, setTitle } = usePersistedTitle(instance.instanceId);
+  // config 저장 경로 — instanceTitle 위젯(노트)의 헤더 제목 변경을 config로 영속.
+  const saveConfig = useSaveWidgetConfig();
 
   React.useEffect(() => {
     const el = cellRef.current;
@@ -477,14 +480,28 @@ function CanvasCell({
       ? null
       : React.createElement(def.icon, { size: 16 });
 
+  // instanceTitle 위젯(노트): 헤더 제목 = config의 인스턴스 제목(기기 간 동기화),
+  // 더블클릭 변경도 renameInstance → config 저장. 그 외 위젯은 기존 기기별 제목.
+  const hasConfigTitle = !!def.instanceTitle;
+  const title = hasConfigTitle
+    ? def.instanceTitle!(instance.config) || displayName
+    : customTitle || displayName;
+  const handleTitleChange = (next: string) => {
+    if (def.renameInstance) {
+      saveConfig(instance.instanceId, def.renameInstance(instance.config, next));
+    } else {
+      setTitle(next || null);
+    }
+  };
+
   return (
     <div ref={cellRef} className="h-full w-full">
       <WidgetFrame
-        title={customTitle || displayName}
+        title={title}
         icon={icon}
         actions={actions}
         tint={tint}
-        onTitleChange={(next) => setTitle(next || null)}
+        onTitleChange={handleTitleChange}
         onExpand={onExpand}
       >
         {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +
