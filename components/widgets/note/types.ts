@@ -23,11 +23,33 @@ export interface NoteAttachment {
   dataUrl: string;
 }
 
+/**
+ * 노트 안의 소제목 섹션 — 같은 분류의 기록(예: 강의 회차·일기 날짜)을 한 노트에
+ * 묶는 단위. 타일에는 소제목이 리스트로 보이고, 클릭하면 전체보기가 그 섹션만
+ * 단독으로 연다.
+ */
+export interface NoteSection {
+  /** Stable id (list keys + 단일 섹션 포커스 대상 지정). */
+  id: string;
+  /** 소제목 (타일 리스트·전체보기 섹션 헤더에 표시). */
+  title: string;
+  /** Sanitized rich-text body as HTML (본문과 동일 살균 규칙). */
+  html: string;
+  /** Last edit time (epoch ms). Optional. */
+  updatedAt?: number;
+}
+
 export interface NoteConfig {
   /** Note title (shown on the tile header area). */
   title: string;
   /** Sanitized rich-text body as HTML. */
   html: string;
+  /**
+   * 소제목 섹션 목록(선택). 비어 있거나 없으면 기존 단일 본문 노트 그대로다
+   * (무마이그레이션). 있으면 타일은 본문 미리보기 아래(머리말이 있을 때) 소제목
+   * 리스트를 보여주고, 전체보기는 머리말(html) + 섹션 스택을 렌더한다.
+   */
+  sections?: NoteSection[];
   /** Inline file attachments. */
   attachments: NoteAttachment[];
   /** Last edit time (epoch ms), for a "수정: …" line. Optional. */

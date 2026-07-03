@@ -6,15 +6,23 @@
  *  Shows the title + rendered (sanitized) note body, scrollable. Editing happens
  *  in the full view — the WidgetFrame "전체" button opens NoteEditor. Keeping the
  *  tile read-only keeps small tiles clean and avoids a heavy editor per tile.
+ *
+ *  소제목(sections)이 있으면 본문 미리보기 대신 머리말(있을 때) + 소제목 리스트를
+ *  보여준다. 제목 클릭 = 전체(머리말+전 섹션), 소제목 클릭 = 그 섹션만 열기
+ *  (focusSection 핸드오프 → ExpandedView 단일 섹션 모드).
  */
 
 import * as React from "react";
-import { NotebookPen, Paperclip, Share2 } from "lucide-react";
+import { ChevronRight, NotebookPen, Paperclip, Share2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import { useCollapseNote, useOpenWidgetFocus } from "@/lib/widgets/persistence";
 import type { NoteCollapseLevel } from "./collapseLayout";
 import { sanitizeHtml, htmlToText } from "./sanitize";
-import { NOTE_PROSE_CLASS } from "./NoteEditor";
+import { NOTE_PROSE_CLASS } from "./prose";
+import {
+  clearPendingNoteSection,
+  setPendingNoteSection,
+} from "./focusSection";
 import type { NoteConfig } from "./types";
 
 /** uSES mounted 게이트용 no-op 구독(항상 동일 참조). */
@@ -95,6 +103,15 @@ export function NoteCompactView({
   const safe = React.useMemo(() => sanitizeHtml(config.html), [config.html]);
   const isEmpty = htmlToText(config.html).length === 0;
   const titleText = config.title || "제목 없는 노트";
+  const sections = config.sections ?? [];
+  const hasSections = sections.length > 0;
+
+  /** 소제목 클릭 → 다음 전체보기가 그 섹션만 열도록 예약 후 오버레이 오픈. */
+  const openSection = (sectionId: string) => {
+    if (!openFocus) return;
+    setPendingNoteSection(instanceId, sectionId);
+    openFocus(instanceId);
+  };
 
   return (
     <div className="flex h-full w-full flex-col gap-1.5">
@@ -107,7 +124,11 @@ export function NoteCompactView({
             type="button"
             data-pb-no-drag=""
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => openFocus(instanceId)}
+            onClick={() => {
+              // 직전에 예약된 소제목이 남아 있어도 제목 클릭은 항상 '전체'.
+              clearPendingNoteSection(instanceId);
+              openFocus(instanceId);
+            }}
             title="클릭하여 전체보기"
             className="min-w-0 flex-1 truncate rounded text-left text-sm font-semibold text-foreground outline-none transition-colors hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -137,6 +158,54 @@ export function NoteCompactView({
         // '제목만' — 본문을 아예 렌더하지 않아 타일이 제목 한 줄로 최소화된다.
         // 내용은 제목 클릭(전체보기)으로 확인.
         null
+      ) : hasSections ? (
+        // 소제목 리스트 — 같은 분류의 기록을 목차처럼. 머리말(본문)이 있으면 위에
+        // 미리보기(mounted 게이트, 살균 HTML), 소제목 제목은 평문이라 SSR 안전.
+        <div className="min-h-0 flex-1 overflow-y-auto pb-scroll">
+          {mounted && !isEmpty ? (
+            <div
+              className={`mb-1.5 text-sm ${NOTE_PROSE_CLASS}`}
+              // Sanitized at write-time AND here at render-time (defense in depth).
+              dangerouslySetInnerHTML={{ __html: safe }}
+            />
+          ) : null}
+          <ul className="flex flex-col">
+            {sections.map((s) => (
+              <li key={s.id}>
+                {openFocus ? (
+                  <button
+                    type="button"
+                    data-pb-no-drag=""
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => openSection(s.id)}
+                    title="클릭하여 이 소제목만 보기"
+                    className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ChevronRight
+                      size={12}
+                      aria-hidden
+                      className="shrink-0 text-muted-foreground"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {s.title || "제목 없는 소제목"}
+                    </span>
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-1.5 px-1 py-1 text-sm text-foreground">
+                    <ChevronRight
+                      size={12}
+                      aria-hidden
+                      className="shrink-0 text-muted-foreground"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {s.title || "제목 없는 소제목"}
+                    </span>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : !mounted ? (
         // Server + first client render are identical (htmlToText/sanitizeHtml are
         // DOM-based) — defer the content branch to after mount.

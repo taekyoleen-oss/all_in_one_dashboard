@@ -31,4 +31,4 @@ export const noteWidget: WidgetDefinition<NoteConfig> = {
 };
 
 export default noteWidget;
-export type { NoteConfig } from "./types";
+export type { NoteConfig, NoteSection } from "./types";

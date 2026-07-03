@@ -84,8 +84,9 @@ export function NoteConfigEditor({
       </label>
 
       <p className="text-[11px] text-muted-foreground">
-        본문 작성·서식·이미지·표·파일 첨부는 위젯의 <b>‘전체’</b> 화면에서 할 수 있어요.
-        붙여넣기(서식 유지)·이미지 드래그&드롭도 지원합니다.
+        본문 작성·서식·이미지·표·파일 첨부와 <b>소제목(섹션) 추가·정리</b>는 위젯의{" "}
+        <b>‘전체’</b> 화면에서 할 수 있어요. 붙여넣기(서식 유지)·이미지
+        드래그&드롭도 지원합니다.
       </p>
 
       <div className="flex flex-col gap-2 rounded-md border border-border p-3">
@@ -95,12 +96,18 @@ export function NoteConfigEditor({
             <button
               type="button"
               onClick={() => {
-                onChange({ ...config, html: "", attachments: [], updatedAt: Date.now() });
+                onChange({
+                  ...config,
+                  html: "",
+                  attachments: [],
+                  sections: [],
+                  updatedAt: Date.now(),
+                });
                 setConfirming(false);
               }}
               className="inline-flex items-center justify-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Trash2 size={15} aria-hidden /> 본문·첨부 모두 삭제
+              <Trash2 size={15} aria-hidden /> 본문·소제목·첨부 모두 삭제
             </button>
             <button
               type="button"
