@@ -13,12 +13,17 @@
  */
 
 import * as React from "react";
-import { ChevronRight, NotebookPen, Paperclip, Share2 } from "lucide-react";
+import { ChevronRight, NotebookPen, Paperclip, Plus, Share2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
-import { useCollapseNote, useOpenWidgetFocus } from "@/lib/widgets/persistence";
+import {
+  useCollapseNote,
+  useOpenWidgetFocus,
+  useSaveWidgetConfig,
+} from "@/lib/widgets/persistence";
 import type { NoteCollapseLevel } from "./collapseLayout";
 import { sanitizeHtml, htmlToText } from "./sanitize";
 import { NOTE_PROSE_CLASS } from "./prose";
+import { createSection } from "./sections";
 import {
   clearPendingNoteSection,
   setPendingNoteSection,
@@ -94,6 +99,7 @@ export function NoteCompactView({
   );
 
   const openFocus = useOpenWidgetFocus();
+  const save = useSaveWidgetConfig();
   const level: NoteCollapseLevel =
     config.collapse === "more" || config.collapse === "title"
       ? config.collapse
@@ -112,6 +118,37 @@ export function NoteCompactView({
     setPendingNoteSection(instanceId, sectionId);
     openFocus(instanceId);
   };
+
+  /**
+   * 타일에서 바로 소제목 추가 — 빈 섹션을 만들어 저장하고, 그 섹션 단독 편집
+   * 화면(전체보기 단일 섹션 모드)을 바로 연다(소제목·내용을 즉시 입력).
+   * 전체보기 하단 버튼과 동일 동작의 두 번째 진입점(발견성).
+   */
+  const addSection = () => {
+    if (!openFocus) return;
+    const s = createSection(crypto.randomUUID());
+    save(instanceId, {
+      ...config,
+      sections: [...sections, s],
+      updatedAt: Date.now(),
+    });
+    setPendingNoteSection(instanceId, s.id);
+    openFocus(instanceId);
+  };
+
+  /** '＋ 소제목' 타일 버튼(공용) — 섹션 리스트 아래·본문 아래 두 자리에서 사용. */
+  const addSectionButton = openFocus ? (
+    <button
+      type="button"
+      data-pb-no-drag=""
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={addSection}
+      title="소제목을 추가하고 바로 입력"
+      className="inline-flex w-fit shrink-0 items-center gap-1 rounded px-1 py-1 text-xs text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Plus size={12} aria-hidden /> 소제목
+    </button>
+  ) : null;
 
   return (
     <div className="flex h-full w-full flex-col gap-1.5">
@@ -205,6 +242,7 @@ export function NoteCompactView({
               </li>
             ))}
           </ul>
+          {addSectionButton}
         </div>
       ) : !mounted ? (
         // Server + first client render are identical (htmlToText/sanitizeHtml are
@@ -221,6 +259,10 @@ export function NoteCompactView({
           dangerouslySetInnerHTML={{ __html: safe }}
         />
       )}
+
+      {/* 소제목이 아직 없는 노트에도 첫 소제목 진입점을 노출(발견성) — '제목만'
+          접기에선 본문과 함께 숨긴다. 섹션이 있으면 리스트 아래에서 렌더됨. */}
+      {titleOnly || hasSections ? null : addSectionButton}
     </div>
   );
 }

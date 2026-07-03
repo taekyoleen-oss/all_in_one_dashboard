@@ -363,7 +363,7 @@ export function NoteEditor({
             type="button"
             data-pb-no-drag=""
             onClick={addSection}
-            className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border border-dashed border-border px-3 py-1.5 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border border-dashed border-primary/50 px-3 py-1.5 text-sm font-medium text-primary outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus size={15} aria-hidden /> 소제목 추가
           </button>
