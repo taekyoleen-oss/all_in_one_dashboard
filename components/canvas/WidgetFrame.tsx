@@ -18,7 +18,7 @@
  */
 
 import * as React from "react";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Pencil } from "lucide-react";
 
 /* ----------------------------- Error Boundary ----------------------------- */
 
@@ -83,6 +83,11 @@ export interface WidgetFrameProps {
   /** Optional leading icon node (rendered before the title). */
   icon?: React.ReactNode;
   /**
+   * 아이콘 툴팁/스크린리더 라벨 — 위젯의 원래 종류(displayName). 제목을 바꿔도
+   * 아이콘에 마우스를 올리면 어떤 위젯인지 알 수 있다(요구: 형태로 종류 식별).
+   */
+  iconLabel?: string;
+  /**
    * Header actions slot (widget menu / focus button). Placeholder for now —
    * the toolbar/menu chunk fills this in.
    */
@@ -95,9 +100,15 @@ export interface WidgetFrameProps {
   tint?: string;
   /**
    * When provided, the title becomes editable: DOUBLE-CLICK it to rename (Enter/
-   * blur commits, Esc cancels). Used for per-instance custom titles (memo·image).
+   * blur commits, Esc cancels), or click the hover pencil next to it. Used for
+   * per-instance custom titles (memo·image).
    */
   onTitleChange?: (next: string) => void;
+  /**
+   * 외부(⋮ 메뉴 "제목 변경")에서 인라인 편집을 여는 신호 — 값이 바뀔 때마다
+   * 편집 모드로 진입한다(0/undefined는 무시).
+   */
+  editSignal?: number;
   /**
    * When provided, a "전체" button appears next to the title that opens this
    * widget full-screen (the FocusOverlay / ExpandedView). On mobile, Back closes
@@ -109,11 +120,13 @@ export interface WidgetFrameProps {
 export function WidgetFrame({
   title,
   icon,
+  iconLabel,
   actions,
   children,
   className,
   tint,
   onTitleChange,
+  editSignal,
   onExpand,
 }: WidgetFrameProps) {
   const [editing, setEditing] = React.useState(false);
@@ -123,6 +136,19 @@ export function WidgetFrame({
     const next = draft.trim();
     if (onTitleChange && next !== title) onTitleChange(next);
   };
+  const startEditing = React.useCallback(() => {
+    setDraft(title);
+    setEditing(true);
+  }, [title]);
+
+  // ⋮ 메뉴 "제목 변경" 신호 — editSignal이 증가할 때마다 편집 모드로.
+  const lastSignal = React.useRef(editSignal ?? 0);
+  React.useEffect(() => {
+    if (editSignal != null && editSignal !== lastSignal.current) {
+      lastSignal.current = editSignal;
+      if (onTitleChange) startEditing();
+    }
+  }, [editSignal, onTitleChange, startEditing]);
   return (
     <div
       style={tint ? { backgroundColor: tint } : undefined}
@@ -148,7 +174,13 @@ export function WidgetFrame({
         className="flex shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border px-[var(--density-pad)] py-1 active:cursor-grabbing"
       >
         {icon ? (
-          <span className="flex size-4 items-center justify-center text-muted-foreground">
+          // 위젯 종류 표시 — 제목을 바꿔도 아이콘(+툴팁)으로 무엇인지 식별.
+          <span
+            title={iconLabel}
+            aria-label={iconLabel}
+            role={iconLabel ? "img" : undefined}
+            className="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+          >
             {icon}
           </span>
         ) : null}
@@ -175,20 +207,29 @@ export function WidgetFrame({
             className="min-w-0 flex-1 rounded border border-border bg-background px-1 py-0.5 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         ) : (
-          <h3
-            className="min-w-0 flex-1 truncate text-sm font-medium"
-            title={onTitleChange ? "더블클릭하여 제목 변경" : undefined}
-            onDoubleClick={
-              onTitleChange
-                ? () => {
-                    setDraft(title);
-                    setEditing(true);
-                  }
-                : undefined
-            }
-          >
-            {title}
-          </h3>
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <h3
+              className="min-w-0 truncate text-sm font-medium"
+              title={onTitleChange ? "더블클릭하여 제목 변경" : undefined}
+              onDoubleClick={onTitleChange ? startEditing : undefined}
+            >
+              {title}
+            </h3>
+            {/* 제목 변경 어포던스 — 데스크톱 호버/포커스 시 연필, 터치는 상시. */}
+            {onTitleChange ? (
+              <button
+                type="button"
+                data-pb-no-drag=""
+                aria-label="제목 변경"
+                title="제목 변경"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={startEditing}
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/widget:opacity-100 pointer-coarse:opacity-100"
+              >
+                <Pencil size={12} />
+              </button>
+            ) : null}
+          </div>
         )}
         {/* 전체 — open this widget full-screen (FocusOverlay). data-pb-no-drag so
             tapping it never starts a grid drag. */}

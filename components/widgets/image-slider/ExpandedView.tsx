@@ -11,10 +11,11 @@
  */
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ImageOff } from "lucide-react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import { clampInterval, type ImageSliderConfig } from "./types";
 import { useAutoAdvance } from "./useAutoAdvance";
+import { downloadSlideImage } from "./imageFiles";
 
 export function ImageSliderExpandedView({
   config,
@@ -116,6 +117,21 @@ export function ImageSliderExpandedView({
               <ChevronRight size={20} />
             </button>
           </>
+        ) : null}
+
+        {/* 현재 이미지 다운로드(2026-07-10 사용자 요청) — 파일로 저장 */}
+        {!failed ? (
+          <button
+            type="button"
+            onClick={() =>
+              void downloadSlideImage(current, `슬라이드-${index + 1}`)
+            }
+            aria-label="현재 이미지 다운로드"
+            title="현재 이미지 다운로드"
+            className="absolute right-2 top-2 inline-flex size-9 items-center justify-center rounded-full bg-black/40 text-white outline-none transition-colors hover:bg-black/60 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Download size={18} />
+          </button>
         ) : null}
       </div>
 

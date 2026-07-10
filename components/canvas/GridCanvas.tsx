@@ -53,7 +53,7 @@ import { getDragType, clearDragType } from "@/lib/utils/dragSource";
 import { useDragAutoScroll } from "@/lib/utils/dragAutoScroll";
 import { usePersistedFontScale } from "@/lib/utils/fontScale";
 import { usePersistedColor, tintBackground } from "@/lib/utils/widgetColor";
-import { usePersistedTitle } from "@/lib/utils/widgetTitle";
+import { subscribeRename, usePersistedTitle } from "@/lib/utils/widgetTitle";
 import {
   readMobileLayout,
   writeMobileLayout,
@@ -442,6 +442,13 @@ function CanvasCell({
   // Per-instance custom title (double-click the header to rename). Stored in
   // localStorage (per device) so a widget's ConfigEditor can't drop it.
   const { title: customTitle, setTitle } = usePersistedTitle(instance.instanceId);
+  // ⋮ 메뉴 "제목 변경" → WidgetFrame 인라인 편집 열기(신호 카운터).
+  const [renameTick, setRenameTick] = React.useState(0);
+  React.useEffect(
+    () =>
+      subscribeRename(instance.instanceId, () => setRenameTick((t) => t + 1)),
+    [instance.instanceId],
+  );
   // config 저장 경로 — instanceTitle 위젯(노트)의 헤더 제목 변경을 config로 영속.
   const saveConfig = useSaveWidgetConfig();
 
@@ -499,9 +506,11 @@ function CanvasCell({
       <WidgetFrame
         title={title}
         icon={icon}
+        iconLabel={`${displayName} 위젯`}
         actions={actions}
         tint={tint}
         onTitleChange={handleTitleChange}
+        editSignal={renameTick}
         onExpand={onExpand}
       >
         {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +

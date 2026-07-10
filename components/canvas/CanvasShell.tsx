@@ -42,6 +42,7 @@ import { Toolbar } from "@/components/canvas/Toolbar";
 import { FocusOverlay } from "@/components/canvas/FocusOverlay";
 import { ConfigDialog } from "@/components/canvas/ConfigDialog";
 import { WidgetMenu } from "@/components/canvas/WidgetMenu";
+import { requestRename } from "@/lib/utils/widgetTitle";
 import { AccountMenu } from "@/components/canvas/AccountMenu";
 import { SettingsDialog } from "@/components/canvas/SettingsDialog";
 import { BrandMark } from "@/components/brand/BrandMark";
@@ -370,6 +371,7 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         onDelete={() => deleteInstance(instance.instanceId)}
         onFocus={() => openFocus(instance.instanceId)}
         onEdit={() => openEdit(instance.instanceId)}
+        onRename={() => requestRename(instance.instanceId)}
       />
     ),
     [

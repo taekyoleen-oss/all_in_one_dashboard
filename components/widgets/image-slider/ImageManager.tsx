@@ -28,61 +28,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { clampInterval, type ImageSliderConfig, type SlideImage } from "./types";
-
-function newImageId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? `img-${crypto.randomUUID().slice(0, 6)}`
-    : `img-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-const MAX_DIM = 1280;
-const JPEG_QUALITY = 0.82;
-
-// config(jsonb) 인라인 저장 상한 — 초과 파일은 건너뛰고 안내한다(기존 이미지는 불변).
-const MAX_IMAGES = 20;
-const MAX_TOTAL_CHARS = 2_000_000; // dataUrl 길이 합으로 총 ~2MB 근사
-
-/** 현재 config에 저장된 이미지 url(대부분 dataUrl)의 총 길이. */
-const totalUrlChars = (images: SlideImage[]) =>
-  images.reduce((sum, im) => sum + im.url.length, 0);
-
-/**
- * Read an image File → (optionally) downscale on a canvas → return a data URL.
- * Downscaling keeps the stored config small; on any failure we fall back to the
- * raw data URL so an image is never lost.
- */
-async function fileToDataUrl(file: File): Promise<string> {
-  const raw = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("read failed"));
-    reader.readAsDataURL(file);
-  });
-
-  try {
-    const img = document.createElement("img");
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("decode failed"));
-      img.src = raw;
-    });
-    const max = Math.max(img.naturalWidth, img.naturalHeight);
-    const scale = max > MAX_DIM ? MAX_DIM / max : 1;
-    // Small + already-sized: keep the original bytes.
-    if (scale === 1 && raw.length < 300_000) return raw;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return raw;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    // Keep PNG (alpha) as PNG; everything else → JPEG for size.
-    const type = file.type === "image/png" ? "image/png" : "image/jpeg";
-    return canvas.toDataURL(type, JPEG_QUALITY);
-  } catch {
-    return raw;
-  }
-}
+import { filesToSlides, limitMessage, newImageId } from "./imageFiles";
 
 const isHttpUrl = (s: string) => /^https?:\/\/\S+/i.test(s.trim());
 
@@ -131,41 +77,11 @@ export function ImageManager({
    * 장수(MAX_IMAGES)·총량(MAX_TOTAL_CHARS) 상한 초과분은 건너뛰고 안내한다.
    */
   const addFiles = async (files: Iterable<File> | null) => {
-    const arr = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
-    if (arr.length === 0) return;
     setBusy(true);
     setLimitMsg(null);
     try {
-      const added: SlideImage[] = [];
-      let count = config.images.length;
-      let chars = totalUrlChars(config.images);
-      let skipped = 0;
-      for (const file of arr) {
-        try {
-          if (count >= MAX_IMAGES) {
-            skipped++;
-            continue;
-          }
-          const url = await fileToDataUrl(file);
-          if (chars + url.length > MAX_TOTAL_CHARS) {
-            skipped++;
-            continue;
-          }
-          added.push({
-            id: newImageId(),
-            url,
-            caption: file.name.replace(/\.[^.]+$/, ""),
-          });
-          count++;
-          chars += url.length;
-        } catch {
-          /* skip an undecodable file */
-        }
-      }
-      if (skipped > 0)
-        setLimitMsg(
-          `저장 한도(최대 ${MAX_IMAGES}장 · 총 약 2MB) 초과로 ${skipped}개 파일을 건너뛰었습니다. 기존 이미지를 삭제한 뒤 다시 추가해 주세요.`,
-        );
+      const { added, skipped } = await filesToSlides(files, config.images);
+      if (skipped > 0) setLimitMsg(limitMessage(skipped));
       if (added.length > 0)
         onChange({ ...config, images: [...config.images, ...added] });
     } finally {

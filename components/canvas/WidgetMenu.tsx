@@ -29,6 +29,7 @@ import {
   Pencil,
   Minus,
   Plus,
+  TextCursorInput,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -60,6 +61,8 @@ export interface WidgetMenuProps {
   onFocus: () => void;
   /** Open the edit (ConfigEditor) dialog. */
   onEdit: () => void;
+  /** 헤더 제목 인라인 편집 열기(제목 변경). */
+  onRename?: () => void;
 }
 
 export function WidgetMenu({
@@ -70,6 +73,7 @@ export function WidgetMenu({
   onDelete,
   onFocus,
   onEdit,
+  onRename,
 }: WidgetMenuProps) {
   const { scale, inc, dec, reset } = usePersistedFontScale(instanceId);
   const { color, setColor } = usePersistedColor(instanceId);
@@ -175,6 +179,14 @@ export function WidgetMenu({
         <DropdownMenuItem icon={<Pencil size={16} />} onClick={onEdit}>
           편집
         </DropdownMenuItem>
+        {onRename ? (
+          <DropdownMenuItem
+            icon={<TextCursorInput size={16} />}
+            onClick={onRename}
+          >
+            제목 변경
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem icon={<Copy size={16} />} onClick={onCopy}>
           복사
