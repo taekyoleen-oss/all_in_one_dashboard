@@ -37,6 +37,8 @@ export interface ClipItem {
   ts: number;
   /** 복사한 기기 종류. */
   device: DeviceKind;
+  /** 즐겨찾기 — 목록 맨 위 고정 + 파란색 강조 표시, 자동 정리(cap)에서 제외. */
+  fav: boolean;
 }
 
 /** 기기별 라벨 + 색(모바일·PC 구분 표시). */
@@ -62,6 +64,17 @@ export function detectDevice(): DeviceKind {
   }
   const touch = (navigator.maxTouchPoints ?? 0) > 1;
   return uaMobile || (coarse && touch) ? "mobile" : "pc";
+}
+
+/** 두 epoch ms가 같은 로컬 달력 날짜인지 — '오늘 복사한 항목' 강조 판별용. */
+export function isSameLocalDay(a: number, b: number): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }
 
 /** Clamp maxItems to a sane range. */

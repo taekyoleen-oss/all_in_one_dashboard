@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -160,6 +160,7 @@ export type Database = {
         Row: {
           created_at: string
           device: string
+          fav: boolean
           id: string
           instance_id: string
           text: string
@@ -168,6 +169,7 @@ export type Database = {
         Insert: {
           created_at?: string
           device?: string
+          fav?: boolean
           id?: string
           instance_id: string
           text: string
@@ -176,6 +178,7 @@ export type Database = {
         Update: {
           created_at?: string
           device?: string
+          fav?: boolean
           id?: string
           instance_id?: string
           text?: string

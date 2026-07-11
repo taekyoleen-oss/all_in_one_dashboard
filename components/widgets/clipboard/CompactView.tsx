@@ -10,8 +10,9 @@
  */
 
 import * as React from "react";
-import { Check, Copy, ClipboardPlus, Trash2 } from "lucide-react";
+import { Check, Copy, ClipboardPlus, Star, Trash2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
+import { useNow } from "@/lib/utils/useNow";
 import {
   useClipboardHistory,
   useCopyCapture,
@@ -19,17 +20,22 @@ import {
   copyText,
   readClipboardText,
 } from "./useClipboardHistory";
-import { DEVICE_META, type ClipboardConfig } from "./types";
+import { DEVICE_META, isSameLocalDay, type ClipboardConfig } from "./types";
 
 export function ClipboardCompactView({
   config,
   instanceId,
 }: CompactViewProps<ClipboardConfig>) {
-  const { items, add, remove } = useClipboardHistory(instanceId, config.maxItems);
+  const { items, add, remove, toggleFav } = useClipboardHistory(
+    instanceId,
+    config.maxItems,
+  );
   const capture = config.captureOnCopy !== false;
   useCopyCapture(capture, add);
   // Auto-record OS clipboard when returning to the app (Ctrl+C elsewhere → here).
   useClipboardAutoCapture(capture, add);
+  // 오늘 복사한 항목 강조 — 분 단위 틱으로 자정이 지나면 강조가 자연 해제된다.
+  const now = useNow(60_000);
 
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   // 삭제는 실수 방지 위해 2단계(휴지통 → '삭제?' 재확인). 기기 간 공유 저장이라
@@ -70,7 +76,16 @@ export function ClipboardCompactView({
         </p>
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
-          {items.map((it) => (
+          {items.map((it) => {
+            // 강조 규칙: 즐겨찾기 = 오늘과 같은 형태(2단계 큰 글씨·bold)이되 파란색,
+            // 오늘 복사 = 2단계 큰 글씨·bold(기본색), 그 외 = 평소 크기.
+            const isToday = isSameLocalDay(it.ts, now.getTime());
+            const textCls = it.fav
+              ? "text-base font-bold text-blue-500"
+              : isToday
+                ? "text-base font-bold text-foreground"
+                : "text-xs text-foreground";
+            return (
             <li
               key={it.id}
               className="flex items-center gap-0.5 rounded-md transition-colors hover:bg-accent"
@@ -87,7 +102,7 @@ export function ClipboardCompactView({
                   className="size-2 shrink-0 rounded-full"
                   style={{ backgroundColor: DEVICE_META[it.device].color }}
                 />
-                <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                <span className={`min-w-0 flex-1 truncate ${textCls}`}>
                   {it.text}
                 </span>
                 {copiedId === it.id ? (
@@ -99,6 +114,20 @@ export function ClipboardCompactView({
                     aria-hidden
                   />
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleFav(it.id, !it.fav)}
+                title={it.fav ? "즐겨찾기 해제" : "즐겨찾기"}
+                aria-label={it.fav ? "즐겨찾기 해제" : "즐겨찾기"}
+                aria-pressed={it.fav}
+                className={`inline-flex size-6 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${
+                  it.fav
+                    ? "text-blue-500"
+                    : "text-muted-foreground/50 hover:text-blue-500"
+                }`}
+              >
+                <Star size={12} fill={it.fav ? "currentColor" : "none"} aria-hidden />
               </button>
               {confirmDelId === it.id ? (
                 <button
@@ -131,7 +160,8 @@ export function ClipboardCompactView({
                 </button>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

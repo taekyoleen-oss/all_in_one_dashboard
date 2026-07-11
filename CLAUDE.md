@@ -25,6 +25,7 @@
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
 | 2026-06-20 | 초기 하네스 구성(에이전트 5 + 스킬 5 + 오케스트레이터) | 전체 | 설계서 §9 하네스 청사진 실체화, 실행모드=에이전트 팀, QA·rls-verify 추가 |
+| 2026-07-11 | 클립보드 **당일 강조 + 즐겨찾기(맨 위 고정·파란색)** | clipboard/{types,useClipboardHistory,CompactView,ExpandedView}, supabase/migrations/20260711120001_pb_clipboard_fav.sql(신규), output/{types/database.ts,schema.sql} | ① **당일 복사 강조**(요구): 오늘 복사한 항목을 2단계 큰 글씨+bold(타일 text-xs→base, 전체 text-sm→lg), `isSameLocalDay`+`useNow(60s)`로 자정 지나면 자연 해제. ② **즐겨찾기**(요구): 각 항목에 별(★) 토글(타일·전체) — 즐겨찾기는 **맨 위 고정**(fav desc→created_at desc 정렬), 당일과 같은 형태이되 **파란색**(text-blue-500), cap 자동 정리에서 제외, 같은 텍스트 재복사 시 fav 승계. `pb_clipboard.fav boolean` 컬럼(멱등, RLS 기존 정책 그대로) — **라이브 적용**(migration list 11/11 local=remote, REST로 fav 조회 200 실측). CLI가 다른 Supabase 계정 로그인 상태여서 403 → 계정 재로그인 후 push(참고: 이 PC는 Supabase 계정 2개 사용 중). gen types 재생성으로 수동 타입 선반영 검증(diff=fav 3줄+BOM). tsc·lint·build 그린. |
 | 2026-06-20 | Phase 1(DB) 라이브 적용 + 게이트 통과 | supabase/migrations, output/types | pb_* 5테이블·RLS·Storage → all_in_one_board(nsedndrdykeujribqyqx), RLS 10/10 PASS |
 | 2026-06-20 | Phase 2(캔버스 셸) 구현 — 빌드 그린 | lib/, components/canvas/, app/ | 컨트랙트 동결·백스택(§6.3)·GridCanvas(RGL v2)·팔레트·보드탭·툴바·포커스, Playwright QA 통과 |
 | 2026-06-20 | Phase 4 위젯 9종(무외부의존) 구현 | components/widgets/ | 메모·계산기·세계시계·D-Day·할일·즐겨찾기·연락처·필수정보·이미지슬라이드 + 실 레지스트리, 라이브 렌더 확인 |

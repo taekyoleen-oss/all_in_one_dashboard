@@ -28,11 +28,18 @@ interface Row {
   text: string;
   device: string;
   created_at: string;
+  fav: boolean | null;
 }
 
 function toItem(r: Row): ClipItem {
   const device: DeviceKind = r.device === "mobile" ? "mobile" : "pc";
-  return { id: r.id, text: r.text, ts: Date.parse(r.created_at) || 0, device };
+  return {
+    id: r.id,
+    text: r.text,
+    ts: Date.parse(r.created_at) || 0,
+    device,
+    fav: !!r.fav,
+  };
 }
 
 export interface ClipboardHistory {
@@ -41,6 +48,8 @@ export interface ClipboardHistory {
   add: (text: string) => void;
   /** Remove one entry by id. */
   remove: (id: string) => void;
+  /** 즐겨찾기 토글 — 즐겨찾기는 맨 위 고정, cap 자동 정리에서 제외(기기 간 동기화). */
+  toggleFav: (id: string, fav: boolean) => void;
   /** Clear all entries. */
   clear: () => void;
 }
@@ -71,10 +80,12 @@ export function useClipboardHistory(
         setItems([]);
         return;
       }
+      // 즐겨찾기 먼저(맨 위 고정), 그 안에서 최신순.
       const { data } = await supabase
         .from("pb_clipboard")
-        .select("id,text,device,created_at")
+        .select("id,text,device,created_at,fav")
         .eq("instance_id", instanceId)
+        .order("fav", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(cap);
       if (!alive) return;
@@ -127,6 +138,13 @@ export function useClipboardHistory(
       } = await supabase.auth.getUser();
       if (!user) return;
       // 같은 텍스트는 위로 올림: 기존 동일 텍스트 삭제 후 새로 삽입.
+      // 기존 행이 즐겨찾기였다면 새 행에 승계(재복사해도 즐겨찾기 유지).
+      const { data: dup } = await supabase
+        .from("pb_clipboard")
+        .select("fav")
+        .eq("instance_id", instanceId)
+        .eq("text", t);
+      const wasFav = (dup ?? []).some((r) => !!(r as { fav: boolean | null }).fav);
       await supabase
         .from("pb_clipboard")
         .delete()
@@ -137,16 +155,19 @@ export function useClipboardHistory(
         instance_id: instanceId,
         text: t,
         device: detectDevice(),
+        fav: wasFav,
       });
-      // cap 초과분(오래된 것) 정리.
+      // cap 초과분(오래된 것) 정리 — 즐겨찾기는 사용자가 고정한 항목이라 제외.
       const { data } = await supabase
         .from("pb_clipboard")
-        .select("id")
+        .select("id,fav")
         .eq("instance_id", instanceId)
         .order("created_at", { ascending: false });
-      const ids = (data ?? []).map((r) => (r as { id: string }).id);
-      if (ids.length > cap) {
-        await supabase.from("pb_clipboard").delete().in("id", ids.slice(cap));
+      const nonFavIds = (data ?? [])
+        .filter((r) => !(r as { fav: boolean | null }).fav)
+        .map((r) => (r as { id: string }).id);
+      if (nonFavIds.length > cap) {
+        await supabase.from("pb_clipboard").delete().in("id", nonFavIds.slice(cap));
       }
       refresh();
     },
@@ -161,12 +182,20 @@ export function useClipboardHistory(
     [supabase, refresh],
   );
 
+  const toggleFav = React.useCallback(
+    async (id: string, fav: boolean) => {
+      await supabase.from("pb_clipboard").update({ fav }).eq("id", id);
+      refresh();
+    },
+    [supabase, refresh],
+  );
+
   const clear = React.useCallback(async () => {
     await supabase.from("pb_clipboard").delete().eq("instance_id", instanceId);
     refresh();
   }, [supabase, instanceId, refresh]);
 
-  return { items, add, remove, clear };
+  return { items, add, remove, toggleFav, clear };
 }
 
 /**

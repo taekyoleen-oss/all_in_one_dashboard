@@ -9,15 +9,16 @@
  */
 
 import * as React from "react";
-import { Check, Copy, Trash2, ClipboardPlus, Search } from "lucide-react";
+import { Check, Copy, Trash2, ClipboardPlus, Search, Star } from "lucide-react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
+import { useNow } from "@/lib/utils/useNow";
 import {
   useClipboardHistory,
   useCopyCapture,
   copyText,
   readClipboardText,
 } from "./useClipboardHistory";
-import { DEVICE_META, type ClipboardConfig } from "./types";
+import { DEVICE_META, isSameLocalDay, type ClipboardConfig } from "./types";
 
 function formatWhen(ts: number): string {
   return new Date(ts).toLocaleString("ko-KR", {
@@ -32,11 +33,13 @@ export function ClipboardExpandedView({
   config,
   instanceId,
 }: ExpandedViewProps<ClipboardConfig>) {
-  const { items, add, remove, clear } = useClipboardHistory(
+  const { items, add, remove, toggleFav, clear } = useClipboardHistory(
     instanceId,
     config.maxItems,
   );
   useCopyCapture(config.captureOnCopy !== false, add);
+  // 오늘 복사한 항목 강조 — 분 단위 틱으로 자정이 지나면 강조가 자연 해제된다.
+  const now = useNow(60_000);
 
   const [query, setQuery] = React.useState("");
   const [pasteText, setPasteText] = React.useState("");
@@ -126,7 +129,16 @@ export function ClipboardExpandedView({
         </p>
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-scroll">
-          {filtered.map((it) => (
+          {filtered.map((it) => {
+            // 강조 규칙: 즐겨찾기 = 오늘과 같은 형태(2단계 큰 글씨·bold)이되 파란색,
+            // 오늘 복사 = 2단계 큰 글씨·bold(기본색), 그 외 = 평소 크기.
+            const isToday = isSameLocalDay(it.ts, now.getTime());
+            const textCls = it.fav
+              ? "text-lg font-bold text-blue-500"
+              : isToday
+                ? "text-lg font-bold text-foreground"
+                : "text-sm text-foreground";
+            return (
             <li
               key={it.id}
               style={{ borderLeft: `3px solid ${DEVICE_META[it.device].color}` }}
@@ -138,7 +150,9 @@ export function ClipboardExpandedView({
                 title="클릭하면 다시 복사"
                 className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left outline-none"
               >
-                <span className="line-clamp-3 w-full whitespace-pre-wrap break-words text-sm text-foreground">
+                <span
+                  className={`line-clamp-3 w-full whitespace-pre-wrap break-words ${textCls}`}
+                >
                   {it.text}
                 </span>
                 <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -154,6 +168,20 @@ export function ClipboardExpandedView({
                 </span>
               </button>
               <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => toggleFav(it.id, !it.fav)}
+                  title={it.fav ? "즐겨찾기 해제" : "즐겨찾기"}
+                  aria-label={it.fav ? "즐겨찾기 해제" : "즐겨찾기"}
+                  aria-pressed={it.fav}
+                  className={`inline-flex size-7 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${
+                    it.fav
+                      ? "text-blue-500"
+                      : "text-muted-foreground hover:text-blue-500"
+                  }`}
+                >
+                  <Star size={15} fill={it.fav ? "currentColor" : "none"} aria-hidden />
+                </button>
                 <button
                   type="button"
                   onClick={() => recopy(it.id, it.text)}
@@ -176,7 +204,8 @@ export function ClipboardExpandedView({
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

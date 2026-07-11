@@ -204,3 +204,10 @@ create policy pb_images_rw on storage.objects
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+
+-- ========== 20260711120001_pb_clipboard_fav.sql ==========
+-- 클립보드 즐겨찾기: 즐겨찾기 항목은 목록 맨 위 고정 + 파란색 강조(2단계 큰 글씨·bold).
+-- fav는 기록처럼 기기 간 동기화 — pb_clipboard 컬럼(RLS는 기존 테이블 정책 그대로).
+
+alter table pb_clipboard
+  add column if not exists fav boolean not null default false;
