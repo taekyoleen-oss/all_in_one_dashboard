@@ -13,6 +13,12 @@
  *   • 이미지가 있으면 우상단 호버 오버레이로 [추가]·[다운로드] 버튼 제공 —
  *     다운로드는 현재 표시 중인 슬라이드를 파일로 저장한다.
  *  두 경로 모두 편집 다이얼로그와 같은 파이프라인(filesToSlides)으로 축소 저장.
+ *
+ *  이미지 이동 + 마지막 본 화면 유지(2026-07-12 사용자 요청):
+ *   • 마우스/펜 드래그로 이미지를 패닝(스크롤 이동)할 수 있다 — 터치는 네이티브
+ *     스크롤이 이미 같은 역할. [data-pb-no-drag] 컨테이너라 그리드 드래그와 안 겹침.
+ *   • 마지막 본 슬라이드·패닝 위치를 인스턴스별 localStorage(useSlideView)에 저장,
+ *     새로고침·재방문 시 같은 화면으로 복원한다.
  */
 
 import * as React from "react";
@@ -22,6 +28,7 @@ import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { clampInterval, type ImageSliderConfig } from "./types";
 import { useAutoAdvance } from "./useAutoAdvance";
 import { downloadSlideImage, filesToSlides, limitMessage } from "./imageFiles";
+import { readSlideView, writeSlideView } from "./useSlideView";
 
 export function ImageSliderCompactView({
   config,
@@ -29,10 +36,116 @@ export function ImageSliderCompactView({
 }: CompactViewProps<ImageSliderConfig>) {
   const images = config.images;
   const interval = clampInterval(config.intervalSec);
-  const { index } = useAutoAdvance(images.length, interval);
+  const { index, goTo } = useAutoAdvance(images.length, interval);
   const [errored, setErrored] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   );
+
+  // ── 마지막 본 화면 복원/저장 (localStorage, 인스턴스별) ──────────────────
+  const scrollBoxRef = React.useRef<HTMLDivElement | null>(null);
+  // 복원 대기 스크롤 오프셋 — 대상 슬라이드 이미지가 로드된 뒤 1회 적용(높이 필요).
+  const restoreRef = React.useRef<{
+    index: number;
+    top: number;
+    left: number;
+  } | null>(null);
+  const restoredRef = React.useRef(false);
+
+  /** img onLoad·복원 effect에서 호출 — 복원 대상 슬라이드가 로드됐을 때만 적용. */
+  const applyRestoredScroll = (loadedIndex: number) => {
+    const el = scrollBoxRef.current;
+    const pending = restoreRef.current;
+    if (!el || !pending || pending.index !== loadedIndex) return;
+    // 이미지가 아직 높이를 안 가졌으면(로드 전) pending을 소모하지 않는다 —
+    // 이후 onLoad가 다시 시도한다. 오프셋 0 복원은 스크롤 불가여도 무해.
+    const scrollable =
+      el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
+    if (!scrollable && (pending.top > 0 || pending.left > 0)) return;
+    restoreRef.current = null;
+    el.scrollTop = pending.top;
+    el.scrollLeft = pending.left;
+  };
+
+  React.useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const v = readSlideView(instanceId);
+    const valid = v.index > 0 && v.index < images.length;
+    restoreRef.current = { index: valid ? v.index : 0, top: v.top, left: v.left };
+    if (valid) {
+      goTo(v.index); // 대상 슬라이드로 전환 — 새 img의 onLoad가 스크롤을 적용
+    } else {
+      // 첫 슬라이드가 복원 대상: dataURL 등 빠른 로드는 onLoad가 이 effect보다
+      // 먼저 발화할 수 있어(passive effect는 paint 이후) 여기서 즉시 1회 시도.
+      applyRestoredScroll(0);
+    }
+  }, [instanceId, images.length, goTo]);
+
+  const indexRef = React.useRef(0);
+  const persistView = React.useCallback(() => {
+    const el = scrollBoxRef.current;
+    writeSlideView(instanceId, {
+      index: indexRef.current,
+      top: el?.scrollTop ?? 0,
+      left: el?.scrollLeft ?? 0,
+    });
+  }, [instanceId]);
+
+  // 슬라이드가 바뀔 때마다 저장(자동 전환 포함). 마운트 직후 1회는 건너뛰어
+  // 복원 전에 저장값이 {0,0}으로 덮이지 않게 한다.
+  const skippedFirstPersistRef = React.useRef(false);
+  React.useEffect(() => {
+    indexRef.current = index;
+    if (!skippedFirstPersistRef.current) {
+      skippedFirstPersistRef.current = true;
+      return;
+    }
+    persistView();
+  }, [index, persistView]);
+
+  // 스크롤(패닝·휠·터치)마다 rAF 스로틀로 저장.
+  const scrollRafRef = React.useRef(0);
+  const onScroll = () => {
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = 0;
+      persistView();
+    });
+  };
+  React.useEffect(
+    () => () => {
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    },
+    [],
+  );
+
+  // ── 마우스/펜 드래그 패닝 (터치는 네이티브 스크롤 그대로) ────────────────
+  const panRef = React.useRef<{ pointerId: number; x: number; y: number } | null>(
+    null,
+  );
+  const [panning, setPanning] = React.useState(false);
+  const onPanPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "touch" || e.button !== 0) return;
+    panRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setPanning(true);
+  };
+  const onPanPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== e.pointerId) return;
+    const el = scrollBoxRef.current;
+    if (!el) return;
+    el.scrollTop -= e.clientY - pan.y;
+    el.scrollLeft -= e.clientX - pan.x;
+    pan.x = e.clientX;
+    pan.y = e.clientY;
+  };
+  const endPan = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (panRef.current?.pointerId !== e.pointerId) return;
+    panRef.current = null;
+    setPanning(false);
+    persistView();
+  };
 
   // 타일에서 바로 추가 — 편집과 동일 파이프라인으로 config에 영속.
   const save = useSaveWidgetConfig();
@@ -118,8 +231,17 @@ export function ImageSliderCompactView({
           </div>
         ) : (
           <div
+            ref={scrollBoxRef}
             data-pb-no-drag=""
-            className="h-full w-full overflow-y-auto pb-scroll"
+            onScroll={onScroll}
+            onPointerDown={onPanPointerDown}
+            onPointerMove={onPanPointerMove}
+            onPointerUp={endPan}
+            onPointerCancel={endPan}
+            className={[
+              "h-full w-full overflow-y-auto pb-scroll",
+              panning ? "cursor-grabbing select-none" : "cursor-grab",
+            ].join(" ")}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied URL (Storage upload deferred); can't be allowlisted in next.config, and onError drives the placeholder. */}
             <img
@@ -127,6 +249,8 @@ export function ImageSliderCompactView({
               src={current.url}
               alt={current.caption ?? ""}
               loading="lazy"
+              draggable={false}
+              onLoad={() => applyRestoredScroll(index)}
               onError={() =>
                 setErrored((prev) => {
                   const n = new Set(prev);

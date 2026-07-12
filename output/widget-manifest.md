@@ -20,10 +20,10 @@
 | `favorites` | 즐겨찾기 | core | static | config | – | – | `{ links[] }`(label+url+optional group) — 파비콘 그리드(DuckDuckGo ip3) → onError 시 **글자 아바타 폴백**(API 키·네트워크 불필요). Expanded는 그룹별 목록 |
 | `contacts` | 연락처 | core | static | **custom** | – | – | `{ contacts[] }`(name/phone/email/memo/favorite) — Compact=즐겨찾기, Expanded=전체+검색+`tel:`/`mailto:`+필드별 복사. 개인 연락처는 D5 허용(비민감) |
 | `essential-info` | 필수정보 | core | static | **custom** | **true** | – | `{ items[] }`(label+value+masked) — 행별 마스킹(명시적 reveal). ConfigEditor에 **D5 경고 배너**(주민번호·카드전체·비밀번호·계좌비번 저장 금지, 중간수준만; 차단 아닌 경고). 값 단위 복사 |
-| `image-slider` | 이미지 슬라이드 | core | static | config | – | – | `{ images[], intervalSec }` — Compact=자동전환 썸네일, Expanded=대형 뷰어(prev/next·키보드·dot). `prefers-reduced-motion` 시 자동전환 정지. **Storage 업로드 보류** → 현재 URL/`createObjectURL` 미리보기. `// TODO(storage)`: pb-images `{user_id}/{instance_id}/{file}` 업로드 후 signed-URL 저장 |
+| `image-slider` | 이미지 슬라이드 | core | static | config | – | – | `{ images[], intervalSec }` — Compact=자동전환 썸네일(+마우스 드래그 패닝, 마지막 본 슬라이드·위치 localStorage 복원), Expanded=대형 뷰어(prev/next·키보드·dot, 마지막 본 슬라이드에서 시작). `prefers-reduced-motion` 시 자동전환 정지. 파일 추가는 dataURL 인라인(상한 **40장·총 ~4MB**). `// TODO(storage)`: pb-images `{user_id}/{instance_id}/{file}` 업로드 후 signed-URL 저장 |
 
 **접근성/모션**: 모든 위젯 색상 단독신호 금지(기호/라벨 병기), 키보드 조작, masked 값은 명시적 reveal, 슬라이더 `prefers-reduced-motion` 준수.
-**위젯 추가 파일**: 각 `{type}/` = `index.ts`·`types.ts`·`CompactView.tsx`·`ExpandedView.tsx`·`ConfigEditor.tsx`(+ `*Manager.tsx`/helper). 공용: `lib/utils/useCopy.ts`(custom copy 피드백), favorites `FaviconImg.tsx`, image-slider `useAutoAdvance.ts`.
+**위젯 추가 파일**: 각 `{type}/` = `index.ts`·`types.ts`·`CompactView.tsx`·`ExpandedView.tsx`·`ConfigEditor.tsx`(+ `*Manager.tsx`/helper). 공용: `lib/utils/useCopy.ts`(custom copy 피드백), favorites `FaviconImg.tsx`, image-slider `useAutoAdvance.ts`·`useSlideView.ts`(마지막 본 화면 localStorage)·`imageFiles.ts`(dataURL 파이프라인·상한).
 
 ## Batch 3 (API 연동 — 예정)
 

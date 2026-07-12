@@ -20,8 +20,8 @@ const MAX_DIM = 1280;
 const JPEG_QUALITY = 0.82;
 
 // config(jsonb) 인라인 저장 상한 — 초과 파일은 건너뛰고 안내한다(기존 이미지는 불변).
-export const MAX_IMAGES = 20;
-export const MAX_TOTAL_CHARS = 2_000_000; // dataUrl 길이 합으로 총 ~2MB 근사
+export const MAX_IMAGES = 40;
+export const MAX_TOTAL_CHARS = 4_000_000; // dataUrl 길이 합으로 총 ~4MB 근사
 
 /** 현재 config에 저장된 이미지 url(대부분 dataUrl)의 총 길이. */
 export const totalUrlChars = (images: SlideImage[]) =>
@@ -104,7 +104,7 @@ export async function filesToSlides(
 }
 
 export const limitMessage = (skipped: number) =>
-  `저장 한도(최대 ${MAX_IMAGES}장 · 총 약 2MB) 초과로 ${skipped}개 파일을 건너뛰었습니다. 기존 이미지를 삭제한 뒤 다시 추가해 주세요.`;
+  `저장 한도(최대 ${MAX_IMAGES}장 · 총 약 ${Math.round(MAX_TOTAL_CHARS / 1_000_000)}MB) 초과로 ${skipped}개 파일을 건너뛰었습니다. 기존 이미지를 삭제한 뒤 다시 추가해 주세요.`;
 
 /* ------------------------------- download -------------------------------- */
 

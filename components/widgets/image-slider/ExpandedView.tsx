@@ -8,6 +8,9 @@
  *  prefers-reduced-motion). The interval VALUE is edited in the ConfigEditor (per
  *  the frozen contract, no onChange here) — the current setting is shown with a
  *  pointer there.
+ *
+ *  타일에서 마지막 본 슬라이드에서 시작한다(2026-07-12 사용자 요청 — 마지막 화면
+ *  유지). 읽기만 하고 쓰지 않는다 — 저장 주체는 아래에 계속 마운트된 타일.
  */
 
 import * as React from "react";
@@ -16,9 +19,11 @@ import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import { clampInterval, type ImageSliderConfig } from "./types";
 import { useAutoAdvance } from "./useAutoAdvance";
 import { downloadSlideImage } from "./imageFiles";
+import { readSlideView } from "./useSlideView";
 
 export function ImageSliderExpandedView({
   config,
+  instanceId,
 }: ExpandedViewProps<ImageSliderConfig>) {
   const images = config.images;
   const interval = clampInterval(config.intervalSec);
@@ -26,6 +31,15 @@ export function ImageSliderExpandedView({
     images.length,
     interval,
   );
+
+  // 열릴 때 1회, 타일이 마지막으로 보던 슬라이드로 점프(마지막 화면 유지).
+  const syncedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (syncedRef.current) return;
+    syncedRef.current = true;
+    const v = readSlideView(instanceId);
+    if (v.index > 0 && v.index < images.length) goTo(v.index);
+  }, [instanceId, images.length, goTo]);
   const [errored, setErrored] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   );
