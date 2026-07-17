@@ -155,6 +155,16 @@ body {
   border-right-color: var(--muted-foreground);
   border-bottom-color: var(--muted-foreground);
 }
+/* 4모서리 리사이즈: RGL이 핸들을 타일 콘텐츠 뒤에 append하므로 핸들이 클릭을
+   가로챈다. 기본 20px이면 상단 핸들이 헤더의 ⋮ 메뉴(우상, 12px 인셋)·종류 아이콘
+   (좌상)을 침범 → 상단 두 핸들만 16px로 줄여 아이콘 영역을 비켜간다(하단은 기존
+   se와 동일하게 20px 유지). 글리프(::after)는 로컬 우하단 기준이라 회전 후에도
+   각 모서리에 정확히 붙는다. */
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  width: 16px;
+  height: 16px;
+}
 
 /* 자동정렬/이동 시 타일이 새 자리로 부드럽게 이동(요구: 정렬 애니메이션). RGL은
    드래그·리사이즈 중인 타일에 더 구체적인 셀렉터(.react-draggable-dragging /

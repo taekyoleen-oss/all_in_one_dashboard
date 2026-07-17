@@ -1606,7 +1606,10 @@ export function GridCanvas({
     [interactive],
   );
   const resizeConfig = React.useMemo(
-    () => ({ enabled: interactive, handles: ["se"] as const }),
+    // 4모서리 리사이즈 (요구: 우하단뿐 아니라 좌상·우상·좌하에서도 크기 조절).
+    // push/clamp 로직은 전부 렉트 기반이라 방향 무관 — nw/ne/sw는 RGL이 x/y를
+    // 함께 조정하고, 겹침 해소는 기존 anchor 푸시 경로를 그대로 탄다.
+    () => ({ enabled: interactive, handles: ["se", "sw", "ne", "nw"] as const }),
     [interactive],
   );
   const dropConfig = React.useMemo(
