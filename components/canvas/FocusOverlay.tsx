@@ -23,7 +23,7 @@
  */
 
 import * as React from "react";
-import { X } from "lucide-react";
+import { PictureInPicture2, Pencil, X } from "lucide-react";
 import type { WidgetRegistry } from "@/lib/widgets/contract";
 import type { WidgetInstance } from "@/components/canvas/GridCanvas";
 import { FocusCloseProvider } from "@/lib/widgets/persistence";
@@ -39,6 +39,15 @@ export interface FocusOverlayProps {
   open: boolean;
   /** Close (routes through history.back via useBackStack.closeTop). */
   onClose: () => void;
+  /** 전체보기에서 위젯 속성 편집(ConfigDialog가 이 위에 스택). */
+  onEdit?: () => void;
+  /** 위젯을 항상-위 PiP 창으로 고정(Document PiP). */
+  onPip?: () => void;
+  /**
+   * 편집 다이얼로그가 이 오버레이 위에 스택된 동안 true — 둘 다 window 레벨
+   * Esc 리스너라, 가드 없이는 Esc 한 번에 편집+전체보기가 같이 닫힌다.
+   */
+  escDisabled?: boolean;
 }
 
 function prefersReducedMotion(): boolean {
@@ -53,6 +62,9 @@ export function FocusOverlay({
   instance,
   open,
   onClose,
+  onEdit,
+  onPip,
+  escDisabled = false,
 }: FocusOverlayProps) {
   // The parent keeps passing the focused `instance` (resolved from a persisted
   // focusId) even while closing, so the exit animation always has content — no
@@ -96,8 +108,9 @@ export function FocusOverlay({
   }, [visible]);
 
   // Esc → 닫기 (키보드 사용자용 — X·뒤로가기와 같은 closeTop 경로).
+  // escDisabled(편집 다이얼로그가 위에 스택) 동안엔 ConfigDialog의 Esc만 동작.
   React.useEffect(() => {
-    if (!visible) return;
+    if (!visible || escDisabled) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
@@ -105,7 +118,7 @@ export function FocusOverlay({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [visible, onClose]);
+  }, [visible, escDisabled, onClose]);
 
   if (!mounted || !shown) return null;
 
@@ -138,6 +151,16 @@ export function FocusOverlay({
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
           {overlayTitle}
         </h2>
+        {onPip ? (
+          <IconButton label="화면 앞에 고정 (다른 앱 위에 항상 표시)" onClick={onPip}>
+            <PictureInPicture2 size={18} />
+          </IconButton>
+        ) : null}
+        {onEdit ? (
+          <IconButton label="편집" onClick={onEdit}>
+            <Pencil size={18} />
+          </IconButton>
+        ) : null}
         <IconButton ref={closeRef} label="닫기" onClick={onClose}>
           <X size={18} />
         </IconButton>

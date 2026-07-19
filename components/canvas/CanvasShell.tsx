@@ -41,6 +41,11 @@ import { BoardTabs } from "@/components/canvas/BoardTabs";
 import { Toolbar } from "@/components/canvas/Toolbar";
 import { FocusOverlay } from "@/components/canvas/FocusOverlay";
 import { ConfigDialog } from "@/components/canvas/ConfigDialog";
+import {
+  WidgetPipPortal,
+  openWidgetPipWindow,
+  isDocumentPipSupported,
+} from "@/components/canvas/WidgetPip";
 import { WidgetMenu } from "@/components/canvas/WidgetMenu";
 import { requestRename } from "@/lib/utils/widgetTitle";
 import { AccountMenu } from "@/components/canvas/AccountMenu";
@@ -177,6 +182,11 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
   // Overlay ids edited/focused: track WHICH instance each overlay targets.
   const [focusId, setFocusId] = React.useState<string | null>(null);
   const [editId, setEditId] = React.useState<string | null>(null);
+  // 항상-위 고정(Document PiP): 고정된 인스턴스 id + 열린 PiP 창.
+  const [pip, setPip] = React.useState<{
+    instanceId: string;
+    win: Window;
+  } | null>(null);
 
   // GridCanvas가 등록하는 브레이크포인트 인식 노트 접기 핸들러. FocusOverlay(그리드
   // 밖)의 '제목만 접기'도 이 경로를 타야 모바일 기기-로컬 레이아웃까지 갱신된다.
@@ -301,6 +311,57 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
     },
     [openOverlay],
   );
+
+  /* ----- 항상-위 고정(PiP): 전체보기의 고정 버튼 → OS 최상위 작은 창 ----- */
+  const openPip = React.useCallback(
+    async (instanceId: string) => {
+      if (!isDocumentPipSupported()) {
+        toast({
+          title: "화면 고정 미지원 브라우저",
+          description:
+            "이 브라우저는 위젯 고정(PiP)을 지원하지 않습니다. 최신 Chrome/Edge를 사용해 주세요.",
+        });
+        return;
+      }
+      try {
+        // 사용자 제스처(클릭) 콜스택 안에서 창을 연다(브라우저 요구사항).
+        const win = await openWidgetPipWindow();
+        setPip({ instanceId, win });
+        // 전체보기는 닫아 대시보드/다른 앱 작업을 계속할 수 있게 한다.
+        closeTop();
+      } catch {
+        toast({
+          title: "화면 고정을 열 수 없습니다",
+          description: "잠시 후 다시 시도해 주세요.",
+        });
+      }
+    },
+    [toast, closeTop],
+  );
+  const closePip = React.useCallback(() => setPip(null), []);
+
+  // PiP 대상은 전 보드에서 해석 — 탭을 바꿔도 고정 창이 유지된다. 삭제되면 null.
+  const pipInstance = React.useMemo(() => {
+    if (!pip) return null;
+    for (const b of boards) {
+      const found = b.instances.find((i) => i.instanceId === pip.instanceId);
+      if (found) return found;
+    }
+    return null;
+  }, [pip, boards]);
+
+  // 셸 언마운트(로그아웃 등) 또는 고정 대상 교체 시 이전 PiP 창 정리.
+  React.useEffect(() => {
+    if (!pip) return;
+    const w = pip.win;
+    return () => {
+      try {
+        w.close();
+      } catch {
+        // 이미 닫힌 창 — 무시.
+      }
+    };
+  }, [pip]);
 
   // 위젯이 점유할 수 있는 최대 폭(registry maxSize.w, lg 열수로 클램프) 조회.
   const maxWOf = React.useCallback(
@@ -524,6 +585,9 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
           instance={focusInstance}
           open={focusOpen}
           onClose={closeTop}
+          onEdit={focusId != null ? () => openEdit(focusId) : undefined}
+          onPip={focusId != null ? () => void openPip(focusId) : undefined}
+          escDisabled={editOpen}
         />
       </NoteCollapseOverrideProvider>
       <ConfigDialog
@@ -533,6 +597,20 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
         onSave={saveConfig}
         onClose={closeTop}
       />
+
+      {/* 항상-위 고정 창 — 포털이 이 트리(WidgetPersistenceProvider) 안이라
+          PiP 안에서의 인라인 편집/저장도 같은 영속 경로를 탄다. */}
+      {pip ? (
+        <NoteCollapseOverrideProvider collapseNote={collapseViaGrid}>
+          <WidgetPipPortal
+            registry={widgetRegistry}
+            instance={pipInstance}
+            pipWindow={pip.win}
+            theme={theme}
+            onClosed={closePip}
+          />
+        </NoteCollapseOverrideProvider>
+      ) : null}
     </main>
     </WidgetPersistenceProvider>
   );
