@@ -25,6 +25,9 @@ export const memoWidget: WidgetDefinition<MemoConfig> = {
   ConfigEditor: MemoConfigEditor,
   copyBehavior: "content",
   dataMode: "static",
+  // 내용 편집은 전체보기(편집 가능 textarea)에서 — 메뉴 '편집'이 전체보기를 열고,
+  // ConfigEditor(색상·글자·비밀번호)는 '스타일 편집'으로 노출된다.
+  editInFocus: true,
 };
 
 export default memoWidget;

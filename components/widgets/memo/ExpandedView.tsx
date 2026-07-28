@@ -1,14 +1,11 @@
 "use client";
 
 /**
- * memo · ExpandedView — full-screen readable rendering of the memo (설계서 §2.1).
- *
- *  Contract note: ExpandedView(config, instanceId) has NO onChange — the frozen
- *  contract routes persistence through ConfigEditor (편집 dialog) only. So focus
- *  mode presents the memo at a comfortable reading size with a *view-only*
- *  font-size control (a local preference, not persisted), and points the user to
- *  편집 for changing the content. This keeps us strictly on-contract while still
- *  honoring the spec's "전체 편집 · 글자 크기" intent (size persists via Config).
+ * memo · ExpandedView — full-screen EDITABLE memo (편집=전체 화면 환경, 노트와
+ * 동일 UX). The body is the same inline-edit textarea as the tile (useMemoText:
+ * uncontrolled + debounced persist via widget-persistence context + external
+ * sync). 색상·비밀번호·기본 크기는 '스타일 편집'(ConfigEditor)에서. The
+ * font-size control here stays *view-only* (local preference, not persisted).
  */
 
 import * as React from "react";
@@ -21,12 +18,17 @@ import {
   type MemoSize,
 } from "./types";
 import { MemoLockPrompt, useMemoLock } from "./MemoLock";
+import { useMemoText } from "./useMemoText";
 
 const SIZE_ORDER: MemoSize[] = ["sm", "md", "lg"];
 const SIZE_LABEL: Record<MemoSize, string> = { sm: "작게", md: "보통", lg: "크게" };
 
-export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
+export function MemoExpandedView({
+  config,
+  instanceId,
+}: ExpandedViewProps<MemoConfig>) {
   const { locked, hasLock, lock, tryUnlock } = useMemoLock(config);
+  const { ref: textRef, onChange, onBlur } = useMemoText(instanceId, config);
   // View-only override of the rendered size (does NOT mutate config). Seeded from
   // config.size during render via initializer — no setState-in-effect.
   const [viewSize, setViewSize] = React.useState<MemoSize>(config.size);
@@ -86,26 +88,27 @@ export function MemoExpandedView({ config }: ExpandedViewProps<MemoConfig>) {
             style={{ backgroundColor: accent }}
           />
         ) : null}
-        {config.text.trim() ? (
-          <p
-            // Unset textColor → text-foreground (테마 자동); a concrete color overrides.
-            style={config.textColor ? { color: config.textColor } : undefined}
-            className={[
-              "min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words leading-relaxed text-foreground",
-              MEMO_SIZE_CLASS_EXPANDED[viewSize],
-            ].join(" ")}
-          >
-            {config.text}
-          </p>
-        ) : (
-          <p className="flex-1 text-sm italic text-muted-foreground">
-            빈 메모입니다. 헤더의 ⋮ 메뉴에서 편집을 눌러 내용을 추가하세요.
-          </p>
-        )}
+        <textarea
+          // Uncontrolled (caret-safe); useMemoText persists (debounced) and
+          // syncs external edits when unfocused. textColor unset → 테마 자동.
+          ref={textRef}
+          defaultValue={config.text}
+          onChange={onChange}
+          onBlur={onBlur}
+          placeholder="여기에 메모를 입력하세요…"
+          spellCheck={false}
+          style={config.textColor ? { color: config.textColor } : undefined}
+          className={[
+            "min-h-0 min-w-0 flex-1 resize-none bg-transparent leading-relaxed outline-none",
+            "text-foreground placeholder:italic placeholder:text-muted-foreground",
+            MEMO_SIZE_CLASS_EXPANDED[viewSize],
+          ].join(" ")}
+        />
       </div>
 
       <p className="shrink-0 text-xs text-muted-foreground">
-        내용·색상·기본 크기를 바꾸려면 위젯 메뉴의 “편집”을 사용하세요.
+        색상·글자 색·기본 크기·비밀번호는 ⋮ 메뉴의 “스타일 편집”에서 바꿀 수
+        있어요.
       </p>
     </div>
   );

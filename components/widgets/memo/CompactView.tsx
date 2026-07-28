@@ -10,46 +10,18 @@
 import * as React from "react";
 import { Lock } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
-import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { MEMO_COLORS, MEMO_SIZE_CLASS, type MemoConfig } from "./types";
 import { MemoLockPrompt, useMemoLock } from "./MemoLock";
+import { useMemoText } from "./useMemoText";
 
 export function MemoCompactView({
   config,
   instanceId,
 }: CompactViewProps<MemoConfig>) {
-  const save = useSaveWidgetConfig();
   const { locked, hasLock, lock, tryUnlock } = useMemoLock(config);
   const accent = MEMO_COLORS[config.color]?.swatch ?? MEMO_COLORS.default.swatch;
   const hasAccent = config.color !== "default";
-
-  // Latest config in a ref so the debounced save always merges the current
-  // color/size, not a stale closure. (렌더 중 ref 쓰기 대신 커밋 후 동기화)
-  const configRef = React.useRef(config);
-  React.useEffect(() => {
-    configRef.current = config;
-  }, [config]);
-  const timer = React.useRef<number | null>(null);
-
-  const persist = React.useCallback(
-    (text: string, debounce: boolean) => {
-      if (timer.current != null) {
-        window.clearTimeout(timer.current);
-        timer.current = null;
-      }
-      const run = () => save(instanceId, { ...configRef.current, text });
-      if (debounce) timer.current = window.setTimeout(run, 500);
-      else run();
-    },
-    [instanceId, save],
-  );
-
-  React.useEffect(
-    () => () => {
-      if (timer.current != null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
+  const { ref: textRef, onChange, onBlur } = useMemoText(instanceId, config);
 
   if (locked) return <MemoLockPrompt tryUnlock={tryUnlock} size="compact" />;
 
@@ -81,10 +53,11 @@ export function MemoCompactView({
         ) : null}
         <textarea
         // Uncontrolled (defaultValue) so optimistic config updates don't reset
-        // the caret mid-typing; keyed by instanceId via the parent remount.
+        // the caret mid-typing; useMemoText syncs external edits when unfocused.
+        ref={textRef}
         defaultValue={config.text}
-        onChange={(e) => persist(e.target.value, true)}
-        onBlur={(e) => persist(e.target.value, false)}
+        onChange={onChange}
+        onBlur={onBlur}
         placeholder="여기에 메모를 입력하세요…"
         spellCheck={false}
         data-pb-no-drag=""

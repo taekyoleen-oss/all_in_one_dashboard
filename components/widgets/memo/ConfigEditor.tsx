@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * memo · ConfigEditor — body text + accent color + size (설계서 §2.1 #2).
+ * memo · ConfigEditor — 스타일 편집 (accent color · text color · size · 비밀번호).
  *
- *  Reports every change up via onChange; the parent (ConfigDialog) owns the draft
- *  + persistence. Pure controlled inputs — no local mirror of config.
+ *  내용 편집은 여기 없다(editInFocus): 메뉴의 '편집'(전체 화면) 또는 타일에서
+ *  바로 입력. Reports every change up via onChange; the parent (ConfigDialog)
+ *  owns the draft + persistence (비밀번호 섹션만 즉시 영속).
  */
 
 import * as React from "react";
@@ -30,30 +31,12 @@ export function MemoConfigEditor({
   onChange,
   instanceId,
 }: ConfigEditorProps<MemoConfig>) {
-  const locked = !!config.pwHash;
   return (
     <div className="flex flex-col gap-4">
-      {/* 잠긴 메모는 내용을 편집기에 노출하지 않는다(잠금 우회 방지) → 타일에서 해제 후 편집. */}
-      {locked ? (
-        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <Lock size={14} aria-hidden className="shrink-0" />
-          <span>
-            비밀번호로 잠긴 메모입니다. 내용은 타일에서 잠금 해제 후 편집하세요.
-          </span>
-        </div>
-      ) : (
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-muted-foreground">메모 내용</span>
-          <textarea
-            value={config.text}
-            onChange={(e) => onChange({ ...config, text: e.target.value })}
-            spellCheck={false}
-            rows={6}
-            placeholder="메모를 입력하세요…"
-            className="min-h-32 resize-y rounded-md border border-border bg-background p-2 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </label>
-      )}
+      <p className="text-[11px] text-muted-foreground">
+        메모 <b>내용</b>은 메뉴의 <b>‘편집’</b>(전체 화면)이나 타일에서 바로
+        입력해요. 여기서는 색상·글자·비밀번호를 설정합니다.
+      </p>
 
       <MemoPasswordSection
         config={config}
