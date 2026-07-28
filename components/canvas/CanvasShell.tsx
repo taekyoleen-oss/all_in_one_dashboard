@@ -423,18 +423,30 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
 
   /* ----- render-prop: per-instance widget menu in the frame header ----- */
   const renderActions = React.useCallback(
-    (instance: WidgetInstance) => (
-      <WidgetMenu
-        instanceId={instance.instanceId}
-        onCopy={() => copyInstance(instance.instanceId)}
-        onPaste={pasteFromClipboard}
-        canPaste={clipboard.hasContent}
-        onDelete={() => deleteInstance(instance.instanceId)}
-        onFocus={() => openFocus(instance.instanceId)}
-        onEdit={() => openEdit(instance.instanceId)}
-        onRename={() => requestRename(instance.instanceId)}
-      />
-    ),
+    (instance: WidgetInstance) => {
+      // editInFocus 위젯(노트): '편집'=전체보기(내용 편집 환경), 나머지 설정은
+      // '스타일 편집'(ConfigDialog)으로 분리.
+      const editsInFocus = Boolean(widgetRegistry[instance.type]?.editInFocus);
+      return (
+        <WidgetMenu
+          instanceId={instance.instanceId}
+          onCopy={() => copyInstance(instance.instanceId)}
+          onPaste={pasteFromClipboard}
+          canPaste={clipboard.hasContent}
+          onDelete={() => deleteInstance(instance.instanceId)}
+          onFocus={() => openFocus(instance.instanceId)}
+          onEdit={() =>
+            editsInFocus
+              ? openFocus(instance.instanceId)
+              : openEdit(instance.instanceId)
+          }
+          onStyleEdit={
+            editsInFocus ? () => openEdit(instance.instanceId) : undefined
+          }
+          onRename={() => requestRename(instance.instanceId)}
+        />
+      );
+    },
     [
       copyInstance,
       pasteFromClipboard,

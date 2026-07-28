@@ -30,6 +30,9 @@ export const noteWidget: WidgetDefinition<NoteConfig> = {
   dataMode: "static",
   // 헤더 제목 = 노트 제목(config.title) — 프레임 헤더·전체보기가 이 제목을 쓰고,
   // 헤더 더블클릭 변경이 config로 저장돼 기기 간 동기화된다(기기별 pb:title 미사용).
+  // 내용 편집은 전체보기(NoteEditor)에서 — 메뉴 '편집'이 전체보기를 열고,
+  // ConfigEditor(제목·공유·비우기)는 '스타일 편집'으로 노출된다.
+  editInFocus: true,
   instanceTitle: (config) => config.title.trim() || null,
   renameInstance: (config, title) => ({
     ...config,

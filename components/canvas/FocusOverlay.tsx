@@ -23,7 +23,7 @@
  */
 
 import * as React from "react";
-import { PictureInPicture2, Pencil, X } from "lucide-react";
+import { Palette, PictureInPicture2, Pencil, X } from "lucide-react";
 import type { WidgetRegistry } from "@/lib/widgets/contract";
 import type { WidgetInstance } from "@/components/canvas/GridCanvas";
 import { FocusCloseProvider } from "@/lib/widgets/persistence";
@@ -157,8 +157,12 @@ export function FocusOverlay({
           </IconButton>
         ) : null}
         {onEdit ? (
-          <IconButton label="편집" onClick={onEdit}>
-            <Pencil size={18} />
+          // editInFocus 위젯(노트)은 이 화면 자체가 내용 편집 — 버튼은 스타일 편집.
+          <IconButton
+            label={def?.editInFocus ? "스타일 편집" : "편집"}
+            onClick={onEdit}
+          >
+            {def?.editInFocus ? <Palette size={18} /> : <Pencil size={18} />}
           </IconButton>
         ) : null}
         <IconButton ref={closeRef} label="닫기" onClick={onClose}>

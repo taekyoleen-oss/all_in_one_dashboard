@@ -26,6 +26,7 @@ import {
   ClipboardPaste,
   Trash2,
   Maximize2,
+  Palette,
   Pencil,
   Minus,
   Plus,
@@ -61,6 +62,8 @@ export interface WidgetMenuProps {
   onFocus: () => void;
   /** Open the edit (ConfigEditor) dialog. */
   onEdit: () => void;
+  /** 내용 편집을 제외한 설정(스타일 편집) 열기 — editInFocus 위젯(노트)만. */
+  onStyleEdit?: () => void;
   /** 헤더 제목 인라인 편집 열기(제목 변경). */
   onRename?: () => void;
 }
@@ -73,6 +76,7 @@ export function WidgetMenu({
   onDelete,
   onFocus,
   onEdit,
+  onStyleEdit,
   onRename,
 }: WidgetMenuProps) {
   const { scale, inc, dec, reset } = usePersistedFontScale(instanceId);
@@ -179,6 +183,11 @@ export function WidgetMenu({
         <DropdownMenuItem icon={<Pencil size={16} />} onClick={onEdit}>
           편집
         </DropdownMenuItem>
+        {onStyleEdit ? (
+          <DropdownMenuItem icon={<Palette size={16} />} onClick={onStyleEdit}>
+            스타일 편집
+          </DropdownMenuItem>
+        ) : null}
         {onRename ? (
           <DropdownMenuItem
             icon={<TextCursorInput size={16} />}

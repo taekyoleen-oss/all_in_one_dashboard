@@ -133,6 +133,12 @@ export interface WidgetDefinition<C = unknown> {
    * here instead of the device-local title when present.
    */
   renameInstance?: (config: C, title: string) => unknown;
+  /**
+   * true면 본문(내용) 편집이 전체보기(ExpandedView)에서 이뤄지는 위젯(노트) —
+   * 메뉴의 '편집'이 전체보기를 열고, ConfigEditor는 내용 편집을 제외한 나머지
+   * 설정을 다루는 '스타일 편집'으로 노출된다.
+   */
+  editInFocus?: boolean;
 }
 
 /**

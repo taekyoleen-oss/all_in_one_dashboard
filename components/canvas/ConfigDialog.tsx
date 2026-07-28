@@ -74,6 +74,9 @@ function ConfigDialogBody({
 
   const def = registry[instance.type];
   const Editor = def?.ConfigEditor;
+  // editInFocus 위젯(노트)은 내용 편집이 전체보기에 있으므로 이 다이얼로그는
+  // '스타일 편집'으로 명명된다.
+  const editLabel = def?.editInFocus ? "스타일 편집" : "편집";
 
   // Esc → 취소(닫기) — X·스크림과 같은 경로. (SettingsDialog와 동일 패턴)
   React.useEffect(() => {
@@ -106,7 +109,7 @@ function ConfigDialogBody({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={def ? `${def.displayName} 편집` : "위젯 편집"}
+        aria-label={def ? `${def.displayName} ${editLabel}` : "위젯 편집"}
         className={[
           "relative z-10 w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-card",
           "text-card-foreground shadow-2xl sm:rounded-2xl",
@@ -115,7 +118,7 @@ function ConfigDialogBody({
       >
         <header className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold">
-            {def?.displayName ?? instance.type} 편집
+            {def?.displayName ?? instance.type} {editLabel}
           </h2>
           <IconButton label="닫기" onClick={onClose}>
             <X size={18} />
