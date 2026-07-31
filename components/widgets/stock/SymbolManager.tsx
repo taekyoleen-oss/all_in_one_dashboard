@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * stock · SymbolManager — toggle indices + add/remove 국내 개별 종목 (설계서 §2.1).
+ * stock · SymbolManager — toggle indices + add/remove 개별 종목 (설계서 §2.1).
  *
  *  Controlled: reports the whole next config via onChange (the ConfigEditor wires
  *  this to the dialog draft; the parent owns persistence). Two sections:
  *    1. 지수 — checkbox toggles for the curated indices (코스피·코스닥·다우·S&P·나스닥).
- *    2. 국내 종목 — add by 6-digit code (or pick a suggestion), remove with reorder.
- *  US individual stocks are intentionally not offered (미국은 지수만).
+ *    2. 개별 종목 — 국내는 KRX 카탈로그 검색(회사명/코드), 미국 종목·ETF는 티커 직접
+ *       입력(AAPL·SPY — 카탈로그가 없어 검색 대신 직접 추가). 삭제·순서 변경 지원.
  */
 
 import * as React from "react";
@@ -16,6 +16,7 @@ import {
   INDEX_CATALOG,
   searchKrStocks,
   isIndexSymbol,
+  isUsTicker,
   krCode,
   resolveMeta,
 } from "@/lib/api/stock/symbols";
@@ -37,7 +38,10 @@ export function SymbolManager({
 
   // Catalog search results for the current query (회사명 부분일치 또는 코드 접두).
   const results = searchKrStocks(query);
-  const isBareCode = /^\d{6}(\.[A-Za-z]{2})?$/.test(query.trim());
+  // 검색 결과가 없어도 직접 추가 가능한 입력: 국내 6자리 코드 또는 미국 티커(AAPL·SPY).
+  const typed = query.trim();
+  const directAdd =
+    krCode(typed) !== null ? "kr" : isUsTicker(typed) ? "us" : null;
 
   /** Add an exact catalog symbol (from a clicked search result). */
   const addSymbol = (sym: string) => {
@@ -75,12 +79,15 @@ export function SymbolManager({
 
   const addStock = (raw: string) => {
     const s = raw.trim();
-    const code = krCode(s);
-    if (!code && !/^\d{6}(\.[A-Za-z]{2})?$/.test(s)) {
-      setErr("6자리 국내 종목코드를 입력하세요 (예: 005930, 035720.KQ).");
+    const isKr = krCode(s) !== null;
+    if (!isKr && !isUsTicker(s)) {
+      setErr(
+        "국내는 6자리 종목코드(005930, 035720.KQ), 미국은 티커(AAPL, SPY)를 입력하세요.",
+      );
       return;
     }
-    const symbol = s;
+    // 미국 티커는 대문자로 정규화(야후 심볼 표기와 일치, 중복 추가 방지).
+    const symbol = isKr ? s : s.toUpperCase();
     if (has(symbol)) {
       setErr("이미 추가된 종목입니다.");
       return;
@@ -123,7 +130,7 @@ export function SymbolManager({
       {/* 2) Individual KR stocks */}
       <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
         <legend className="px-1 text-xs font-medium text-muted-foreground">
-          국내 개별 종목
+          개별 종목 (국내 · 미국)
         </legend>
 
         <ul className="flex flex-col gap-1.5">
@@ -171,7 +178,7 @@ export function SymbolManager({
           })}
           {stockSymbols.length === 0 ? (
             <li className="rounded-md border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">
-              추가된 국내 종목이 없습니다.
+              추가된 종목이 없습니다.
             </li>
           ) : null}
         </ul>
@@ -179,7 +186,7 @@ export function SymbolManager({
         {/* Add by SEARCH — type a company name or code, then pick a result. */}
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            종목 검색 (회사명 또는 코드)
+            종목 검색 (국내 회사명·코드) 또는 미국 티커 입력
             <input
               value={query}
               onChange={(e) => {
@@ -194,7 +201,7 @@ export function SymbolManager({
                   else addStock(query);
                 }
               }}
-              placeholder="삼성, 005930, 카카오…"
+              placeholder="삼성, 005930, AAPL, SPY…"
               className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
@@ -202,6 +209,29 @@ export function SymbolManager({
 
           {/* Results (click to add). Falls back to a direct 6-digit code add. */}
           <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto pb-scroll">
+            {/* 직접 추가 — 국내 코드/미국 티커를 그대로 심볼로 등록(미국은 카탈로그 없음). */}
+            {directAdd ? (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => addStock(typed)}
+                  className="flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {directAdd === "us" ? "이 미국 티커로 추가" : "이 코드로 직접 추가"}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {directAdd === "us" ? typed.toUpperCase() : typed}
+                  </span>
+                  <Plus
+                    size={14}
+                    aria-hidden
+                    className="shrink-0 text-muted-foreground"
+                  />
+                </button>
+              </li>
+            ) : null}
+
             {results.map((m) => {
               const added = has(m.symbol);
               return (
@@ -234,35 +264,17 @@ export function SymbolManager({
               );
             })}
 
-            {results.length === 0 && isBareCode ? (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => addStock(query)}
-                  className="flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                    이 코드로 직접 추가
-                  </span>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                    {query.trim()}
-                  </span>
-                  <Plus
-                    size={14}
-                    aria-hidden
-                    className="shrink-0 text-muted-foreground"
-                  />
-                </button>
-              </li>
-            ) : results.length === 0 ? (
+            {results.length === 0 && !directAdd ? (
               <li className="rounded-md border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">
-                검색 결과가 없습니다. 6자리 코드(예: 005930)를 직접 입력할 수도 있어요.
+                검색 결과가 없습니다. 6자리 코드(005930)나 미국 티커(AAPL)를 입력해 보세요.
               </li>
             ) : null}
           </ul>
 
           <p className="text-[11px] text-muted-foreground">
-            회사명 일부 또는 종목코드로 검색하세요. 미국은 지수만 제공합니다(개별 종목 미지원).
+            국내는 회사명·코드로 검색해 고르고, 미국 주식·ETF는 티커를 그대로 입력하세요
+            (예: AAPL, MSFT, SPY, QQQ, BRK-B). 미국 시세는 야후 파이낸스 기준이며 약 15분
+            지연될 수 있습니다.
           </p>
         </div>
       </fieldset>

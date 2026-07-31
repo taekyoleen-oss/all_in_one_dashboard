@@ -11,12 +11,15 @@
  *    • KR indices   : "^KS11" (코스피), "^KQ11" (코스닥)
  *    • US indices   : "^DJI" (다우), "^GSPC" (S&P 500), "^IXIC" (나스닥)
  *    • KR stocks    : 6-digit code, optionally ".KS"/".KQ" suffix ("005930" / "005930.KS")
- *  US individual stocks are intentionally NOT offered (미국은 지수만 — spec).
+ *    • US stocks/ETF: Yahoo 티커 그대로 ("AAPL", "SPY", "QQQ", "BRK-B") — 카탈로그가
+ *      없으므로 사용자가 직접 입력하고, 시세는 키리스 Yahoo 폴백이 조회한다.
  * ============================================================================
  */
 
 import type { StockSymbol } from "@/output/api-shapes";
-import { KRX_STOCKS } from "./krx-catalog.generated";
+// 확장자 명시: node --test(타입 스트리핑)의 ESM 해석이 확장자 없는 상대경로를 못 찾는다
+// (symbols.test.ts가 이 모듈을 직접 로드). 번들러(Next)는 실제 파일명 그대로 해석한다.
+import { KRX_STOCKS } from "./krx-catalog.generated.ts";
 
 export interface SymbolMeta {
   /** Provider-neutral symbol (catalog key). */
@@ -184,6 +187,22 @@ export function isIndexSymbol(symbol: string): boolean {
 }
 
 /**
+ * 미국 개별 종목·ETF 티커인지 — Yahoo 심볼 문법(영문으로 시작 + 영숫자/./-).
+ * 국내 코드는 숫자로, 지수는 "^"로 시작하므로 겹치지 않는다. 예: AAPL, SPY, BRK-B.
+ */
+export function isUsTicker(symbol: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9.-]{0,9}$/.test(symbol);
+}
+
+/**
+ * KIS 국내 시세 API로 조회 가능한 심볼(코스피/코스닥 지수 또는 6자리 종목코드).
+ * 나머지(해외 지수·미국 종목/ETF)는 Yahoo 폴백이 처리한다 — kisClient 라우팅 기준.
+ */
+export function isDomesticSymbol(symbol: string): boolean {
+  return isKrIndex(symbol) || krCode(symbol) !== null;
+}
+
+/**
  * Best-effort metadata for a symbol: the curated entry when known, otherwise a
  * reasonable default (KR 6-digit ⇒ KRW stock; caret ⇒ index; else KRW stock).
  * The `name` falls back to the symbol so the UI always has a label.
@@ -203,6 +222,10 @@ export function resolveMeta(symbol: string): SymbolMeta {
   const code = krCode(symbol);
   if (code) {
     return { symbol, name: code, isIndex: false, currency: "KRW" };
+  }
+  // 미국 종목·ETF: 카탈로그가 없으므로 티커를 그대로 이름으로 쓴다(통화는 응답값 우선).
+  if (isUsTicker(symbol)) {
+    return { symbol, name: symbol.toUpperCase(), isIndex: false, currency: "USD" };
   }
   // Unknown free-form symbol — assume a KR stock so quotes still attempt to resolve.
   return { symbol, name: symbol, isIndex: false, currency: "KRW" };

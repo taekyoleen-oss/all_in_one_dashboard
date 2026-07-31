@@ -36,6 +36,7 @@
 import type { StockQuote, StockSymbol } from "@/output/api-shapes";
 import type { OnTick, StockQuoteProvider, Unsubscribe } from "./provider";
 import {
+  isDomesticSymbol,
   isKrIndex,
   isUsIndex,
   krCode,
@@ -348,12 +349,12 @@ async function getQuotesImpl(
     return { quotes: [], errors: [...symbols] };
   }
 
-  // US (해외) indices have no domestic KIS quote — delegate them to the keyless
-  // Yahoo fallback so 다우·S&P·나스닥 show their latest/final value even on KIS.
-  const usIndices = symbols.filter((s) => isUsIndex(s));
-  const kisSymbols = symbols.filter((s) => !isUsIndex(s));
+  // 해외 심볼(다우·S&P·나스닥 지수 + AAPL·SPY 같은 미국 종목/ETF)은 KIS 국내 시세
+  // API에 없다 — 키리스 Yahoo 폴백에 위임해 KIS 사용 중에도 값이 나오게 한다.
+  const overseas = symbols.filter((s) => !isDomesticSymbol(s));
+  const kisSymbols = symbols.filter((s) => isDomesticSymbol(s));
 
-  const [settled, usResult] = await Promise.all([
+  const [settled, overseasResult] = await Promise.all([
     Promise.all(
       kisSymbols.map(async (symbol) => {
         try {
@@ -368,13 +369,13 @@ async function getQuotesImpl(
         }
       }),
     ),
-    usIndices.length > 0
-      ? fetchFallbackQuotes(usIndices)
+    overseas.length > 0
+      ? fetchFallbackQuotes(overseas)
       : Promise.resolve({ quotes: [] as StockQuote[], errors: [] as StockSymbol[] }),
   ]);
 
-  const quotes: StockQuote[] = [...usResult.quotes];
-  const errors: StockSymbol[] = [...usResult.errors];
+  const quotes: StockQuote[] = [...overseasResult.quotes];
+  const errors: StockSymbol[] = [...overseasResult.errors];
   for (const { symbol, q } of settled) {
     if (q) quotes.push(q);
     else errors.push(symbol);

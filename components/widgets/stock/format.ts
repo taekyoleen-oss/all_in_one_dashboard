@@ -65,6 +65,7 @@ export function formatPct(value: number): string {
  *  - 국내 종목(6자리 코드, .KS/.KQ 접미사 허용) → 네이버 종목 메인
  *  - 코스피/코스닥 지수(^KS11/^KQ11) → 네이버 국내 지수
  *  - 다우/S&P500/나스닥(^DJI/^GSPC/^IXIC) → 네이버 월드 지수(실측 데이터 페이지)
+ *  - 미국 종목·ETF(AAPL/SPY 등 티커) → 야후 파이낸스 종목 페이지
  *  - 그 외(알 수 없는 심볼) → 네이버 통합검색 폴백
  */
 export function quoteInfoUrl(symbol: string): string {
@@ -87,6 +88,10 @@ export function quoteInfoUrl(symbol: string): string {
   const krCode = symbol.match(/^(\d{6})(?:\.[A-Za-z]{2})?$/);
   if (krCode)
     return `https://finance.naver.com/item/main.naver?code=${krCode[1]}`;
+
+  // 미국 종목·ETF: 야후 파이낸스 종목 페이지(거래소 접미사가 필요 없어 티커만으로 정확).
+  if (/^[A-Za-z][A-Za-z0-9.-]{0,9}$/.test(symbol))
+    return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.toUpperCase())}`;
 
   // 폴백: 네이버 통합검색
   return `https://search.naver.com/search.naver?query=${encodeURIComponent(symbol)}`;

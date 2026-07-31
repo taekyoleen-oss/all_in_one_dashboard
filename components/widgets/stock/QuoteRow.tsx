@@ -81,7 +81,7 @@ export function QuoteRow({
             window.open(quoteInfoUrl(symbol), "_blank", "noopener,noreferrer");
           }
         }}
-        title={`${quote?.name || name} 주식정보 보기 (더블클릭 · 네이버 금융, 새 탭)`}
+        title={`${quote?.name || name} 주식정보 보기 (더블클릭 · 새 탭)`}
         className="flex items-center justify-between gap-3 rounded-md px-1.5 py-1 hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
       <div className="flex min-w-0 flex-col">
