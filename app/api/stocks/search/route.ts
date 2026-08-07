@@ -8,6 +8,8 @@
  *  서버에서 프록시한다 — 브라우저 직접 호출은 CORS로 막히고, 인증 게이트로 익명
  *  호출도 막는다. 시세가 아니라 '심볼 찾기'용이라 캐시 없이 그때그때 조회.
  *
+ *  한글 질의(사용자 요청)는 Yahoo가 400을 주므로 ko→en 번역을 한 단계 앞에 둔다.
+ *
  *  응답은 output/api-shapes.ts의 StockSearchSchema(단일 소스)를 따른다.
  *  업스트림 호출이 이 파일 하나에서만 쓰여 별도 client 모듈을 두지 않는다.
  *
@@ -21,6 +23,7 @@ import {
   mapUsSearchResults,
   type YahooSearchQuote,
 } from "@/lib/api/stock/symbols";
+import { translate } from "@/lib/api/translateClient";
 import { StockSearchSchema, type StockSearch } from "@/output/api-shapes";
 
 export const dynamic = "force-dynamic";
@@ -35,11 +38,21 @@ export async function GET(request: NextRequest) {
   const gate = await requireUser();
   if (gate) return gate;
 
-  const q = (new URL(request.url).searchParams.get("q") ?? "").trim();
+  const raw = (new URL(request.url).searchParams.get("q") ?? "").trim();
   const empty: StockSearch = { results: [] };
-  // Yahoo 검색은 비-라틴 질의(예: "삼성전자")에 400을 준다 — 국내는 어차피 로컬
-  // 카탈로그가 담당하므로 라틴 문자가 없는 질의는 호출 없이 빈 결과.
-  if (q.length < 1 || !/[A-Za-z]/.test(q)) {
+  if (!raw) {
+    return Response.json(empty, { headers: { "cache-control": "no-store" } });
+  }
+
+  // Yahoo 검색은 한글 질의에 400을 준다(lang/region 파라미터로도 안 됨 — 실측).
+  // 한글이 있으면 저장소의 번역기(키리스 Google gtx → MyMemory)로 ko→en 변환 후 검색:
+  //   "애플"→apple→AAPL, "엔비디아"→nvidia→NVDA, "배당 ETF"→Dividend ETF→HDV·SDY…
+  // (네이버 종목 자동완성은 한글명은 정확하지만 '배당 ETF' 같은 주제어를 못 찾아 제외.)
+  const q = /[가-힣]/.test(raw)
+    ? ((await translate(raw, "ko", "en"))?.translatedText ?? "").trim()
+    : raw;
+  // 번역 실패·번역 후에도 라틴 문자가 없으면 업스트림을 부르지 않는다(400 방지).
+  if (!/[A-Za-z]/.test(q)) {
     return Response.json(empty, { headers: { "cache-control": "no-store" } });
   }
 

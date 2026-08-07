@@ -41,6 +41,7 @@ export function SymbolManager({
   const results = searchKrStocks(query);
 
   // 미국 종목·ETF는 로컬 카탈로그가 없어 서버(/api/stocks/search → Yahoo)로 이름 검색.
+  // 한글 질의("애플"·"배당 ETF")는 서버가 ko→en 번역 후 조회한다.
   // 응답을 질의와 함께 담아, 렌더 시 현재 질의와 일치할 때만 노출한다(경합·지연 응답
   // 무시 + effect 본문에서 동기 setState 하지 않기 위함).
   const [usHits, setUsHits] = React.useState<{
@@ -50,8 +51,9 @@ export function SymbolManager({
 
   React.useEffect(() => {
     const q = query.trim();
-    // 라틴 문자가 없으면(한글 등) 국내 카탈로그만으로 충분 — 호출 생략.
-    if (q.length < 2 || !/[A-Za-z]/.test(q)) return;
+    // 영문 또는 한글 질의만 조회(한글은 서버가 ko→en 번역 후 검색). 숫자만 입력한
+    // 국내 코드 검색은 로컬 카탈로그가 담당하므로 호출 생략.
+    if (q.length < 2 || !/[A-Za-z가-힣]/.test(q)) return;
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       void (async () => {
@@ -238,7 +240,7 @@ export function SymbolManager({
                   else addStock(query);
                 }
               }}
-              placeholder="삼성, 005930, apple, dividend etf…"
+              placeholder="삼성, 005930, 애플, 배당 ETF…"
               className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
@@ -352,8 +354,8 @@ export function SymbolManager({
           </ul>
 
           <p className="text-[11px] text-muted-foreground">
-            국내는 회사명·코드로, 미국 주식·ETF는 영문 이름이나 티커로 검색하세요
-            (예: apple, dividend etf, SPY). 미국 시세·종목명은 야후 파이낸스 기준이며
+            국내는 회사명·코드로, 미국 주식·ETF는 한글 이름·영문 이름·티커로 검색하세요
+            (예: 애플, 배당 ETF, apple, SPY). 미국 시세·종목명은 야후 파이낸스 기준이며
             약 15분 지연될 수 있습니다.
           </p>
         </div>
