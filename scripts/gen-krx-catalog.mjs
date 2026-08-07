@@ -1,15 +1,20 @@
 /**
- * gen-krx-catalog.mjs — generate the full KRX (KOSPI+KOSDAQ) stock catalog.
+ * gen-krx-catalog.mjs — generate the full KRX (KOSPI+KOSDAQ 종목 + ETF) catalog.
  *
  *  Downloads the official 상장법인목록 from KRX KIND for both markets, parses the
  *  HTML table (회사명 + 종목코드), and writes lib/api/stock/krx-catalog.generated.ts
  *  so EVERY listed stock is searchable by name or code (offline, instant).
  *
+ *  KIND의 상장법인목록에는 **ETF가 없다**(법인이 아니라 펀드) — "코스피100" 같은
+ *  ETF가 검색되지 않던 원인. 그래서 네이버 금융의 ETF 전종목 목록(키리스 JSON,
+ *  EUC-KR)을 함께 받아 합친다. ETF는 전부 유가증권시장 상장이라 KOSPI와 같은
+ *  bare 6-digit 코드(→ Yahoo ".KS", KIS는 국내 코드 그대로)를 쓴다.
+ *
  *  KOSPI codes are bare ("005930"); KOSDAQ codes carry ".KQ" so the Yahoo
  *  fallback + provider resolve the right exchange (matches symbols.ts convention).
  *
  *  Run:  node scripts/gen-krx-catalog.mjs
- *  Re-run periodically to refresh listings (new IPOs / delistings).
+ *  Re-run periodically to refresh listings (new IPOs / delistings / 신규 ETF).
  */
 
 import { writeFile } from "node:fs/promises";
@@ -58,6 +63,33 @@ function parseRows(html) {
   return out;
 }
 
+/**
+ * 네이버 금융 ETF 전종목 목록 → [{ name, code }].
+ * 응답이 EUC-KR이라 명시적으로 디코딩해야 한글 이름이 깨지지 않는다(실측).
+ */
+async function fetchEtfs() {
+  const res = await fetch("https://finance.naver.com/api/sise/etfItemList.nhn", {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Referer: "https://finance.naver.com/sise/etf.naver",
+    },
+  });
+  if (!res.ok) throw new Error(`ETF: HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const json = JSON.parse(new TextDecoder("euc-kr").decode(buf));
+  const list = json?.result?.etfItemList ?? [];
+  const out = [];
+  for (const it of list) {
+    // 신규 상장 ETF는 KRX 신형 단축코드(숫자 시작 + 영문 1자 포함, 예 "0167A0")를
+    // 쓴다 — 이것도 유효한 국내 코드이고 Yahoo가 "<code>.KS"로 시세를 준다(실측).
+    const code = String(it.itemcode ?? "").trim().toUpperCase();
+    const name = String(it.itemname ?? "").trim();
+    if (!name || !/^[0-9][0-9A-Z]{5}$/.test(code)) continue;
+    out.push({ name, code });
+  }
+  return out;
+}
+
 async function main() {
   const all = [];
   for (const { type, suffix } of MARKETS) {
@@ -68,6 +100,11 @@ async function main() {
       all.push({ symbol: `${code}${suffix}`, name });
     }
   }
+
+  // ETF (유가증권시장 상장 → bare 6-digit, KOSPI와 동일 규칙)
+  const etfs = await fetchEtfs();
+  console.log(`etf: ${etfs.length} 종목`);
+  for (const { name, code } of etfs) all.push({ symbol: code, name });
   // De-dupe by symbol (defensive) and sort by name for stable diffs.
   const bySymbol = new Map(all.map((e) => [e.symbol, e]));
   const list = [...bySymbol.values()].sort((a, b) =>
@@ -81,10 +118,10 @@ async function main() {
   const ts = `/**
  * krx-catalog.generated.ts — AUTO-GENERATED. Do not edit by hand.
  *
- *  Full KOSPI + KOSDAQ listing (회사명 + 종목코드) for offline stock search.
+ *  Full KOSPI + KOSDAQ + ETF listing (종목명 + 코드) for offline stock search.
  *  Regenerate with:  node scripts/gen-krx-catalog.mjs
- *  Source: KRX KIND 상장법인목록. Total entries: ${list.length}.
- *  Format: [symbol, name] where KOSPI = bare 6-digit, KOSDAQ = "<code>.KQ".
+ *  Source: KRX KIND 상장법인목록 + 네이버 금융 ETF 목록. Total entries: ${list.length}.
+ *  Format: [symbol, name] where KOSPI·ETF = bare 6-digit, KOSDAQ = "<code>.KQ".
  */
 
 /** [symbol, koreanName] tuples — compact form to keep the bundle small. */

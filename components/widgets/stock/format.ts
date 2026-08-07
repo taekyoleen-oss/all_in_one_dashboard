@@ -84,8 +84,8 @@ export function quoteInfoUrl(symbol: string): string {
   if (WORLD[symbol])
     return `https://finance.naver.com/world/sise.naver?symbol=${WORLD[symbol]}`;
 
-  // 국내 개별 종목 (6자리 코드, .KS/.KQ 접미사 떼고 사용)
-  const krCode = symbol.match(/^(\d{6})(?:\.[A-Za-z]{2})?$/);
+  // 국내 개별 종목·ETF (6자 코드 — 숫자 6자리 또는 신형 영숫자 "0167A0", 접미사 제외)
+  const krCode = symbol.match(/^([0-9][0-9A-Z]{5})(?:\.[A-Za-z]{2})?$/i);
   if (krCode)
     return `https://finance.naver.com/item/main.naver?code=${krCode[1]}`;
 

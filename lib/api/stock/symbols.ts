@@ -151,24 +151,38 @@ const BY_SYMBOL = new Map<string, SymbolMeta>(
 export function searchKrStocks(query: string, limit = 30): SymbolMeta[] {
   const q = query.trim().toLowerCase();
   if (!q) return KR_STOCK_SUGGESTIONS.slice(0, limit);
-  const digits = q.replace(/\D/g, "");
+  // 코드 접두 검색은 질의 **전체가 코드 모양**일 때만 한다(숫자로 시작하는 영숫자).
+  // 예전엔 질의에서 숫자만 뽑아 비교해서 "코스피100"이 코드 "100…" 종목(동국S&C 등)에
+  // 매칭돼 정작 코스피100 ETF들이 밀려났다. 신형 영숫자 코드는 입력 그대로 비교한다.
+  const codeQuery = /^[0-9][0-9a-z]*$/.test(q) ? q.toUpperCase() : "";
   const out: SymbolMeta[] = [];
   for (const m of KR_STOCK_CATALOG) {
+    const code = krCode(m.symbol) ?? "";
     const nameHit = m.name.toLowerCase().includes(q);
-    const codeHit =
-      digits.length > 0 && (krCode(m.symbol) ?? "").startsWith(digits);
-    if (nameHit || codeHit) {
-      out.push(m);
-      if (out.length >= limit) break;
-    }
+    const codeHit = codeQuery !== "" && code.startsWith(codeQuery);
+    if (nameHit || codeHit) out.push(m);
   }
-  return out;
+  // 정확 일치 → 이름 접두 → 그 외 순으로. ETF가 합류하면서 "삼성전자"가
+  // "1Q 삼성전자선물단일종목레버리지"(이름순 앞) 뒤로 밀리던 것을 바로잡는다.
+  // 카탈로그 전수 스캔이지만 4천 건이라 타이핑마다 돌려도 부담 없다.
+  const rank = (m: SymbolMeta): number => {
+    const n = m.name.toLowerCase();
+    if (n === q || (codeQuery !== "" && krCode(m.symbol) === codeQuery)) return 0;
+    return n.startsWith(q) ? 1 : 2;
+  };
+  out.sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length);
+  return out.slice(0, limit);
 }
 
-/** Strip a ".KS"/".KQ" suffix and return the bare 6-digit code (else null). */
+/**
+ * Strip a ".KS"/".KQ" suffix and return the bare KRX 단축코드 (else null).
+ *  • 기존 형식: 숫자 6자리("005930")
+ *  • 신형 ETF 등: 숫자로 시작하는 영숫자 6자("0167A0") — KRX가 최근 상장분에 부여.
+ *    Yahoo도 "<code>.KS"로 시세를 준다(실측). 미국 티커는 영문으로 시작하므로 무충돌.
+ */
 export function krCode(symbol: string): string | null {
-  const m = symbol.match(/^(\d{6})(?:\.[A-Za-z]{2})?$/);
-  return m ? m[1] : null;
+  const m = symbol.match(/^([0-9][0-9A-Z]{5})(?:\.[A-Za-z]{2})?$/i);
+  return m ? m[1].toUpperCase() : null;
 }
 
 /** True for a KR index symbol ("^KS11"/"^KQ11"). */
@@ -195,11 +209,15 @@ export function isUsTicker(symbol: string): boolean {
 }
 
 /**
- * KIS 국내 시세 API로 조회 가능한 심볼(코스피/코스닥 지수 또는 6자리 종목코드).
- * 나머지(해외 지수·미국 종목/ETF)는 Yahoo 폴백이 처리한다 — kisClient 라우팅 기준.
+ * KIS 국내 시세 API로 조회 가능한 심볼(코스피/코스닥 지수 또는 **숫자** 6자리 코드).
+ * 나머지는 Yahoo 폴백이 처리한다 — kisClient 라우팅 기준.
+ *
+ *  신형 영숫자 코드("0167A0")는 `krCode`가 국내 코드로 인정하지만 여기서는 제외한다:
+ *  KIS 국내시세(FID_INPUT_ISCD)에서의 동작이 미확인이라, 실측으로 확인된 Yahoo
+ *  경로("0167A0.KS")로 보내 조용히 "—"로 빠지는 것을 막는다.
  */
 export function isDomesticSymbol(symbol: string): boolean {
-  return isKrIndex(symbol) || krCode(symbol) !== null;
+  return isKrIndex(symbol) || /^\d{6}(?:\.[A-Za-z]{2})?$/.test(symbol);
 }
 
 /** Yahoo 심볼 검색 응답 1건에서 우리가 읽는 최소 필드. */
