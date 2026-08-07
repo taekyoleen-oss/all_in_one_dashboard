@@ -16,7 +16,7 @@
  * ============================================================================
  */
 
-import type { StockSymbol } from "@/output/api-shapes";
+import type { StockSearchResult, StockSymbol } from "@/output/api-shapes";
 // 확장자 명시: node --test(타입 스트리핑)의 ESM 해석이 확장자 없는 상대경로를 못 찾는다
 // (symbols.test.ts가 이 모듈을 직접 로드). 번들러(Next)는 실제 파일명 그대로 해석한다.
 import { KRX_STOCKS } from "./krx-catalog.generated.ts";
@@ -200,6 +200,47 @@ export function isUsTicker(symbol: string): boolean {
  */
 export function isDomesticSymbol(symbol: string): boolean {
   return isKrIndex(symbol) || krCode(symbol) !== null;
+}
+
+/** Yahoo 심볼 검색 응답 1건에서 우리가 읽는 최소 필드. */
+export interface YahooSearchQuote {
+  symbol?: string;
+  shortname?: string;
+  longname?: string;
+  exchange?: string;
+  quoteType?: string;
+}
+
+/**
+ * Yahoo 심볼 검색 결과 → 위젯이 추가할 수 있는 미국 주식·ETF 목록
+ * (/api/stocks/search가 사용. 순수 함수라 테스트 대상).
+ *
+ *  걸러내는 것(실제 응답 실측 기준):
+ *   • quoteType이 EQUITY·ETF가 아닌 것 — OPTION("SCHD260918C00034000")·MUTUALFUND 등.
+ *   • 접미사(.)가 붙은 심볼 — "AAPL.BA"·"APC.DE"·"1655.T" 같은 해외 중복상장.
+ *     우리 시세 경로(Yahoo chart)는 접미사 없는 미국 상장만 안정적으로 다룬다.
+ */
+export function mapUsSearchResults(
+  quotes: YahooSearchQuote[] | undefined,
+  limit = 8,
+): StockSearchResult[] {
+  const out: StockSearchResult[] = [];
+  for (const q of quotes ?? []) {
+    const symbol = q.symbol?.trim();
+    const type = q.quoteType;
+    if (!symbol || symbol.includes(".")) continue;
+    if (type !== "EQUITY" && type !== "ETF") continue;
+    out.push({
+      symbol,
+      // longname 우선 — Yahoo shortname은 31자에서 잘린 채로 오기도 한다("… Total Stoc").
+      // 목록은 CSS truncate라 긴 이름이 와도 말줄임으로 자연스럽게 처리된다.
+      name: (q.longname ?? q.shortname ?? symbol).trim(),
+      exchange: q.exchange?.trim() ?? "",
+      type,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /**

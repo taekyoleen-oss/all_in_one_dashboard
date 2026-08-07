@@ -14,6 +14,10 @@
  *     다운로드는 현재 표시 중인 슬라이드를 파일로 저장한다.
  *  두 경로 모두 편집 다이얼로그와 같은 파이프라인(filesToSlides)으로 축소 저장.
  *
+ *  이미지 클릭 = '전체'(2026-08-07 사용자 요청): 이미지를 클릭하면 헤더의 [전체]
+ *  버튼과 같은 FocusOverlay가 열린다(useOpenWidgetFocus). 패닝 드래그 뒤에도 click이
+ *  발화하므로 누적 이동거리 5px 미만일 때만 클릭으로 취급한다.
+ *
  *  이미지 이동 + 마지막 본 화면 유지(2026-07-12 사용자 요청):
  *   • 마우스/펜 드래그로 이미지를 패닝(스크롤 이동)할 수 있다 — 터치는 네이티브
  *     스크롤이 이미 같은 역할. [data-pb-no-drag] 컨테이너라 그리드 드래그와 안 겹침.
@@ -24,7 +28,7 @@
 import * as React from "react";
 import { Download, ImageOff, ImagePlus, Loader2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
-import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
+import { useOpenWidgetFocus, useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { clampInterval, type ImageSliderConfig } from "./types";
 import { useAutoAdvance } from "./useAutoAdvance";
 import { downloadSlideImage, filesToSlides, limitMessage } from "./imageFiles";
@@ -124,7 +128,13 @@ export function ImageSliderCompactView({
     null,
   );
   const [panning, setPanning] = React.useState(false);
+  // 이미지 클릭 = '전체' 버튼(요구). 패닝 드래그 뒤에도 click이 발화하므로 움직임이
+  // 있었으면 무시한다(터치는 브라우저가 스크롤 후 click을 억제).
+  const openFocus = useOpenWidgetFocus();
+  /** 이번 포인터 제스처의 누적 이동거리(px) — 5px 미만이면 클릭으로 본다(손떨림 허용). */
+  const moveDistRef = React.useRef(0);
   const onPanPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    moveDistRef.current = 0;
     if (e.pointerType === "touch" || e.button !== 0) return;
     panRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -135,8 +145,11 @@ export function ImageSliderCompactView({
     if (!pan || pan.pointerId !== e.pointerId) return;
     const el = scrollBoxRef.current;
     if (!el) return;
-    el.scrollTop -= e.clientY - pan.y;
-    el.scrollLeft -= e.clientX - pan.x;
+    const dx = e.clientX - pan.x;
+    const dy = e.clientY - pan.y;
+    moveDistRef.current += Math.abs(dx) + Math.abs(dy);
+    el.scrollTop -= dy;
+    el.scrollLeft -= dx;
     pan.x = e.clientX;
     pan.y = e.clientY;
   };
@@ -238,6 +251,10 @@ export function ImageSliderCompactView({
             onPointerMove={onPanPointerMove}
             onPointerUp={endPan}
             onPointerCancel={endPan}
+            onClick={() => {
+              if (moveDistRef.current < 5) openFocus?.(instanceId);
+            }}
+            title={openFocus ? "클릭하면 전체 보기 (드래그하면 이미지 이동)" : undefined}
             className={[
               "h-full w-full overflow-y-auto pb-scroll",
               panning ? "cursor-grabbing select-none" : "cursor-grab",

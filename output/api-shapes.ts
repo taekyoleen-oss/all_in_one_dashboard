@@ -144,6 +144,29 @@ export type StockStreamEvent = z.infer<typeof StockStreamEventSchema>;
 export const STOCK_STREAM_EVENTS = ["hello", "quote", "heartbeat"] as const;
 export type StockStreamEventName = (typeof STOCK_STREAM_EVENTS)[number];
 
+/**
+ * `GET /api/stocks/search?q=…` — 미국 종목·ETF 이름 검색 결과.
+ *
+ *  국내 종목은 클라이언트 번들의 KRX 카탈로그로 즉시 검색되지만(오프라인), 미국은
+ *  카탈로그가 없어 서버가 Yahoo 검색을 대신 호출한다. 시세가 아니라 '심볼 찾기'용.
+ */
+export const StockSearchResultSchema = z.object({
+  /** 위젯 config에 저장될 provider-neutral 심볼 (예: "AAPL", "SPY"). */
+  symbol: StockSymbolSchema,
+  /** 표시 이름 ("Apple Inc.", "Schwab US Dividend Equity ETF"). */
+  name: z.string(),
+  /** 상장 거래소 코드 (예: "NMS", "PCX") — 동명이종 구분용. */
+  exchange: z.string().default(""),
+  /** 종목 종류 — 개별 주식 vs ETF. */
+  type: z.enum(["EQUITY", "ETF"]),
+});
+export type StockSearchResult = z.infer<typeof StockSearchResultSchema>;
+
+export const StockSearchSchema = z.object({
+  results: z.array(StockSearchResultSchema),
+});
+export type StockSearch = z.infer<typeof StockSearchSchema>;
+
 /* ===========================================================================
  *  FX — currency rates  (dataMode: 'poll' — 설계서 §2.2 "환율")
  * ===========================================================================

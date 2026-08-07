@@ -6,8 +6,8 @@
  *  Controlled: reports the whole next config via onChange (the ConfigEditor wires
  *  this to the dialog draft; the parent owns persistence). Two sections:
  *    1. 지수 — checkbox toggles for the curated indices (코스피·코스닥·다우·S&P·나스닥).
- *    2. 개별 종목 — 국내는 KRX 카탈로그 검색(회사명/코드), 미국 종목·ETF는 티커 직접
- *       입력(AAPL·SPY — 카탈로그가 없어 검색 대신 직접 추가). 삭제·순서 변경 지원.
+ *    2. 개별 종목 — 국내는 번들된 KRX 카탈로그 검색(회사명/코드), 미국 종목·ETF는
+ *       /api/stocks/search(Yahoo) 이름 검색 + 티커 직접 입력. 삭제·순서 변경 지원.
  */
 
 import * as React from "react";
@@ -20,6 +20,7 @@ import {
   krCode,
   resolveMeta,
 } from "@/lib/api/stock/symbols";
+import { StockSearchSchema, type StockSearchResult } from "@/output/api-shapes";
 import type { StockConfig } from "./types";
 
 export function SymbolManager({
@@ -38,6 +39,42 @@ export function SymbolManager({
 
   // Catalog search results for the current query (회사명 부분일치 또는 코드 접두).
   const results = searchKrStocks(query);
+
+  // 미국 종목·ETF는 로컬 카탈로그가 없어 서버(/api/stocks/search → Yahoo)로 이름 검색.
+  // 응답을 질의와 함께 담아, 렌더 시 현재 질의와 일치할 때만 노출한다(경합·지연 응답
+  // 무시 + effect 본문에서 동기 setState 하지 않기 위함).
+  const [usHits, setUsHits] = React.useState<{
+    q: string;
+    results: StockSearchResult[];
+  }>({ q: "", results: [] });
+
+  React.useEffect(() => {
+    const q = query.trim();
+    // 라틴 문자가 없으면(한글 등) 국내 카탈로그만으로 충분 — 호출 생략.
+    if (q.length < 2 || !/[A-Za-z]/.test(q)) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/stocks/search?q=${encodeURIComponent(q)}`,
+            { signal: ctrl.signal },
+          );
+          if (!res.ok) return;
+          const parsed = StockSearchSchema.safeParse(await res.json());
+          if (parsed.success) setUsHits({ q, results: parsed.data.results });
+        } catch {
+          /* abort·네트워크 실패는 무시(티커 직접 입력 경로가 남아 있다) */
+        }
+      })();
+    }, 300); // 타이핑 중 매 글자 요청하지 않도록 디바운스
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [query]);
+
+  const usResults = usHits.q === query.trim() ? usHits.results : [];
   // 검색 결과가 없어도 직접 추가 가능한 입력: 국내 6자리 코드 또는 미국 티커(AAPL·SPY).
   const typed = query.trim();
   const directAdd =
@@ -186,7 +223,7 @@ export function SymbolManager({
         {/* Add by SEARCH — type a company name or code, then pick a result. */}
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            종목 검색 (국내 회사명·코드) 또는 미국 티커 입력
+            종목 검색 — 국내 회사명·코드 / 미국은 영문 이름·티커
             <input
               value={query}
               onChange={(e) => {
@@ -201,7 +238,7 @@ export function SymbolManager({
                   else addStock(query);
                 }
               }}
-              placeholder="삼성, 005930, AAPL, SPY…"
+              placeholder="삼성, 005930, apple, dividend etf…"
               className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
@@ -264,7 +301,50 @@ export function SymbolManager({
               );
             })}
 
-            {results.length === 0 && !directAdd ? (
+            {/* 미국 종목·ETF 이름 검색 결과 (서버 조회) */}
+            {usResults.length > 0 ? (
+              <li className="px-1 pt-1 text-[10px] font-medium text-muted-foreground">
+                미국 주식 · ETF
+              </li>
+            ) : null}
+            {usResults.map((r) => {
+              const added = has(r.symbol);
+              return (
+                <li key={`us:${r.symbol}`}>
+                  <button
+                    type="button"
+                    disabled={added}
+                    onClick={() => addSymbol(r.symbol)}
+                    className="flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                      {r.name}
+                      {r.type === "ETF" ? (
+                        <span className="ml-1 align-middle text-[10px] text-muted-foreground">
+                          ETF
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {r.symbol}
+                    </span>
+                    {added ? (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        추가됨
+                      </span>
+                    ) : (
+                      <Plus
+                        size={14}
+                        aria-hidden
+                        className="shrink-0 text-muted-foreground"
+                      />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+
+            {results.length === 0 && usResults.length === 0 && !directAdd ? (
               <li className="rounded-md border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">
                 검색 결과가 없습니다. 6자리 코드(005930)나 미국 티커(AAPL)를 입력해 보세요.
               </li>
@@ -272,9 +352,9 @@ export function SymbolManager({
           </ul>
 
           <p className="text-[11px] text-muted-foreground">
-            국내는 회사명·코드로 검색해 고르고, 미국 주식·ETF는 티커를 그대로 입력하세요
-            (예: AAPL, MSFT, SPY, QQQ, BRK-B). 미국 시세는 야후 파이낸스 기준이며 약 15분
-            지연될 수 있습니다.
+            국내는 회사명·코드로, 미국 주식·ETF는 영문 이름이나 티커로 검색하세요
+            (예: apple, dividend etf, SPY). 미국 시세·종목명은 야후 파이낸스 기준이며
+            약 15분 지연될 수 있습니다.
           </p>
         </div>
       </fieldset>

@@ -19,7 +19,7 @@
 // SERVER-ONLY: loaded via dynamic import from provider.ts (never client-bundled).
 import type { StockQuote, StockSymbol } from "@/output/api-shapes";
 import type { OnTick, StockQuoteProvider, Unsubscribe } from "./provider";
-import { resolveMeta, toYahooSymbol } from "./symbols";
+import { isUsTicker, resolveMeta, toYahooSymbol } from "./symbols";
 
 /** Poll cadence for the streaming subscription (~12s ≈ near-real-time, gentle). */
 const POLL_MS = 12_000;
@@ -35,6 +35,9 @@ interface YahooChartMeta {
   chartPreviousClose?: number;
   currency?: string;
   regularMarketTime?: number; // epoch seconds
+  /** 종목명 — 미국 종목·ETF는 로컬 카탈로그가 없어 이 값을 표시에 쓴다. */
+  shortName?: string;
+  longName?: string;
 }
 
 /** A normalized slice of one Yahoo chart response (meta + the close time series). */
@@ -187,9 +190,17 @@ async function fetchOne(symbol: StockSymbol): Promise<StockQuote | null> {
   const change = round2(price - prevClose);
   const changePct = prevClose !== 0 ? round2(((price - prevClose) / prevClose) * 100) : 0;
 
+  // 미국 종목·ETF는 로컬 카탈로그에 없어 resolveMeta가 티커를 이름으로 돌려준다 →
+  // Yahoo가 주는 실제 종목명으로 표시(추가 요청 없이 같은 응답에 들어 있음). 국내·지수는
+  // 큐레이션된 한글 이름이 있으므로 그대로 둔다(영문명으로 바뀌지 않게).
+  // longName 우선 — shortName은 31자에서 잘린 채 오기도 한다("… ETF T").
+  const upstreamName = isUsTicker(symbol)
+    ? (m.longName ?? m.shortName ?? "").trim()
+    : "";
+
   return {
     symbol,
-    name: meta.name,
+    name: upstreamName || meta.name,
     price: round2(price),
     change,
     changePct,
