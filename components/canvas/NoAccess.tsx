@@ -12,22 +12,12 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, ShieldAlert } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useSignOut } from "@/lib/auth/useSignOut";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export function NoAccess({ email }: { email: string | null }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-
-  const signOut = React.useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
-    await createClient().auth.signOut();
-    router.replace("/login");
-    router.refresh();
-  }, [busy, router]);
+  const { signOut, signingOut: busy } = useSignOut();
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
@@ -45,7 +35,7 @@ export function NoAccess({ email }: { email: string | null }) {
         </p>
         <button
           type="button"
-          onClick={signOut}
+          onClick={() => void signOut()}
           disabled={busy}
           className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-border px-4 text-sm font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >

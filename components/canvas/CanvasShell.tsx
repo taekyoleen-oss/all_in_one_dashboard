@@ -591,6 +591,7 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
         onClose={() => setSettingsOpen(false)}
         email={userEmail}
         isOwner={isOwner}
+        onBeforeSignOut={flushNow}
       />
 
       {/* Overlays — share ONE back-stack LIFO with the mobile palette sheet.

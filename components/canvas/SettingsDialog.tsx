@@ -33,7 +33,10 @@ import {
   Users,
   Ban,
   Trash2,
+  LogOut,
 } from "lucide-react";
+import { useSignOut } from "@/lib/auth/useSignOut";
+import { initialOf } from "@/components/canvas/AccountMenu";
 import { IconButton } from "@/components/ui/primitives";
 import { widgetRegistry } from "@/components/widgets/registry";
 import { useHiddenWidgets } from "@/lib/utils/paletteVisibility";
@@ -54,11 +57,19 @@ export interface SettingsDialogProps {
   email: string | null;
   /** 관리자(ALLOWED_EMAIL) 여부 — '멤버' 탭 노출용. 권한 검사는 서버에서 별도로 한다. */
   isOwner?: boolean;
+  /** 로그아웃 직전 await되는 훅(대기 중 저장 flush) — AccountMenu와 같은 경로. */
+  onBeforeSignOut?: () => Promise<void> | void;
 }
 
 type Tab = "apps" | "account" | "members";
 
-export function SettingsDialog({ open, onClose, email, isOwner }: SettingsDialogProps) {
+export function SettingsDialog({
+  open,
+  onClose,
+  email,
+  isOwner,
+  onBeforeSignOut,
+}: SettingsDialogProps) {
   const [tab, setTab] = React.useState<Tab>("apps");
 
   // Esc to close.
@@ -130,7 +141,7 @@ export function SettingsDialog({ open, onClose, email, isOwner }: SettingsDialog
           ) : tab === "members" ? (
             <MembersSettings />
           ) : (
-            <AccountSettings email={email} />
+            <AccountSettings email={email} onBeforeSignOut={onBeforeSignOut} />
           )}
         </div>
       </div>
@@ -242,7 +253,14 @@ function AppVisibility() {
 
 /* -------------------------------- 계정 설정 ------------------------------- */
 
-function AccountSettings({ email }: { email: string | null }) {
+function AccountSettings({
+  email,
+  onBeforeSignOut,
+}: {
+  email: string | null;
+  onBeforeSignOut?: () => Promise<void> | void;
+}) {
+  const { signOut, signingOut } = useSignOut(onBeforeSignOut);
   const [pw, setPw] = React.useState("");
   const [pw2, setPw2] = React.useState("");
   const [show, setShow] = React.useState(false);
@@ -293,8 +311,27 @@ function AccountSettings({ email }: { email: string | null }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">{email ?? "로그인됨"}</p>
-          <p className="text-[11px] text-muted-foreground">소유자 계정 (이메일 + 비밀번호 로그인)</p>
+          <p className="text-[11px] text-muted-foreground">로그인된 계정 (이메일 + 비밀번호)</p>
         </div>
+      </div>
+
+      {/* 로그아웃 — 좌하단 아바타를 못 찾는다는 피드백으로 여기에도 둔다(같은 경로). */}
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <h3 className="text-sm font-medium text-foreground">로그아웃</h3>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          화면 <span className="font-medium text-foreground">왼쪽 아래 동그란 프로필 아이콘</span>
+          (‘{initialOf(email)}’)을 눌러도 로그아웃할 수 있습니다. 로그아웃해도 보드·위젯 내용은
+          그대로 저장되며, 다시 로그인하면 이어서 사용할 수 있습니다.
+        </p>
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          disabled={signingOut}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-destructive/40 px-3 py-2 text-sm font-medium text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <LogOut size={15} />
+          {signingOut ? "로그아웃 중…" : "로그아웃"}
+        </button>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-3">

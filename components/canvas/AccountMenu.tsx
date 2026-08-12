@@ -16,9 +16,8 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, User } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useSignOut } from "@/lib/auth/useSignOut";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -37,35 +36,25 @@ export interface AccountMenuProps {
   onBeforeSignOut?: () => Promise<void> | void;
 }
 
-/** Derive a 1-char avatar glyph from the email (fallends back to "N"). */
-function initialOf(email: string | null): string {
+/**
+ * Derive a 1-char avatar glyph from the email (falls back to "N").
+ * 설정>계정의 안내 문구가 같은 글자를 인용하므로 export한다(규칙이 한 곳에만 있게).
+ */
+export function initialOf(email: string | null): string {
   const c = email?.trim()?.[0];
   return c ? c.toUpperCase() : "N";
 }
 
 export function AccountMenu({ email, onBeforeSignOut }: AccountMenuProps) {
-  const router = useRouter();
-  const [signingOut, setSigningOut] = React.useState(false);
+  const { signOut, signingOut } = useSignOut(onBeforeSignOut);
 
   const handleSignOut = React.useCallback(
-    async (e: React.MouseEvent) => {
+    (e: React.MouseEvent) => {
       // Keep the menu logic from auto-closing before the async work resolves.
       e.preventDefault();
-      if (signingOut) return;
-      setSigningOut(true);
-      // 대기 중인 저장을 세션이 살아있는 동안 마저 보낸다(실패해도 로그아웃은 진행).
-      try {
-        await onBeforeSignOut?.();
-      } catch {
-        /* best-effort */
-      }
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      // Full navigation so the proxy re-evaluates and server state is clean.
-      router.replace("/login");
-      router.refresh();
+      void signOut();
     },
-    [router, signingOut, onBeforeSignOut],
+    [signOut],
   );
 
   return (
@@ -74,8 +63,9 @@ export function AccountMenu({ email, onBeforeSignOut }: AccountMenuProps) {
         <DropdownMenuTrigger>
           <button
             type="button"
-            aria-label="계정 메뉴"
-            title={email ?? "계정"}
+            aria-label="계정 메뉴 (로그아웃)"
+            // 아바타만으로는 로그아웃 위치를 못 찾는다는 피드백 → 툴팁에 명시.
+            title={`${email ?? "계정"} · 클릭하면 로그아웃`}
             className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-sm font-semibold text-foreground shadow-md outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             {initialOf(email)}
@@ -90,7 +80,7 @@ export function AccountMenu({ email, onBeforeSignOut }: AccountMenuProps) {
               <p className="truncate text-xs font-medium text-foreground">
                 {email ?? "로그인됨"}
               </p>
-              <p className="text-[11px] text-muted-foreground">소유자 계정</p>
+              <p className="text-[11px] text-muted-foreground">로그인된 계정</p>
             </div>
           </div>
           <DropdownMenuSeparator />
