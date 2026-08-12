@@ -30,6 +30,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isAllowedEmail } from "@/lib/auth/members";
 
 /** Minimal HTML-escape for untrusted plain text destined for innerHTML. */
 function escapeHtml(s: string): string {
@@ -95,9 +96,8 @@ export async function GET(request: NextRequest) {
   // Defense-in-depth auth (proxy already gates /share, preserving params through
   // login). A foreign/missing session → bounce to login carrying the share back.
   const { data: claims } = await supabase.auth.getClaims();
-  const allowed = process.env.ALLOWED_EMAIL?.toLowerCase();
   const email = (claims?.claims?.email as string | undefined)?.toLowerCase();
-  if (!allowed || !email || email !== allowed) {
+  if (!(await isAllowedEmail(email))) {
     const login = new URL("/login", request.url);
     login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(login);

@@ -99,10 +99,12 @@ function layoutsEqual(a: CanvasLayoutItem[], b: CanvasLayoutItem[]): boolean {
 /* --------------------------------- shell ---------------------------------- */
 
 export interface CanvasShellProps {
-  /** Signed-in owner email (from the verified server session). */
+  /** Signed-in email (from the verified server session). */
   userEmail: string | null;
   /** Verified user id (auth.uid()) — set on every persisted row. */
   userId: string;
+  /** 관리자(ALLOWED_EMAIL) 여부 — 설정의 '멤버' 탭 노출용(권한 검사는 서버 액션에서). */
+  isOwner?: boolean;
   /** Boards + widgets loaded server-side (RLS-scoped). Bootstrapped on first login. */
   initialBoards: BoardState[];
 }
@@ -114,6 +116,7 @@ export interface CanvasShellProps {
 export function CanvasShell({
   userEmail,
   userId,
+  isOwner,
   initialBoards,
 }: CanvasShellProps) {
   return (
@@ -121,13 +124,14 @@ export function CanvasShell({
       <CanvasBody
         userEmail={userEmail}
         userId={userId}
+        isOwner={isOwner}
         initialBoards={initialBoards}
       />
     </ToastProvider>
   );
 }
 
-function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
+function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellProps) {
   const persistence = usePersistence(initialBoards, userId);
   const {
     boards,
@@ -581,11 +585,12 @@ function CanvasBody({ userEmail, userId, initialBoards }: CanvasShellProps) {
           onBeforeSignOut: 세션 소멸 전에 대기 중 저장을 flush(유실 방지). */}
       <AccountMenu email={userEmail} onBeforeSignOut={flushNow} />
 
-      {/* 설정 — 팔레트 앱 표시 토글 + 계정(비밀번호 변경) */}
+      {/* 설정 — 팔레트 앱 표시 토글 + 계정(비밀번호 변경) + 멤버 승인(관리자) */}
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         email={userEmail}
+        isOwner={isOwner}
       />
 
       {/* Overlays — share ONE back-stack LIFO with the mobile palette sheet.

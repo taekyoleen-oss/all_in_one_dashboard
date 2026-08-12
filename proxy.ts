@@ -18,13 +18,15 @@
  *    2. **Route protection** — protected paths (`/`, `/settings`) require a valid
  *       session; otherwise redirect to `/login`. `/login`, `/auth/callback`, and
  *       `/api/*` are always allowed (ingest is per-user token auth, not session).
- *    3. **Defense-in-depth allow-list** — a session whose email ≠ ALLOWED_EMAIL
- *       is treated as unauthenticated (the callback already enforces this; here
- *       it's a backstop in case a stale/foreign cookie shows up).
- *
  *  Note: this is an OPTIMISTIC cookie-level check (per the Next docs, proxy runs
  *  on every request incl. prefetches — keep it to cookie/JWT reads, no DB). The
  *  authoritative auth check still lives server-side via lib/supabase/server.ts.
+ *
+ *  ⚠ 승인 목록(pb_members)은 **여기서 보지 않는다** — DB 조회가 필요해 proxy의
+ *  "no DB" 규칙에 어긋나고, 미승인 세션을 /login으로 튕기면 (proxy가 로그인된
+ *  사용자를 다시 /로 보내므로) 리다이렉트 루프가 된다. 승인 검사는 app/page.tsx·
+ *  /auth/callback·/share가 담당하고, 미승인 세션에는 page.tsx가 '권한 없음' 화면을
+ *  보여준다(로그아웃이 유일한 출구).
  * ============================================================================
  */
 
@@ -76,11 +78,10 @@ export async function proxy(request: NextRequest) {
   // IMPORTANT: do not run any logic between client creation and getClaims() —
   // it both refreshes the session and gives us the verified email for the gate.
   const { data } = await supabase.auth.getClaims();
-  const allowed = process.env.ALLOWED_EMAIL?.toLowerCase();
   const email = (data?.claims?.email as string | undefined)?.toLowerCase();
 
-  // Treat a foreign/missing session as unauthenticated (defense-in-depth).
-  const isAuthed = Boolean(allowed && email && email === allowed);
+  // 세션 유무만 본다(승인 여부는 page/callback/share에서 — 위 주석 참고).
+  const isAuthed = Boolean(email);
 
   const { pathname } = request.nextUrl;
 

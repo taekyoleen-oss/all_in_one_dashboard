@@ -1,13 +1,13 @@
 /**
  * ============================================================================
- *  GET /auth/callback — magic-link code exchange + single-user enforcement
+ *  GET /auth/callback — magic-link code exchange + 승인 목록 검사
  * ============================================================================
  *
  *  The magic link in the email points here with a `?code=` (PKCE) param. We:
  *    1. Exchange the code for a session (sets the auth cookies via @supabase/ssr).
- *    2. Enforce the single-user guardrail (CLAUDE.md): the session email MUST
- *       equal `ALLOWED_EMAIL`. Anyone else is signed out immediately and bounced
- *       to /login?error=not_allowed — no foothold is granted.
+ *    2. 승인 목록 검사(CLAUDE.md 가드레일): 세션 이메일이 관리자(ALLOWED_EMAIL)
+ *       이거나 `pb_members.status='approved'` 여야 한다. 아니면 즉시 signOut 후
+ *       /login?error=not_allowed 로 — 발판을 남기지 않는다.
  *    3. Redirect to `next` (same-origin only) or `/` on success.
  *
  *  Route Handler (Next.js 16, app dir). Uses the async SSR server client from
@@ -20,6 +20,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isAllowedEmail } from "@/lib/auth/members";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -44,13 +45,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // Single-user enforcement. getClaims() verifies the freshly-set JWT.
-  const allowed = process.env.ALLOWED_EMAIL?.toLowerCase();
+  // 승인 목록 검사. getClaims() verifies the freshly-set JWT.
   const { data: claimsData } = await supabase.auth.getClaims();
   const email = (claimsData?.claims?.email as string | undefined)?.toLowerCase();
 
-  if (!allowed || !email || email !== allowed) {
-    // Not the owner — revoke the just-minted session and reject.
+  if (!(await isAllowedEmail(email))) {
+    // 관리자도 승인 회원도 아님 — 방금 발급된 세션을 회수한다.
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/login?error=not_allowed`);
   }

@@ -2,15 +2,18 @@
 
 /**
  * ============================================================================
- *  SettingsDialog — 설정: 팔레트 앱 표시 + 계정(비밀번호 변경)
+ *  SettingsDialog — 설정: 팔레트 앱 표시 + 계정(비밀번호 변경) + 멤버(관리자 전용)
  * ============================================================================
  *
- *  Opened from the Toolbar gear (right of the theme toggle). Two tabs:
+ *  Opened from the Toolbar gear (right of the theme toggle). Tabs:
  *    • 앱 표시 — toggle which widget types appear in the palette (per-device,
  *      localStorage via useHiddenWidgets). Hiding never removes already-placed
  *      instances — only what you can ADD from the palette.
  *    • 계정   — show the signed-in email + change the account password via
  *      `supabase.auth.updateUser({ password })` (the app uses email+password auth).
+ *    • 멤버   — 관리자(ALLOWED_EMAIL)에게만 보인다. 접근 요청 승인/차단/삭제.
+ *      실제 권한 검사는 서버 액션(lib/auth/actions.ts)이 다시 하므로, isOwner는
+ *      **탭 노출 여부**일 뿐 보안 경계가 아니다.
  *
  *  Modal markup mirrors ConfigDialog (scrim + bottom-sheet on mobile, centered on
  *  desktop). Esc / scrim / ✕ close it.
@@ -18,23 +21,44 @@
  */
 
 import * as React from "react";
-import { X, LayoutGrid, KeyRound, Eye, EyeOff, Check, AlertCircle, Loader2 } from "lucide-react";
+import {
+  X,
+  LayoutGrid,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Check,
+  AlertCircle,
+  Loader2,
+  Users,
+  Ban,
+  Trash2,
+} from "lucide-react";
 import { IconButton } from "@/components/ui/primitives";
 import { widgetRegistry } from "@/components/widgets/registry";
 import { useHiddenWidgets } from "@/lib/utils/paletteVisibility";
 import { createClient } from "@/lib/supabase/client";
 import type { WidgetDefinition } from "@/lib/widgets/contract";
+import type { MemberRow } from "@/lib/auth/access";
+import {
+  approveMemberAction,
+  blockMemberAction,
+  listMembersAction,
+  removeMemberAction,
+} from "@/lib/auth/actions";
 
 export interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
-  /** Signed-in owner email (from the verified server session). */
+  /** Signed-in email (from the verified server session). */
   email: string | null;
+  /** 관리자(ALLOWED_EMAIL) 여부 — '멤버' 탭 노출용. 권한 검사는 서버에서 별도로 한다. */
+  isOwner?: boolean;
 }
 
-type Tab = "apps" | "account";
+type Tab = "apps" | "account" | "members";
 
-export function SettingsDialog({ open, onClose, email }: SettingsDialogProps) {
+export function SettingsDialog({ open, onClose, email, isOwner }: SettingsDialogProps) {
   const [tab, setTab] = React.useState<Tab>("apps");
 
   // Esc to close.
@@ -92,11 +116,22 @@ export function SettingsDialog({ open, onClose, email }: SettingsDialogProps) {
           <TabButton active={tab === "account"} onClick={() => setTab("account")}>
             <KeyRound size={14} aria-hidden /> 계정
           </TabButton>
+          {isOwner ? (
+            <TabButton active={tab === "members"} onClick={() => setTab("members")}>
+              <Users size={14} aria-hidden /> 멤버
+            </TabButton>
+          ) : null}
         </div>
 
         {/* 모바일 바텀시트: safe-area 하단 패딩 + 스크롤 체이닝 차단. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {tab === "apps" ? <AppVisibility /> : <AccountSettings email={email} />}
+          {tab === "apps" ? (
+            <AppVisibility />
+          ) : tab === "members" ? (
+            <MembersSettings />
+          ) : (
+            <AccountSettings email={email} />
+          )}
         </div>
       </div>
     </div>
@@ -333,6 +368,137 @@ function AccountSettings({ email }: { email: string | null }) {
           비밀번호 변경
         </button>
       </form>
+    </div>
+  );
+}
+
+/* --------------------------- 멤버 관리 (관리자 전용) --------------------------- */
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "승인 대기",
+  approved: "승인됨",
+  blocked: "차단됨",
+};
+
+function MembersSettings() {
+  const [rows, setRows] = React.useState<MemberRow[] | null>(null);
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
+
+  // 목록 조회. setState는 응답이 온 뒤 중첩 async 안에서 — effect 본문 동기 setState
+  // 금지(react-hooks v6). 언마운트 후 갱신을 막는 alive 플래그도 함께.
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const list = await listMembersAction();
+      if (alive) setRows(list);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
+  /** 액션 실행 후 목록 재조회 — 상태를 낙관적으로 흉내 내지 않고 서버 결과를 따른다. */
+  const run = React.useCallback(
+    async (email: string, fn: (e: string) => Promise<boolean>) => {
+      setBusy(email);
+      try {
+        await fn(email);
+        setReloadKey((k) => k + 1);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [],
+  );
+
+  if (rows === null) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 size={14} className="animate-spin" /> 불러오는 중…
+      </p>
+    );
+  }
+
+  const pending = rows.filter((r) => r.status === "pending");
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">
+        승인된 이메일만 로그인할 수 있습니다. 승인하면 주식 시세·날씨·위치 등 서버 기능을
+        함께 사용합니다.
+        {pending.length > 0 ? (
+          <span className="ml-1 font-medium text-foreground">
+            대기 {pending.length}건
+          </span>
+        ) : null}
+      </p>
+
+      {rows.length === 0 ? (
+        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+          아직 접근 요청이 없습니다. 사용자가 로그인 화면에서 ‘비밀번호 설정 / 접근 요청’을
+          누르면 여기에 표시됩니다.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {rows.map((m) => {
+            const working = busy === m.email;
+            return (
+              <li
+                key={m.email}
+                className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-foreground">{m.email}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {STATUS_LABEL[m.status] ?? m.status}
+                    {m.note ? ` · ${m.note}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {working ? (
+                    <Loader2 size={14} className="animate-spin text-muted-foreground" />
+                  ) : (
+                    <>
+                      {m.status !== "approved" ? (
+                        <button
+                          type="button"
+                          onClick={() => void run(m.email, approveMemberAction)}
+                          className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <Check size={12} /> 승인
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          title="차단 — 계정과 세션이 즉시 삭제됩니다"
+                          onClick={() => void run(m.email, blockMemberAction)}
+                          className="inline-flex size-7 items-center justify-center rounded-md border border-border text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-9"
+                        >
+                          <Ban size={13} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        title="목록에서 삭제 — 계정과 데이터가 함께 삭제됩니다"
+                        onClick={() => void run(m.email, removeMemberAction)}
+                        className="inline-flex size-7 items-center justify-center rounded-md border border-border text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-9"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <p className="text-[11px] text-muted-foreground">
+        승인 알림 메일은 발송되지 않습니다 — 승인 후 사용자에게 직접 알려 주세요. 차단·삭제
+        시 해당 계정과 그 사용자의 데이터가 함께 삭제되어 로그인 세션도 즉시 끊깁니다.
+      </p>
     </div>
   );
 }

@@ -213,6 +213,30 @@ export type Database = {
         }
         Relationships: []
       }
+      pb_members: {
+        Row: {
+          decided_at: string | null
+          email: string
+          note: string | null
+          requested_at: string
+          status: string
+        }
+        Insert: {
+          decided_at?: string | null
+          email: string
+          note?: string | null
+          requested_at?: string
+          status?: string
+        }
+        Update: {
+          decided_at?: string | null
+          email?: string
+          note?: string | null
+          requested_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       pb_user_settings: {
         Row: {
           default_dashboard_id: string | null

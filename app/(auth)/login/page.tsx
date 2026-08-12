@@ -5,28 +5,30 @@
  *  /login — email + password sign-in (설계서 §3.1, §3.3; replaces magic link)
  * ============================================================================
  *
- *  Single-user app: only `ALLOWED_EMAIL` may sign in (enforced server-side at
- *  proxy.ts + app/page.tsx, and again by `setOwnerPassword`). Email + password is
- *  used instead of magic links — it's far more reliable (no email round-trip, no
- *  Gmail link pre-scan, no PKCE verifier surviving a redirect).
+ *  관리자 승인제: 관리자(ALLOWED_EMAIL) + `pb_members`에 승인된 이메일만 로그인할 수
+ *  있다(app/page.tsx·/auth/callback·/share에서 서버 검사, `setAccountPassword`가 한 번 더).
+ *  Email + password is used instead of magic links — it's far more reliable (no
+ *  email round-trip, no Gmail link pre-scan, no PKCE verifier surviving a redirect).
  *
  *  Two modes:
  *   • "login"  — `signInWithPassword`. Session is set on the browser client →
  *                cookies → the server (proxy/page) reads it → we route to `/`.
- *   • "setup"  — first time (or reset): calls the `setOwnerPassword` server action
- *                (admin, ALLOWED_EMAIL-gated) to set the password, then signs in.
+ *   • "setup"  — 최초 1회(또는 재설정): `setAccountPassword` 서버 액션 호출. 승인된
+ *                이메일이면 계정 생성/비번 변경, **미승인이면 접근 요청만 접수**되고
+ *                안내(pending)가 표시된다 — 관리자 승인 후 다시 누르면 가입 완료.
  * ============================================================================
  */
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { setOwnerPassword } from "./actions";
-import { Loader2, AlertCircle, LogIn, KeyRound } from "lucide-react";
+import { setAccountPassword } from "./actions";
+import { Loader2, AlertCircle, LogIn, KeyRound, MailCheck } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 type Mode = "login" | "setup";
-type Status = "idle" | "working" | "error";
+/** "notice" = 오류가 아니라 접근 요청 접수 안내(승인 대기). */
+type Status = "idle" | "working" | "error" | "notice";
 
 function LoginCard() {
   const router = useRouter();
@@ -40,7 +42,7 @@ function LoginCard() {
   const callbackError = params.get("error");
   const banner =
     callbackError === "not_allowed"
-      ? "이 이메일은 접근 권한이 없습니다. 소유자 계정으로만 로그인할 수 있습니다."
+      ? "이 이메일은 아직 승인되지 않았습니다. 아래 ‘비밀번호 설정 / 접근 요청’으로 관리자 승인을 요청하세요."
       : null;
 
   const signIn = React.useCallback(
@@ -77,9 +79,10 @@ function LoginCard() {
       setMessage(null);
 
       if (mode === "setup") {
-        const res = await setOwnerPassword(em, pw);
+        const res = await setAccountPassword(em, pw);
         if (!res.ok) {
-          setStatus("error");
+          // pending = 승인 대기 안내(정상 흐름) — 빨간 오류로 보이지 않게 구분한다.
+          setStatus(res.pending ? "notice" : "error");
           setMessage(res.error);
           return;
         }
@@ -105,7 +108,7 @@ function LoginCard() {
           <p className="text-sm text-muted-foreground">
             {mode === "login"
               ? "이메일과 비밀번호로 로그인하세요."
-              : "최초 1회 비밀번호를 설정합니다."}
+              : "최초 1회 비밀번호를 설정합니다. 승인 전이면 접근 요청으로 접수됩니다."}
           </p>
         </div>
 
@@ -157,9 +160,20 @@ function LoginCard() {
             />
           </div>
 
-          {status === "error" && message ? (
-            <p className="flex items-start gap-1.5 text-xs text-destructive">
-              <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          {message && (status === "error" || status === "notice") ? (
+            <p
+              className={[
+                "flex items-start gap-1.5 rounded-md p-2 text-xs",
+                status === "notice"
+                  ? "bg-primary/10 text-foreground"
+                  : "text-destructive",
+              ].join(" ")}
+            >
+              {status === "notice" ? (
+                <MailCheck size={14} className="mt-0.5 shrink-0 text-primary" />
+              ) : (
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+              )}
               <span>{message}</span>
             </p>
           ) : null}
@@ -199,14 +213,15 @@ function LoginCard() {
             className="text-xs text-primary underline-offset-2 hover:underline"
           >
             {mode === "login"
-              ? "처음이신가요? 비밀번호 설정 / 재설정"
+              ? "처음이신가요? 비밀번호 설정 / 접근 요청"
               : "← 로그인으로 돌아가기"}
           </button>
         </div>
       </div>
 
       <p className="mt-4 px-2 text-center text-xs text-muted-foreground">
-        본인 전용 대시보드입니다. 등록된 소유자 이메일만 로그인할 수 있습니다.
+        관리자 승인을 받은 이메일만 로그인할 수 있습니다. 처음이시면 ‘비밀번호 설정 /
+        접근 요청’으로 승인을 요청하세요.
       </p>
     </div>
   );
