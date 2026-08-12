@@ -38,8 +38,17 @@ import type { CanvasLayoutItem } from "@/components/canvas/GridCanvas";
 /** Default board name used for the first-login bootstrap. */
 const DEFAULT_BOARD_NAME = "내 보드";
 
-/** Seed widget types planted into a brand-new default board (must exist in registry). */
-const SEED_WIDGET_TYPES = ["memo", "todo", "stock"] as const;
+/**
+ * Seed widget types planted into a brand-new default board (must exist in registry).
+ * 순서 = 화면 배치 순서(buildSeedWidgets가 이 순서로 빈 칸을 채운다).
+ */
+const SEED_WIDGET_TYPES = [
+  "weather",
+  "memo",
+  "world-clock",
+  "clipboard",
+  "news",
+] as const;
 
 /**
  * Load every board (with its widgets) for the signed-in user, bootstrapping a

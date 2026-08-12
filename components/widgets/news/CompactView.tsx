@@ -37,9 +37,7 @@ export function NewsCompactView({ config }: CompactViewProps<NewsConfig>) {
 
   return (
     <div className="flex h-full flex-col gap-1">
-      <p className="shrink-0 truncate text-xs text-muted-foreground">
-        “{data.query}”
-      </p>
+      {/* 검색어는 헤더 제목이 보여준다("뉴스 (보험 검색)") — 타일 안 중복 줄 제거로 한 줄 더 확보. */}
       <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-scroll">
         {data.items.map((item, i) => {
           const when = relativeTime(item.publishedAt);

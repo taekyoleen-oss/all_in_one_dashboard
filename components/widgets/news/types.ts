@@ -12,6 +12,23 @@
 export interface NewsConfig {
   /** Free-text search keyword for headlines (e.g. "속보", "AI", "경제"). */
   query: string;
+  /**
+   * 사용자가 직접 지정한 인스턴스 제목(선택). 비어 있으면 헤더 제목은 검색어에서
+   * 파생된다 — `newsInstanceTitle` 참고. 제목 변경(더블클릭)을 하면 여기에 저장돼
+   * 검색어를 바꿔도 유지된다.
+   */
+  title?: string;
+}
+
+/**
+ * 헤더/전체보기에 보일 이름 — 설정한 검색어가 드러나게 "뉴스 (보험 검색)" 형태.
+ * 사용자가 제목을 직접 바꿨으면 그것을 우선한다. 둘 다 비면 null(=displayName "뉴스").
+ */
+export function newsInstanceTitle(config: NewsConfig): string | null {
+  const custom = config.title?.trim();
+  if (custom) return custom;
+  const q = config.query?.trim();
+  return q ? `뉴스 (${q} 검색)` : null;
 }
 
 /** Default keyword (mirrors the /api/news DEFAULT_NEWS_QUERY). */
