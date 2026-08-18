@@ -161,6 +161,17 @@ export function sanitizeHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
+/**
+ * 내용이 사실상 비었는가 — 글자도, 이미지·표 같은 미디어도 없을 때 true.
+ * (머리말을 삭제했는지 판단하는 데 쓴다: 빈 <p></p>만 남아도 '비었다'로 본다.)
+ */
+export function isBlankHtml(html: string): boolean {
+  if (!html || !html.trim()) return true;
+  // 글자가 없어도 이미지/표/구분선만 있으면 내용이 있는 것이다.
+  if (/<(img|table|hr|iframe|video|audio)\b/i.test(html)) return false;
+  return htmlToText(html) === "";
+}
+
 /** Plain-text preview (for empty checks / titles) from HTML. */
 export function htmlToText(html: string): string {
   if (!html) return "";

@@ -17,12 +17,12 @@
  */
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { Toolbar } from "./Toolbar";
 import { Attachments } from "./Attachments";
 import { RichTextArea } from "./RichTextArea";
-import { sanitizeHtml } from "./sanitize";
+import { isBlankHtml, sanitizeHtml } from "./sanitize";
 import { imageToDataUrl } from "./media";
 import * as RT from "./richText";
 import { queryActiveMarks, type ActiveMarks } from "./richText";
@@ -116,6 +116,10 @@ export function NoteEditor({
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   /** 방금 추가한 섹션 — 그 소제목 입력란에 포커스(마운트 시 autoFocus). */
   const [focusId, setFocusId] = React.useState<string | null>(null);
+  /** 머리말을 지운 뒤 다시 쓰겠다고 연 경우(비어 있어도 영역을 보여준다). */
+  const [introOpen, setIntroOpen] = React.useState(false);
+  /** 머리말 삭제 2단계 확인. */
+  const [deletingIntro, setDeletingIntro] = React.useState(false);
 
   React.useEffect(() => {
     RT.enableCssStyling();
@@ -273,9 +277,27 @@ export function NoteEditor({
     else run();
   };
 
+  /**
+   * 머리말 삭제 — 본문을 비우고 영역을 감춘다(요구). 소제목이 있을 때만 제공한다:
+   * 소제목이 없으면 머리말이 곧 노트 본문이라 지울 대상이 아니다(전체 비우기는
+   * '스타일 편집'의 '노트 비우기'). 표시 여부는 저장된 값에서 파생하므로
+   * 새로고침해도 지운 상태가 유지된다 — 새 config 필드 없이.
+   */
+  const deleteIntro = () => {
+    setDeletingIntro(false);
+    setIntroOpen(false);
+    // 등록된 편집 영역의 DOM도 즉시 비워, 언마운트 전 blur가 옛 내용을 되쓰지 않게 한다.
+    const el = editorsRef.current.get(INTRO_KEY);
+    if (el) el.innerHTML = "";
+    commit({ ...configRef.current, html: "", updatedAt: Date.now() });
+  };
+
   const sections = config.sections ?? [];
   const single = sectionId ? sections.find((s) => s.id === sectionId) ?? null : null;
   const hasSections = sections.length > 0;
+  // 소제목이 없으면 머리말 = 노트 본문이라 항상 보인다. 소제목이 있을 때만
+  // '비었으면 감춤'이 성립하고, 상단 '＋ 머리말'로 다시 열 수 있다.
+  const showIntro = !hasSections || introOpen || !isBlankHtml(config.html);
 
   /** 섹션 헤더 한 줄: 소제목 입력 + 순서/삭제 컨트롤(단독 모드에선 입력만). */
   const sectionHeader = (s: NoteSection, i: number, solo: boolean) => (
@@ -387,6 +409,15 @@ export function NoteEditor({
               >
                 <ArrowDown size={14} aria-hidden /> 아래에
               </SectionAddBtn>
+              {/* 머리말을 지운 뒤 다시 쓰고 싶을 때의 되돌리기 경로. */}
+              {showIntro ? null : (
+                <SectionAddBtn
+                  title="머리말 다시 추가"
+                  onClick={() => setIntroOpen(true)}
+                >
+                  <Plus size={14} aria-hidden /> 머리말
+                </SectionAddBtn>
+              )}
             </span>
           )
         }
@@ -418,23 +449,67 @@ export function NoteEditor({
               : "flex min-h-0 flex-1 flex-col"
           }
         >
-          <RichTextArea
-            editorKey={INTRO_KEY}
-            initialHtml={config.html}
-            resetKey={`${instanceId}:intro`}
-            placeholder={
-              hasSections
-                ? "머리말(선택) — 이 노트 전체에 대한 설명…"
-                : "여기에 강의 내용을 기록하세요… (붙여넣기·이미지·표·이미지 크기조절 지원)"
-            }
-            fill={!hasSections}
-            // 머리말은 선택 영역 — 비어 있을 때 한 줄만 차지(요구), 쓰면 자라남.
-            slim={hasSections}
-            ariaLabel="노트 본문"
-            registerEl={registerEl}
-            onPersist={persistKey}
-            onActivity={refresh}
-          />
+          {showIntro ? (
+            <>
+              {/* 머리말 삭제(요구) — 소제목이 있을 때만. 소제목이 없으면 이 영역이
+                  곧 노트 본문이라 지울 대상이 아니다. 2단계 확인은 소제목과 동일. */}
+              {hasSections ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="flex-1 text-[11px] text-muted-foreground">
+                    머리말 (선택)
+                  </span>
+                  {deletingIntro ? (
+                    <>
+                      <button
+                        type="button"
+                        data-pb-no-drag=""
+                        onClick={deleteIntro}
+                        className="shrink-0 rounded-md bg-destructive px-2 py-1 text-xs font-medium text-destructive-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        삭제
+                      </button>
+                      <button
+                        type="button"
+                        data-pb-no-drag=""
+                        onClick={() => setDeletingIntro(false)}
+                        className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      title="머리말 삭제"
+                      aria-label="머리말 삭제"
+                      data-pb-no-drag=""
+                      onClick={() => setDeletingIntro(true)}
+                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ) : null}
+              <RichTextArea
+                editorKey={INTRO_KEY}
+                initialHtml={config.html}
+                resetKey={`${instanceId}:intro`}
+                placeholder={
+                  hasSections
+                    ? "머리말(선택) — 이 노트 전체에 대한 설명…"
+                    : "여기에 강의 내용을 기록하세요… (붙여넣기·이미지·표·이미지 크기조절 지원)"
+                }
+                fill={!hasSections}
+                // 머리말은 선택 영역 — 비어 있을 때 한 줄만 차지(요구), 쓰면 자라남.
+                slim={hasSections}
+                ariaLabel="노트 본문"
+                registerEl={registerEl}
+                onPersist={persistKey}
+                onActivity={refresh}
+              />
+            </>
+          ) : null}
 
           {sections.map((s, i) => (
             <section key={s.id} className="flex shrink-0 flex-col gap-1.5">
