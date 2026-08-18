@@ -18,7 +18,8 @@ import type {
   SubCurrency,
   BillingCycle,
 } from "./types";
-import { CYCLE_LABEL } from "./types";
+import { CYCLE_LABEL, SUB_STATUS_LABEL } from "./types";
+import { defaultCancelDate } from "./compute";
 
 const CURRENCIES: SubCurrency[] = ["KRW", "USD", "EUR", "JPY"];
 const CYCLES: BillingCycle[] = ["weekly", "monthly", "yearly"];
@@ -42,6 +43,19 @@ export function SubscriptionManager({
 
   const remove = (id: string) =>
     setEntries(config.entries.filter((e) => e.id !== id));
+
+  /**
+   * 구독중 ↔ 해지 전환. 해지로 바꿀 때 해지일이 비어 있으면 **다음 결제일**을
+   * 기본값으로 채운다(이미 결제한 주기는 그날까지 쓰는 게 보통).
+   * 다시 구독중으로 돌리면 해지일은 지운다.
+   */
+  const setActive = (sub: Subscription, active: boolean) =>
+    patch(sub.id, {
+      active,
+      canceledAt: active
+        ? undefined
+        : (sub.canceledAt?.trim() || defaultCancelDate(sub)),
+    });
 
   const add = () =>
     setEntries([
@@ -91,15 +105,16 @@ export function SubscriptionManager({
                 placeholder="서비스 이름 (예: Netflix)"
                 className={`${inputCls} flex-1`}
               />
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={e.active}
-                  onChange={(ev) => patch(e.id, { active: ev.target.checked })}
-                  className="size-4 accent-[var(--primary)]"
-                />
-                사용중
-              </label>
+              {/* 상태: 구독중(기본) / 해지 — 해지를 고르면 해지일 칸이 열린다. */}
+              <select
+                value={e.active ? "active" : "canceled"}
+                onChange={(ev) => setActive(e, ev.target.value === "active")}
+                aria-label={`${e.name || "구독"} 상태`}
+                className={`${inputCls} w-24`}
+              >
+                <option value="active">{SUB_STATUS_LABEL.active}</option>
+                <option value="canceled">{SUB_STATUS_LABEL.canceled}</option>
+              </select>
               <button
                 type="button"
                 aria-label={`${e.name || "구독"} 삭제`}
@@ -163,6 +178,24 @@ export function SubscriptionManager({
                 className={`${inputCls} w-28`}
               />
             </div>
+            {/* 해지일 — 해지 상태일 때만. 기본값은 다음 결제일이며 수정할 수 있다. */}
+            {e.active ? null : (
+              <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                해지일
+                <input
+                  type="date"
+                  value={e.canceledAt ?? ""}
+                  onChange={(ev) =>
+                    patch(e.id, { canceledAt: ev.target.value || undefined })
+                  }
+                  aria-label={`${e.name || "구독"} 해지일`}
+                  className={inputCls}
+                />
+                <span className="text-[11px]">
+                  기본값은 다음 결제일입니다. 비워 두면 날짜 없이 ‘해지’로만 표시됩니다.
+                </span>
+              </label>
+            )}
           </li>
         ))}
         {config.entries.length === 0 ? (

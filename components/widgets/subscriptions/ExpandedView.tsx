@@ -12,11 +12,11 @@ import * as React from "react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import { useNow } from "@/lib/utils/useNow";
 import {
-  sortedByNextDue,
+  sortedForList,
   computeTotals,
   formatMoney,
 } from "./compute";
-import { CYCLE_LABEL, CURRENCY_SYMBOL } from "./types";
+import { CYCLE_LABEL, CURRENCY_SYMBOL, subStatusText } from "./types";
 import type { SubscriptionsConfig } from "./types";
 
 export function SubscriptionsExpandedView({
@@ -24,7 +24,7 @@ export function SubscriptionsExpandedView({
 }: ExpandedViewProps<SubscriptionsConfig>) {
   const now = useNow(3_600_000);
   const totals = computeTotals(config);
-  const items = sortedByNextDue(config, now);
+  const items = sortedForList(config, now);
 
   return (
     <div className="flex flex-col gap-4">
@@ -58,16 +58,43 @@ export function SubscriptionsExpandedView({
               className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-border bg-card/60 p-3"
             >
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate text-base font-medium text-foreground">
-                  {sub.name || "(이름 없음)"}
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={[
+                      "truncate text-base font-medium",
+                      sub.active
+                        ? "text-foreground"
+                        : "text-muted-foreground line-through",
+                    ].join(" ")}
+                  >
+                    {sub.name || "(이름 없음)"}
+                  </span>
+                  {/* 상태 배지 — 색만이 아니라 글자로도 구분(접근성). */}
+                  <span
+                    className={[
+                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      sub.active
+                        ? "bg-primary/15 text-foreground"
+                        : "bg-muted text-muted-foreground",
+                    ].join(" ")}
+                  >
+                    {subStatusText(sub)}
+                  </span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {CYCLE_LABEL[sub.cycle]} · 다음 {readout.nextText}
-                  {readout.daysUntil >= 0 ? ` (${readout.daysUntil}일 후)` : ""}
+                  {CYCLE_LABEL[sub.cycle]}
+                  {sub.active
+                    ? ` · 다음 ${readout.nextText}${readout.daysUntil >= 0 ? ` (${readout.daysUntil}일 후)` : ""}`
+                    : ""}
                   {sub.category ? ` · ${sub.category}` : ""}
                 </span>
               </div>
-              <span className="shrink-0 font-mono text-lg font-semibold tabular-nums text-foreground">
+              <span
+                className={[
+                  "shrink-0 font-mono text-lg font-semibold tabular-nums",
+                  sub.active ? "text-foreground" : "text-muted-foreground",
+                ].join(" ")}
+              >
                 {CURRENCY_SYMBOL[sub.currency]}
                 {Math.round(sub.amount).toLocaleString("ko-KR")}
               </span>

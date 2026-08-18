@@ -20,11 +20,11 @@ import {
   quickBtnClass,
 } from "@/components/widgets/shared/QuickAdd";
 import {
-  sortedByNextDue,
+  sortedForList,
   computeTotals,
   formatMoney,
 } from "./compute";
-import { CURRENCY_SYMBOL, CYCLE_LABEL } from "./types";
+import { CURRENCY_SYMBOL, CYCLE_LABEL, subStatusText } from "./types";
 import type {
   SubscriptionsConfig,
   SubCurrency,
@@ -49,7 +49,7 @@ export function SubscriptionsCompactView({
 }: CompactViewProps<SubscriptionsConfig>) {
   const now = useNow(3_600_000);
   const totals = computeTotals(config);
-  const items = sortedByNextDue(config, now);
+  const items = sortedForList(config, now);
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
@@ -69,20 +69,38 @@ export function SubscriptionsCompactView({
           <ul className="my-auto flex flex-col gap-1.5">
             {items.map(({ sub, readout }) => {
               const badge = dueBadge(readout.daysUntil);
+              // 해지 항목은 남겨서 상태를 보여주되(요구), 결제 예정이 아니므로
+              // 이름에 취소선 + 흐린 톤으로 구독중과 한눈에 구분한다.
               return (
                 <li
                   key={sub.id}
                   className="flex items-center justify-between gap-2"
                 >
                   <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-medium text-foreground">
+                    <span
+                      className={[
+                        "truncate text-sm font-medium",
+                        sub.active
+                          ? "text-foreground"
+                          : "text-muted-foreground line-through",
+                      ].join(" ")}
+                    >
                       {sub.name || "(이름 없음)"}
                     </span>
-                    <span className={`text-[11px] ${badge.cls}`}>
-                      {badge.text} · {readout.nextText}
+                    <span
+                      className={`text-[11px] ${sub.active ? badge.cls : "text-muted-foreground"}`}
+                    >
+                      {sub.active
+                        ? `${badge.text} · ${readout.nextText}`
+                        : subStatusText(sub)}
                     </span>
                   </div>
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-foreground">
+                  <span
+                    className={[
+                      "shrink-0 font-mono text-sm tabular-nums",
+                      sub.active ? "text-foreground" : "text-muted-foreground",
+                    ].join(" ")}
+                  >
                     {CURRENCY_SYMBOL[sub.currency]}
                     {Math.round(sub.amount).toLocaleString("ko-KR")}
                   </span>

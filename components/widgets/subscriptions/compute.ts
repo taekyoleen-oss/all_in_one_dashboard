@@ -107,6 +107,20 @@ export function computeNextDue(
   };
 }
 
+/**
+ * 해지일 기본값 = **다음 결제일**(ISO yyyy-MM-dd).
+ * 해지해도 이미 결제한 주기는 그날까지 쓰는 게 보통이라 그 날짜를 채워 준다.
+ * 예) 기준 결제일 2026-01-06, 오늘 2026-03-18 → 2026-04-06.
+ * 기준 날짜가 잘못됐으면 ""(사용자가 직접 입력).
+ */
+export function defaultCancelDate(
+  sub: Subscription,
+  now: Date = new Date(),
+): string {
+  const { nextDue } = computeNextDue(sub, now);
+  return nextDue ? format(nextDue, "yyyy-MM-dd") : "";
+}
+
 export interface SubsTotals {
   monthly: number;
   yearly: number;
@@ -132,15 +146,23 @@ export function computeTotals(config: SubscriptionsConfig): SubsTotals {
   };
 }
 
-/** Active entries sorted by soonest next-due date. */
-export function sortedByNextDue(
+/**
+ * 목록 표시용 정렬 — **구독중이 먼저**(다음 결제일 가까운 순), 해지는 뒤로
+ * (해지일 최신 순, 날짜 없으면 맨 끝). 해지 항목도 화면에 남겨 상태를 보여준다(요구).
+ * 합계(computeTotals)는 구독중만 더한다 — 그 규칙은 그대로다.
+ */
+export function sortedForList(
   config: SubscriptionsConfig,
   now: Date = new Date(),
 ): Array<{ sub: Subscription; readout: SubReadout }> {
   return config.entries
-    .filter((s) => s.active)
     .map((sub) => ({ sub, readout: computeNextDue(sub, now) }))
-    .sort((a, b) => a.readout.daysUntil - b.readout.daysUntil);
+    .sort((a, b) => {
+      if (a.sub.active !== b.sub.active) return a.sub.active ? -1 : 1;
+      if (a.sub.active) return a.readout.daysUntil - b.readout.daysUntil;
+      // 해지끼리: 최근에 끊은 것부터. 날짜가 없으면 뒤로 민다.
+      return (b.sub.canceledAt ?? "").localeCompare(a.sub.canceledAt ?? "");
+    });
 }
 
 /** Format a money amount with the currency symbol (no decimals for KRW/JPY). */
