@@ -7,6 +7,11 @@
  *  state and could not reflect config edits; the real widget fixes that.
  */
 export interface MemoConfig {
+  /**
+   * 메모 제목(선택). 본문 상단 입력란과 위젯 헤더 제목이 이 값을 공유하므로,
+   * 어느 쪽에서 바꿔도 다른 쪽에 반영된다. 비면 헤더는 displayName("메모")로 폴백.
+   */
+  title?: string;
   /** Body text. */
   text: string;
   /** Accent color token key (mapped to a concrete swatch in the views). */
@@ -73,6 +78,30 @@ export const MEMO_SIZE_CLASS_EXPANDED: Record<MemoSize, string> = {
   md: "text-base",
   lg: "text-lg",
 };
+
+/**
+ * 제목 글자 크기 — 같은 size 버킷의 본문보다 한 단계 큰 값(요구: 기존 글자보다 크게).
+ * 본문 클래스와 나란히 두어 어긋나지 않게 한다.
+ */
+export const MEMO_TITLE_CLASS: Record<MemoSize, string> = {
+  sm: "text-sm @[220px]/widget:text-base",
+  md: "text-base @[220px]/widget:text-lg",
+  lg: "text-lg @[220px]/widget:text-xl",
+};
+
+export const MEMO_TITLE_CLASS_EXPANDED: Record<MemoSize, string> = {
+  sm: "text-base",
+  md: "text-lg",
+  lg: "text-xl",
+};
+
+/**
+ * 위젯 헤더/전체보기에 표시할 인스턴스 제목. 비면 null → 프레임이 displayName("메모")로
+ * 폴백한다. (contract의 instanceTitle 옵션 — 뉴스 위젯과 같은 경로)
+ */
+export function memoInstanceTitle(config: MemoConfig): string | null {
+  return config.title?.trim() || null;
+}
 
 export const DEFAULT_MEMO_CONFIG: MemoConfig = {
   text: "",

@@ -452,6 +452,34 @@ function CanvasCell({
   // config 저장 경로 — instanceTitle 위젯(노트)의 헤더 제목 변경을 config로 영속.
   const saveConfig = useSaveWidgetConfig();
 
+  // 기기별 제목 → config 제목 1회 이관(자가치유). 위젯이 나중에 instanceTitle을
+  // 갖게 되면(메모·뉴스처럼) 이전에 pb:title로 저장해 둔 이름을 헤더가 더 이상 읽지
+  // 않아 사라진 것처럼 보인다. config 제목이 비어 있을 때만 옮기고 로컬 키는 지운다
+  // (이후 이름 변경은 config 경로가 담당 — 되살아나지 않는다).
+  const defForTitle = registry[instance.type];
+  const needsTitleAdopt =
+    !!defForTitle?.instanceTitle &&
+    !!defForTitle.renameInstance &&
+    !!customTitle &&
+    !defForTitle.instanceTitle(instance.config);
+  React.useEffect(() => {
+    if (!needsTitleAdopt || !customTitle) return;
+    saveConfig(
+      instance.instanceId,
+      defForTitle!.renameInstance!(instance.config, customTitle),
+    );
+    setTitle(null);
+    // instance.config는 저장 직후 갱신되며 needsTitleAdopt가 false가 되어 1회만 돈다.
+  }, [
+    needsTitleAdopt,
+    customTitle,
+    defForTitle,
+    instance.config,
+    instance.instanceId,
+    saveConfig,
+    setTitle,
+  ]);
+
   React.useEffect(() => {
     const el = cellRef.current;
     if (!el) return;

@@ -9,7 +9,11 @@ import type { WidgetDefinition } from "@/lib/widgets/contract";
 import { MemoCompactView } from "./CompactView";
 import { MemoExpandedView } from "./ExpandedView";
 import { MemoConfigEditor } from "./ConfigEditor";
-import { DEFAULT_MEMO_CONFIG, type MemoConfig } from "./types";
+import {
+  DEFAULT_MEMO_CONFIG,
+  memoInstanceTitle,
+  type MemoConfig,
+} from "./types";
 
 export const memoWidget: WidgetDefinition<MemoConfig> = {
   type: "memo",
@@ -23,6 +27,10 @@ export const memoWidget: WidgetDefinition<MemoConfig> = {
   CompactView: MemoCompactView,
   ExpandedView: MemoExpandedView,
   ConfigEditor: MemoConfigEditor,
+  // 헤더 제목 = 본문 상단 제목(config.title). 헤더 더블클릭 변경도 같은 필드에
+  // 저장되므로 본문 제목이 함께 바뀐다(양방향).
+  instanceTitle: memoInstanceTitle,
+  renameInstance: (config, title) => ({ ...config, title: title.trim() }),
   copyBehavior: "content",
   dataMode: "static",
   // 내용 편집은 전체보기(편집 가능 textarea)에서 — 메뉴 '편집'이 전체보기를 열고,

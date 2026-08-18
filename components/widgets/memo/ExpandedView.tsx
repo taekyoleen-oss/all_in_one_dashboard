@@ -14,6 +14,7 @@ import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import {
   MEMO_COLORS,
   MEMO_SIZE_CLASS_EXPANDED,
+  MEMO_TITLE_CLASS_EXPANDED,
   type MemoConfig,
   type MemoSize,
 } from "./types";
@@ -28,7 +29,18 @@ export function MemoExpandedView({
   instanceId,
 }: ExpandedViewProps<MemoConfig>) {
   const { locked, hasLock, lock, tryUnlock } = useMemoLock(config);
-  const { ref: textRef, onChange, onBlur } = useMemoText(instanceId, config);
+  const { ref: textRef, onChange, onBlur } = useMemoText<HTMLTextAreaElement>(
+    instanceId,
+    config,
+  );
+  // 제목은 헤더/전체보기 이름과 같은 config.title — 어느 쪽에서 고쳐도 서로 반영된다.
+  // (구조 분해: react-hooks v6 `refs` 규칙이 훅 반환 객체의 멤버 접근을 오탐한다)
+  const {
+    ref: titleRef,
+    defaultValue: titleValue,
+    onChange: onTitleChange,
+    onBlur: onTitleBlur,
+  } = useMemoText<HTMLInputElement>(instanceId, config, "title");
   // View-only override of the rendered size (does NOT mutate config). Seeded from
   // config.size during render via initializer — no setState-in-effect.
   const [viewSize, setViewSize] = React.useState<MemoSize>(config.size);
@@ -88,22 +100,41 @@ export function MemoExpandedView({
             style={{ backgroundColor: accent }}
           />
         ) : null}
-        <textarea
-          // Uncontrolled (caret-safe); useMemoText persists (debounced) and
-          // syncs external edits when unfocused. textColor unset → 테마 자동.
-          ref={textRef}
-          defaultValue={config.text}
-          onChange={onChange}
-          onBlur={onBlur}
-          placeholder="여기에 메모를 입력하세요…"
-          spellCheck={false}
-          style={config.textColor ? { color: config.textColor } : undefined}
-          className={[
-            "min-h-0 min-w-0 flex-1 resize-none bg-transparent leading-relaxed outline-none",
-            "text-foreground placeholder:italic placeholder:text-muted-foreground",
-            MEMO_SIZE_CLASS_EXPANDED[viewSize],
-          ].join(" ")}
-        />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
+          {/* 제목 — 본문보다 한 단계 큰 글씨. 위젯 헤더 제목과 같은 값. */}
+          <input
+            ref={titleRef}
+            type="text"
+            defaultValue={titleValue}
+            onChange={onTitleChange}
+            onBlur={onTitleBlur}
+            placeholder="제목"
+            spellCheck={false}
+            aria-label="메모 제목"
+            style={config.textColor ? { color: config.textColor } : undefined}
+            className={[
+              "w-full shrink-0 bg-transparent font-semibold outline-none",
+              "text-foreground placeholder:font-normal placeholder:italic placeholder:text-muted-foreground",
+              MEMO_TITLE_CLASS_EXPANDED[viewSize],
+            ].join(" ")}
+          />
+          <textarea
+            // Uncontrolled (caret-safe); useMemoText persists (debounced) and
+            // syncs external edits when unfocused. textColor unset → 테마 자동.
+            ref={textRef}
+            defaultValue={config.text}
+            onChange={onChange}
+            onBlur={onBlur}
+            placeholder="여기에 메모를 입력하세요…"
+            spellCheck={false}
+            style={config.textColor ? { color: config.textColor } : undefined}
+            className={[
+              "min-h-0 min-w-0 flex-1 resize-none bg-transparent leading-relaxed outline-none",
+              "text-foreground placeholder:italic placeholder:text-muted-foreground",
+              MEMO_SIZE_CLASS_EXPANDED[viewSize],
+            ].join(" ")}
+          />
+        </div>
       </div>
 
       <p className="shrink-0 text-xs text-muted-foreground">
