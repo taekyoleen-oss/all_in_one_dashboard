@@ -148,9 +148,16 @@ export function FocusOverlay({
             {React.createElement(def.icon, { size: 18 })}
           </span>
         ) : null}
-        <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
-          {overlayTitle}
-        </h2>
+        {/* titleInBody 위젯(메모)은 본문 상단에 제목 입력란이 있으므로 헤더 제목을
+            비운다 — 같은 제목이 두 번 보이지 않게. 자리(flex-1)는 유지해야 오른쪽
+            버튼들이 그대로 정렬되고, aria-label은 위에서 제목을 계속 전달한다. */}
+        {def?.titleInBody ? (
+          <span className="min-w-0 flex-1" />
+        ) : (
+          <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+            {overlayTitle}
+          </h2>
+        )}
         {onPip ? (
           <IconButton label="화면 앞에 고정 (다른 앱 위에 항상 표시)" onClick={onPip}>
             <PictureInPicture2 size={18} />

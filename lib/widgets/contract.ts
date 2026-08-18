@@ -139,6 +139,13 @@ export interface WidgetDefinition<C = unknown> {
    * 설정을 다루는 '스타일 편집'으로 노출된다.
    */
   editInFocus?: boolean;
+  /**
+   * true면 ExpandedView가 제목을 **본문 안에서 직접** 보여주는(그리고 편집하는)
+   * 위젯 — 전체보기 헤더의 제목 텍스트를 숨겨 같은 제목이 두 번 나오지 않게 한다
+   * (aria-label은 유지 → 스크린리더에는 여전히 이름이 전달된다).
+   * 타일(CompactView)은 반대로 프레임 헤더가 제목을 담당한다.
+   */
+  titleInBody?: boolean;
 }
 
 /**

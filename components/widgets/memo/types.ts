@@ -82,13 +82,10 @@ export const MEMO_SIZE_CLASS_EXPANDED: Record<MemoSize, string> = {
 /**
  * 제목 글자 크기 — 같은 size 버킷의 본문보다 한 단계 큰 값(요구: 기존 글자보다 크게).
  * 본문 클래스와 나란히 두어 어긋나지 않게 한다.
+ *
+ * 전체보기 전용이다: 타일에서는 프레임 헤더가 제목을 보여주므로 본문에 제목이 없다
+ * (titleInBody — 제목이 한 곳에만 보이게 하는 분담).
  */
-export const MEMO_TITLE_CLASS: Record<MemoSize, string> = {
-  sm: "text-sm @[220px]/widget:text-base",
-  md: "text-base @[220px]/widget:text-lg",
-  lg: "text-lg @[220px]/widget:text-xl",
-};
-
 export const MEMO_TITLE_CLASS_EXPANDED: Record<MemoSize, string> = {
   sm: "text-base",
   md: "text-lg",

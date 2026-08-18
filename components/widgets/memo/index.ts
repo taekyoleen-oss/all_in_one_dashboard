@@ -31,6 +31,9 @@ export const memoWidget: WidgetDefinition<MemoConfig> = {
   // 저장되므로 본문 제목이 함께 바뀐다(양방향).
   instanceTitle: memoInstanceTitle,
   renameInstance: (config, title) => ({ ...config, title: title.trim() }),
+  // 제목은 한 번만 보이게: 타일은 프레임 헤더가, 전체보기는 본문 입력란이 담당
+  // (이 플래그가 전체보기 헤더의 제목 텍스트를 숨긴다).
+  titleInBody: true,
   copyBehavior: "content",
   dataMode: "static",
   // 내용 편집은 전체보기(편집 가능 textarea)에서 — 메뉴 '편집'이 전체보기를 열고,
