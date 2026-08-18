@@ -285,6 +285,11 @@ export function NoteEditor({
         defaultValue={s.title}
         // 방금 추가한 섹션이면 바로 입력할 수 있게 포커스(브라우저가 스크롤도 해준다).
         autoFocus={s.id === focusId}
+        // 소제목 칸에 커서를 둔 것도 '지금 위치' — 상단 위/아래 추가의 기준이 된다.
+        // (본문 contenteditable은 selectionchange로 잡히지만 input은 잡히지 않는다.)
+        onFocus={() => {
+          activeKeyRef.current = s.id;
+        }}
         onChange={(e) => saveSectionTitle(s.id, e.target.value, true)}
         onBlur={(e) => saveSectionTitle(s.id, e.target.value, false)}
         placeholder="소제목 (예: 1주차, 7/3 일기)"

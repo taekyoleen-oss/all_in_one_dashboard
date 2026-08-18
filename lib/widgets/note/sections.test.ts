@@ -82,13 +82,20 @@ test("insertIndexFor: 활성 섹션 기준 위/아래", () => {
   assert.equal(insertIndexFor(base, "c", "below"), 3);
 });
 
-test("insertIndexFor: 머리말·활성 없음·모르는 key면 맨 위/맨 아래", () => {
+test("insertIndexFor: 머리말(맨 위)·활성 없음·모르는 key면 항상 맨 앞", () => {
+  // 머리말은 모든 소제목보다 위 → 그 기준의 위/아래가 모두 목록 맨 앞이다.
+  // (예전엔 below가 sections.length라 "맨 아래에 생긴다"는 오동작이 있었다.)
   const base = [sec("a"), sec("b")];
   for (const key of ["__intro__", "ghost", null]) {
     assert.equal(insertIndexFor(base, key, "above"), 0, `${key} above`);
-    assert.equal(insertIndexFor(base, key, "below"), 2, `${key} below`);
+    assert.equal(insertIndexFor(base, key, "below"), 0, `${key} below`);
   }
   // 섹션이 하나도 없을 때도 0 / 0.
   assert.equal(insertIndexFor([], null, "above"), 0);
   assert.equal(insertIndexFor([], null, "below"), 0);
+});
+
+test("insertIndexFor: 마지막 섹션 기준 '아래에'는 맨 끝(append)", () => {
+  const base = [sec("a"), sec("b"), sec("c")];
+  assert.equal(insertIndexFor(base, "c", "below"), 3);
 });

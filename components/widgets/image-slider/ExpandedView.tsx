@@ -14,11 +14,19 @@
  */
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, Download, ImageOff } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ClipboardPaste,
+  Download,
+  ImageOff,
+  Loader2,
+} from "lucide-react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import { clampInterval, type ImageSliderConfig } from "./types";
 import { useAutoAdvance } from "./useAutoAdvance";
 import { downloadSlideImage } from "./imageFiles";
+import { useAddImages } from "./useAddImages";
 import { readSlideView } from "./useSlideView";
 
 export function ImageSliderExpandedView({
@@ -44,6 +52,38 @@ export function ImageSliderExpandedView({
     () => new Set(),
   );
 
+  // 붙여넣기(요구: 캡처 → 바로 추가). 전체보기는 한 번에 하나만 열리므로 창 전체의
+  // Ctrl+V를 받아도 대상이 모호하지 않다 — 이미지가 들어 있을 때만 소비한다.
+  const { busy, message, pasteFromClipboard, handlePasteEvent } = useAddImages(
+    instanceId,
+    config,
+  );
+  React.useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (handlePasteEvent(e.clipboardData)) e.preventDefault();
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [handlePasteEvent]);
+
+  /** 붙여넣기 버튼(클립보드 직접 읽기) — 이미지 유무와 무관하게 같은 모양. */
+  const pasteButton = (
+    <button
+      type="button"
+      onClick={() => void pasteFromClipboard()}
+      disabled={busy}
+      title="클립보드에서 붙여넣기 (Ctrl+V로도 추가됩니다)"
+      className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+    >
+      {busy ? (
+        <Loader2 size={15} className="animate-spin" aria-hidden />
+      ) : (
+        <ClipboardPaste size={15} aria-hidden />
+      )}
+      붙여넣기
+    </button>
+  );
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") {
       e.preventDefault();
@@ -59,8 +99,15 @@ export function ImageSliderExpandedView({
       <div className="flex h-full min-h-[40dvh] flex-col items-center justify-center gap-2 text-muted-foreground">
         <ImageOff size={28} aria-hidden />
         <p className="text-sm">
-          이미지가 없습니다. 위젯 메뉴의 “편집”에서 추가하세요.
+          이미지가 없습니다. 캡처한 이미지는 <b>Ctrl+V</b>로 바로 붙여넣을 수 있어요.
         </p>
+        {pasteButton}
+        {message ? (
+          <p role="status" className="px-4 text-center text-xs text-destructive">
+            {message}
+          </p>
+        ) : null}
+        <p className="text-xs">파일 추가·순서 변경은 위젯 메뉴의 “편집”에서.</p>
       </div>
     );
   }
@@ -170,6 +217,15 @@ export function ImageSliderExpandedView({
           ))}
         </div>
       ) : null}
+
+      <div className="flex flex-col items-center gap-1.5">
+        {pasteButton}
+        {message ? (
+          <p role="status" className="px-4 text-center text-xs text-destructive">
+            {message}
+          </p>
+        ) : null}
+      </div>
 
       <p className="text-center text-xs text-muted-foreground">
         {index + 1} / {images.length}

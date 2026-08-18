@@ -29,10 +29,12 @@ export function insertSectionAt(
 }
 
 /**
- * '현재 작성 중인 위치' 기준 삽입 지점.
- *  - 활성 영역이 어떤 섹션이면 그 섹션의 바로 위/아래
- *  - 머리말이거나 활성 영역이 없으면 맨 위/맨 아래
- * (활성 key는 섹션 id 또는 머리말 키 — 섹션에 없는 key는 머리말로 취급한다.)
+ * '지금 커서가 있는 위치' 기준 삽입 지점.
+ *  - 커서가 어떤 섹션 안이면 그 섹션의 바로 위(i) / 아래(i+1)
+ *  - 커서가 **머리말**(맨 위)이거나 아직 아무 데도 없으면 → 항상 0.
+ *    머리말은 모든 소제목보다 위에 있어서 그 기준의 위/아래가 모두 목록의 맨 앞이다.
+ *    (예전엔 'below'를 맨 끝으로 보내 "맨 아래에 생긴다"는 오동작이 있었다.)
+ * 활성 key는 섹션 id 또는 머리말 키 — 섹션에 없는 key는 머리말로 취급한다.
  */
 export function insertIndexFor(
   sections: NoteSection[],
@@ -40,7 +42,7 @@ export function insertIndexFor(
   where: "above" | "below",
 ): number {
   const i = activeKey ? sections.findIndex((s) => s.id === activeKey) : -1;
-  if (i < 0) return where === "above" ? 0 : sections.length;
+  if (i < 0) return 0;
   return where === "above" ? i : i + 1;
 }
 

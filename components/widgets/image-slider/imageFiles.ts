@@ -103,6 +103,65 @@ export async function filesToSlides(
   return { added, skipped };
 }
 
+/* ------------------------------- 클립보드 -------------------------------- */
+
+/**
+ * 붙여넣기 이벤트(Ctrl/⌘+V)에서 이미지 파일만 추려낸다.
+ * 캡처(Win+Shift+S 등)는 보통 image/png 하나로 들어온다.
+ */
+export function imagesFromClipboardEvent(
+  data: DataTransfer | null | undefined,
+): File[] {
+  const out: File[] = [];
+  for (const it of Array.from(data?.items ?? [])) {
+    if (it.kind !== "file" || !it.type.startsWith("image/")) continue;
+    const f = it.getAsFile();
+    if (f) out.push(f);
+  }
+  return out;
+}
+
+/** 클립보드 읽기 결과 — 버튼 경로는 실패 이유를 사용자에게 알려야 한다. */
+export type ClipboardReadResult =
+  | { ok: true; files: File[] }
+  | { ok: false; reason: "unsupported" | "denied" | "empty" };
+
+/**
+ * 버튼용 클립보드 읽기 — `navigator.clipboard.read()`로 OS 클립보드의 이미지를
+ * 가져온다(사용자 제스처 안에서 호출해야 하고, 브라우저가 권한을 물을 수 있다).
+ * 이벤트 경로와 달리 붙여넣기 대상 위젯이 명확해 타일에서도 안전하다.
+ */
+export async function readClipboardImages(): Promise<ClipboardReadResult> {
+  if (typeof navigator === "undefined" || !navigator.clipboard?.read) {
+    return { ok: false, reason: "unsupported" };
+  }
+  try {
+    const items = await navigator.clipboard.read();
+    const files: File[] = [];
+    for (const item of items) {
+      const type = item.types.find((t) => t.startsWith("image/"));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      // 캡처 이미지에는 파일명이 없다 — 빈 이름이면 캡션도 비어 그대로 둔다.
+      files.push(new File([blob], "", { type: blob.type || type }));
+    }
+    return files.length > 0 ? { ok: true, files } : { ok: false, reason: "empty" };
+  } catch {
+    // 권한 거부·비보안 컨텍스트·문서 비활성 등 — 전부 같은 안내로 묶는다.
+    return { ok: false, reason: "denied" };
+  }
+}
+
+/** 클립보드 읽기 실패 안내 문구(버튼 경로). */
+export const clipboardMessage = (
+  reason: "unsupported" | "denied" | "empty",
+): string =>
+  reason === "empty"
+    ? "클립보드에 이미지가 없습니다. 화면을 캡처한 뒤 다시 눌러 주세요."
+    : reason === "unsupported"
+      ? "이 브라우저는 붙여넣기 버튼을 지원하지 않습니다. 위젯을 클릭한 뒤 Ctrl+V를 눌러 주세요."
+      : "클립보드 읽기 권한이 필요합니다. 브라우저 권한을 허용하거나 Ctrl+V로 붙여넣어 주세요.";
+
 export const limitMessage = (skipped: number) =>
   `저장 한도(최대 ${MAX_IMAGES}장 · 총 약 ${Math.round(MAX_TOTAL_CHARS / 1_000_000)}MB) 초과로 ${skipped}개 파일을 건너뛰었습니다. 기존 이미지를 삭제한 뒤 다시 추가해 주세요.`;
 

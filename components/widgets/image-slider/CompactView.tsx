@@ -26,12 +26,13 @@
  */
 
 import * as React from "react";
-import { Download, ImageOff, ImagePlus, Loader2 } from "lucide-react";
+import { ClipboardPaste, Download, ImageOff, ImagePlus, Loader2 } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
-import { useOpenWidgetFocus, useSaveWidgetConfig } from "@/lib/widgets/persistence";
+import { useOpenWidgetFocus } from "@/lib/widgets/persistence";
 import { clampInterval, type ImageSliderConfig } from "./types";
 import { useAutoAdvance } from "./useAutoAdvance";
-import { downloadSlideImage, filesToSlides, limitMessage } from "./imageFiles";
+import { downloadSlideImage } from "./imageFiles";
+import { useAddImages } from "./useAddImages";
 import { readSlideView, writeSlideView } from "./useSlideView";
 
 export function ImageSliderCompactView({
@@ -161,25 +162,14 @@ export function ImageSliderCompactView({
   };
 
   // 타일에서 바로 추가 — 편집과 동일 파이프라인으로 config에 영속.
-  const save = useSaveWidgetConfig();
   const fileRef = React.useRef<HTMLInputElement | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [limitMsg, setLimitMsg] = React.useState<string | null>(null);
-  const addFiles = async (files: FileList | null) => {
-    setBusy(true);
-    setLimitMsg(null);
-    try {
-      const { added, skipped } = await filesToSlides(files, config.images);
-      if (skipped > 0) setLimitMsg(limitMessage(skipped));
-      if (added.length > 0)
-        save(instanceId, {
-          ...config,
-          images: [...config.images, ...added],
-        } satisfies ImageSliderConfig);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const {
+    busy,
+    message: limitMsg,
+    addFiles,
+    pasteFromClipboard,
+    handlePasteEvent,
+  } = useAddImages(instanceId, config);
 
   const fileInput = (
     <input
@@ -196,31 +186,56 @@ export function ImageSliderCompactView({
   );
 
   if (images.length === 0) {
-    // 빈 공간 자체가 "추가" 버튼 — 클릭 시 파일 선택이 바로 열린다.
+    // 빈 상태: 클릭=파일 선택, Ctrl+V=붙여넣기(포커스 가능한 button이라 바로 받는다),
+    // 그리고 클립보드를 직접 읽는 '붙여넣기' 버튼.
     return (
-      <button
-        type="button"
+      <div
         data-pb-no-drag=""
+        // 포커스를 받을 수 있어야 paste 이벤트가 이 위젯으로 온다(빈 타일 클릭 → 포커스).
+        tabIndex={-1}
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => fileRef.current?.click()}
-        disabled={busy}
-        className="flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-border text-muted-foreground outline-none transition-colors hover:border-primary hover:bg-primary/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+        onPaste={(e) => {
+          if (handlePasteEvent(e.clipboardData)) e.preventDefault();
+        }}
+        className="relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-border text-muted-foreground outline-none transition-colors hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring"
       >
+        {/* 빈 영역 전체가 '파일 선택' 버튼 — 위에 얹힌 붙여넣기 버튼만 예외. */}
+        <button
+          type="button"
+          aria-label="이미지 추가 (파일 선택)"
+          title="클릭하면 파일 선택 · 캡처했다면 Ctrl+V로 붙여넣기"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+        />
         {busy ? (
           <Loader2 size={20} className="animate-spin" aria-hidden />
         ) : (
           <ImagePlus size={20} aria-hidden />
         )}
-        <p className="text-xs">
+        <p className="pointer-events-none text-xs">
           {busy ? "이미지 처리 중…" : "눌러서 이미지 추가"}
         </p>
+        <button
+          type="button"
+          aria-label="클립보드에서 붙여넣기"
+          title="클립보드에서 붙여넣기 (캡처한 이미지 바로 추가)"
+          disabled={busy}
+          onClick={() => void pasteFromClipboard()}
+          className="relative inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <ClipboardPaste size={12} aria-hidden /> 붙여넣기
+        </button>
         {limitMsg ? (
-          <p role="status" className="px-2 text-[11px] text-destructive">
+          <p
+            role="status"
+            className="pointer-events-none px-2 text-center text-[11px] text-destructive"
+          >
             {limitMsg}
           </p>
         ) : null}
         {fileInput}
-      </button>
+      </div>
     );
   }
 
@@ -280,7 +295,7 @@ export function ImageSliderCompactView({
           </div>
         )}
 
-        {/* 우상단 오버레이 — 추가·다운로드. 데스크톱은 호버 시, 터치는 상시 노출. */}
+        {/* 우상단 오버레이 — 추가·붙여넣기·다운로드. 데스크톱은 호버 시, 터치는 상시. */}
         <div className="absolute right-1 top-1 flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/slider:opacity-100 pointer-coarse:opacity-100">
           <button
             type="button"
@@ -298,6 +313,19 @@ export function ImageSliderCompactView({
               <ImagePlus size={14} />
             )}
           </button>
+          {/* 캡처한 이미지를 편집 화면을 열지 않고 바로 추가(요구). */}
+          <button
+            type="button"
+            data-pb-no-drag=""
+            aria-label="클립보드에서 붙여넣기"
+            title="클립보드에서 붙여넣기 (캡처한 이미지 바로 추가)"
+            disabled={busy}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void pasteFromClipboard()}
+            className="inline-flex size-7 items-center justify-center rounded-md bg-black/45 text-white outline-none transition-colors hover:bg-black/65 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <ClipboardPaste size={14} />
+          </button>
           <button
             type="button"
             data-pb-no-drag=""
@@ -313,7 +341,17 @@ export function ImageSliderCompactView({
           </button>
         </div>
 
-        {images.length > 1 ? (
+        {/* 상한 초과·클립보드 실패 안내 — 붙여넣기가 조용히 무시되지 않게 한다. */}
+        {limitMsg ? (
+          <p
+            role="status"
+            className="pointer-events-none absolute inset-x-1 bottom-1 rounded bg-black/70 px-1.5 py-1 text-[11px] leading-snug text-white"
+          >
+            {limitMsg}
+          </p>
+        ) : null}
+
+        {images.length > 1 && !limitMsg ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-1 flex items-center justify-center gap-1">
             {images.map((img, i) => (
               <span
