@@ -12,6 +12,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createSection,
+  insertIndexFor,
+  insertSectionAt,
   updateSectionById,
   removeSectionById,
   moveSectionById,
@@ -58,4 +60,35 @@ test("moveSectionById: 경계 밖(맨 위에서 위로, 맨 아래에서 아래�
   assert.equal(moveSectionById(base, "a", -1), base);
   assert.equal(moveSectionById(base, "b", 1), base);
   assert.equal(moveSectionById(base, "ghost", 1), base);
+});
+
+test("insertSectionAt: 지정 위치에 삽입, 경계 밖 index는 클램프", () => {
+  const base = [sec("a"), sec("b")];
+  assert.equal(ids(insertSectionAt(base, sec("n"), 0)), "n,a,b");
+  assert.equal(ids(insertSectionAt(base, sec("n"), 1)), "a,n,b");
+  assert.equal(ids(insertSectionAt(base, sec("n"), 2)), "a,b,n");
+  // 경계 밖(음수·초과)과 빈 배열도 안전해야 한다.
+  assert.equal(ids(insertSectionAt(base, sec("n"), -5)), "n,a,b");
+  assert.equal(ids(insertSectionAt(base, sec("n"), 99)), "a,b,n");
+  assert.equal(ids(insertSectionAt([], sec("n"), 3)), "n");
+  assert.equal(base.length, 2); // 원본 불변
+});
+
+test("insertIndexFor: 활성 섹션 기준 위/아래", () => {
+  const base = [sec("a"), sec("b"), sec("c")];
+  assert.equal(insertIndexFor(base, "b", "above"), 1); // b 앞
+  assert.equal(insertIndexFor(base, "b", "below"), 2); // b 뒤
+  assert.equal(insertIndexFor(base, "a", "above"), 0);
+  assert.equal(insertIndexFor(base, "c", "below"), 3);
+});
+
+test("insertIndexFor: 머리말·활성 없음·모르는 key면 맨 위/맨 아래", () => {
+  const base = [sec("a"), sec("b")];
+  for (const key of ["__intro__", "ghost", null]) {
+    assert.equal(insertIndexFor(base, key, "above"), 0, `${key} above`);
+    assert.equal(insertIndexFor(base, key, "below"), 2, `${key} below`);
+  }
+  // 섹션이 하나도 없을 때도 0 / 0.
+  assert.equal(insertIndexFor([], null, "above"), 0);
+  assert.equal(insertIndexFor([], null, "below"), 0);
 });

@@ -13,6 +13,37 @@ export function createSection(id: string): NoteSection {
   return { id, title: "", html: "" };
 }
 
+/**
+ * 지정 위치에 섹션 삽입 — 상단 메뉴의 '위에/아래에 추가'가 쓴다.
+ * index는 [0, length]로 클램프하므로 빈 배열·경계 밖 값도 안전하다.
+ */
+export function insertSectionAt(
+  sections: NoteSection[],
+  section: NoteSection,
+  index: number,
+): NoteSection[] {
+  const at = Math.max(0, Math.min(index, sections.length));
+  const next = sections.slice();
+  next.splice(at, 0, section);
+  return next;
+}
+
+/**
+ * '현재 작성 중인 위치' 기준 삽입 지점.
+ *  - 활성 영역이 어떤 섹션이면 그 섹션의 바로 위/아래
+ *  - 머리말이거나 활성 영역이 없으면 맨 위/맨 아래
+ * (활성 key는 섹션 id 또는 머리말 키 — 섹션에 없는 key는 머리말로 취급한다.)
+ */
+export function insertIndexFor(
+  sections: NoteSection[],
+  activeKey: string | null,
+  where: "above" | "below",
+): number {
+  const i = activeKey ? sections.findIndex((s) => s.id === activeKey) : -1;
+  if (i < 0) return where === "above" ? 0 : sections.length;
+  return where === "above" ? i : i + 1;
+}
+
 /** 대상 섹션에 patch 병합. 모르는 id면 원본 참조 반환. */
 export function updateSectionById(
   sections: NoteSection[],

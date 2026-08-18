@@ -17,7 +17,7 @@
  */
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { Toolbar } from "./Toolbar";
 import { Attachments } from "./Attachments";
@@ -28,6 +28,8 @@ import * as RT from "./richText";
 import { queryActiveMarks, type ActiveMarks } from "./richText";
 import {
   createSection,
+  insertIndexFor,
+  insertSectionAt,
   moveSectionById,
   removeSectionById,
   updateSectionById,
@@ -39,6 +41,32 @@ export { NOTE_PROSE_CLASS } from "./prose";
 
 /** 머리말(config.html) 영역의 에디터 레지스트리 키 — 섹션 id(uuid)와 충돌 불가. */
 const INTRO_KEY = "__intro__";
+
+/** 상단 툴바의 '소제목 위에/아래에 추가' 버튼(툴바 아이콘보다 넓은 라벨형). */
+function SectionAddBtn({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      data-pb-no-drag=""
+      // 캐럿(=삽입 기준 위치)을 잃지 않도록 포커스를 뺏지 않는다 — 툴바 버튼과 동일.
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className="inline-flex h-8 items-center gap-0.5 rounded-md border border-dashed border-primary/50 px-1.5 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+    </button>
+  );
+}
 
 export function NoteEditor({
   config,
@@ -58,6 +86,21 @@ export function NoteEditor({
     configRef.current = config;
   }, [config]);
 
+  /**
+   * 저장 + 미러 즉시 갱신. 이 파일의 저장은 전부 `{...configRef.current, 일부}` 형태라
+   * 미러가 한 박자 늦으면 **직후에 일어나는 다른 저장이 방금 쓴 값을 되덮는다**.
+   * 위 effect는 passive라 커밋 뒤에야 도는데, 그 사이에도 저장이 끼어들 수 있다 —
+   * 예: 소제목 추가 → 새 입력란 autoFocus → 본문 blur → 즉시 persist(옛 sections).
+   * 그래서 우리가 만든 next를 곧바로 ref에 반영한다(이벤트 핸들러 내 ref 쓰기).
+   */
+  const commit = React.useCallback(
+    (next: NoteConfig) => {
+      configRef.current = next;
+      save(instanceId, next);
+    },
+    [instanceId, save],
+  );
+
   /** 등록된 편집 영역들(key → element)과 툴바가 조작할 활성 영역. */
   const editorsRef = React.useRef(new Map<string, HTMLDivElement>());
   const activeKeyRef = React.useRef<string>(INTRO_KEY);
@@ -71,6 +114,8 @@ export function NoteEditor({
   const [inTable, setInTable] = React.useState(false);
   /** 2단계 섹션 삭제 확인(휴지통 → '삭제') 대상 id. */
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  /** 방금 추가한 섹션 — 그 소제목 입력란에 포커스(마운트 시 autoFocus). */
+  const [focusId, setFocusId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     RT.enableCssStyling();
@@ -120,18 +165,18 @@ export function NoteEditor({
         const html = sanitizeHtml(el.innerHTML);
         const cfg = configRef.current;
         if (key === INTRO_KEY) {
-          save(instanceId, { ...cfg, html, updatedAt: Date.now() });
+          commit({ ...cfg, html, updatedAt: Date.now() });
         } else {
           const cur = cfg.sections ?? [];
           const sections = updateSectionById(cur, key, { html, updatedAt: Date.now() });
           if (sections === cur) return; // 섹션이 이미 삭제됨 — 늦은 디바운스 무시
-          save(instanceId, { ...cfg, sections, updatedAt: Date.now() });
+          commit({ ...cfg, sections, updatedAt: Date.now() });
         }
       };
       if (debounce) timers.set(key, window.setTimeout(run, 600));
       else run();
     },
-    [instanceId, save],
+    [commit],
   );
 
   // Refresh toolbar state from the live selection + retarget the active area.
@@ -176,9 +221,9 @@ export function NoteEditor({
 
   const saveAttachments = React.useCallback(
     (attachments: NoteAttachment[]) => {
-      save(instanceId, { ...configRef.current, attachments, updatedAt: Date.now() });
+      commit({ ...configRef.current, attachments, updatedAt: Date.now() });
     },
-    [instanceId, save],
+    [commit],
   );
 
   /** 섹션 배열 교체 저장 — 순수 연산이 no-op(같은 참조)이면 저장 생략. */
@@ -188,13 +233,29 @@ export function NoteEditor({
       const cur = cfg.sections ?? [];
       const next = mutate(cur);
       if (next === cur) return;
-      save(instanceId, { ...cfg, sections: next, updatedAt: Date.now() });
+      commit({ ...cfg, sections: next, updatedAt: Date.now() });
     },
-    [instanceId, save],
+    [commit],
   );
 
-  const addSection = () =>
-    saveSections((cur) => [...cur, createSection(crypto.randomUUID())]);
+  /**
+   * 상단 메뉴의 '위에/아래에 추가' — 기준은 **지금 편집 중인 위치**다.
+   * 캐럿이 어떤 소제목 안이면 그 소제목의 바로 위/아래, 머리말이거나 아직 아무
+   * 곳도 건드리지 않았으면 맨 위/맨 아래(insertIndexFor).
+   * 새로 만든 섹션의 소제목 입력란에 포커스를 줘서(autoFocus) 화면 밖에 생겨도
+   * 브라우저가 그리로 스크롤해 준다.
+   */
+  const addSectionAt = (where: "above" | "below") => {
+    const id = crypto.randomUUID();
+    saveSections((cur) =>
+      insertSectionAt(
+        cur,
+        createSection(id),
+        insertIndexFor(cur, activeKeyRef.current, where),
+      ),
+    );
+    setFocusId(id);
+  };
 
   const saveSectionTitle = (id: string, title: string, debounce: boolean) => {
     const key = `title:${id}`;
@@ -222,6 +283,8 @@ export function NoteEditor({
       <input
         key={s.id}
         defaultValue={s.title}
+        // 방금 추가한 섹션이면 바로 입력할 수 있게 포커스(브라우저가 스크롤도 해준다).
+        autoFocus={s.id === focusId}
         onChange={(e) => saveSectionTitle(s.id, e.target.value, true)}
         onBlur={(e) => saveSectionTitle(s.id, e.target.value, false)}
         placeholder="소제목 (예: 1주차, 7/3 일기)"
@@ -297,6 +360,31 @@ export function NoteEditor({
         inTable={inTable}
         onAfter={onAfter}
         onPickImage={() => imageInputRef.current?.click()}
+        // 소제목 추가 — 하단 버튼에서 상단 메뉴로(요구). 단일 섹션 모드는 그 섹션만
+        // 보여주는 화면이라 삽입 위치가 모호해 숨긴다('전체 보기'에서 추가).
+        extra={
+          single ? null : (
+            <span
+              className="inline-flex items-center gap-0.5"
+              role="group"
+              aria-label="소제목 추가"
+            >
+              <span className="px-1 text-xs text-muted-foreground">소제목</span>
+              <SectionAddBtn
+                title="지금 위치의 위에 소제목 추가"
+                onClick={() => addSectionAt("above")}
+              >
+                <ArrowUp size={14} aria-hidden /> 위에
+              </SectionAddBtn>
+              <SectionAddBtn
+                title="지금 위치의 아래에 소제목 추가"
+                onClick={() => addSectionAt("below")}
+              >
+                <ArrowDown size={14} aria-hidden /> 아래에
+              </SectionAddBtn>
+            </span>
+          )
+        }
       />
 
       {single ? (
@@ -359,16 +447,6 @@ export function NoteEditor({
               />
             </section>
           ))}
-
-          {/* 소제목 추가 — 같은 분류(강의·일기 등)를 한 노트 안에 섹션으로 쌓는다. */}
-          <button
-            type="button"
-            data-pb-no-drag=""
-            onClick={addSection}
-            className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border border-dashed border-primary/50 px-3 py-1.5 text-sm font-medium text-primary outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Plus size={15} aria-hidden /> 소제목 추가
-          </button>
         </div>
       )}
 

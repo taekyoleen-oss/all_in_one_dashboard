@@ -258,12 +258,18 @@ export function Toolbar({
   inTable,
   onAfter,
   onPickImage,
+  extra,
 }: {
   editorRef: React.RefObject<HTMLDivElement | null>;
   active: ActiveMarks;
   inTable: boolean;
   onAfter: () => void;
   onPickImage: () => void;
+  /**
+   * 서식과 무관한 추가 컨트롤을 같은 상단 바에 붙이는 슬롯(노트 '소제목 추가').
+   * 여기 두면 툴바의 flex-wrap 줄바꿈을 그대로 따라간다 — 별도 행이 생기지 않는다.
+   */
+  extra?: React.ReactNode;
 }) {
   const ed = () => editorRef.current;
   const run = (fn: () => void) => {
@@ -365,6 +371,13 @@ export function Toolbar({
 
       <span className={sep} />
       <IconBtn title="서식 지우기" onClick={() => run(RT.clearFormat)}><RemoveFormatting size={16} /></IconBtn>
+
+      {extra ? (
+        <>
+          <span className={sep} />
+          {extra}
+        </>
+      ) : null}
     </div>
   );
 }
