@@ -13,7 +13,9 @@ export const NOTE_PROSE_CLASS = [
   "[&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-1.5",
   "[&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-0.5",
   "[&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_blockquote]:my-2",
-  "[&_a]:text-primary [&_a]:underline",
+  // 링크는 눈에 띄고(색+밑줄) 누를 수 있어 보이게(손가락 커서). 긴 주소가 타일
+  // 밖으로 삐져나가지 않도록 줄바꿈도 허용한다.
+  "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_a]:cursor-pointer [&_a]:break-words",
   "[&_img]:rounded-md [&_img]:my-1 [&_img]:max-w-full",
   "[&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-border [&_td]:p-1.5 [&_th]:border [&_th]:border-border [&_th]:p-1.5",
   "[&_hr]:my-3 [&_hr]:border-border",

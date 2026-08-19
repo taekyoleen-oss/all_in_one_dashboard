@@ -109,7 +109,11 @@ export function NoteCompactView({
   /** '소제목' 모드 — 소제목 목차만 표시(머리말·내용 숨김), 높이는 사용자 크기 유지. */
   const tocOnly = level === "more";
 
-  const safe = React.useMemo(() => sanitizeHtml(config.html), [config.html]);
+  // linkify: 평문 주소도 실제 링크로(새 탭). 미리보기는 읽기 전용이라 캐럿 걱정이 없다.
+  const safe = React.useMemo(
+    () => sanitizeHtml(config.html, { linkify: true }),
+    [config.html],
+  );
   const isEmpty = htmlToText(config.html).length === 0;
   // ?? [] 를 memoize — 인라인이면 sections 미보유 노트에서 렌더마다 새 배열이라
   // 아래 safeSections useMemo가 매번 재계산된다(react-hooks/exhaustive-deps).
@@ -121,7 +125,7 @@ export function NoteCompactView({
       sections.map((s) => ({
         id: s.id,
         title: s.title,
-        safe: sanitizeHtml(s.html),
+        safe: sanitizeHtml(s.html, { linkify: true }),
         empty: htmlToText(s.html).trim().length === 0,
       })),
     [sections],

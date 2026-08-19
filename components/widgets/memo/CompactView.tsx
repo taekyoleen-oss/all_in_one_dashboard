@@ -17,6 +17,7 @@ import type { CompactViewProps } from "@/lib/widgets/contract";
 import { MEMO_COLORS, MEMO_SIZE_CLASS, type MemoConfig } from "./types";
 import { MemoLockPrompt, useMemoLock } from "./MemoLock";
 import { useMemoText } from "./useMemoText";
+import { MemoLinks } from "./MemoLinks";
 
 export function MemoCompactView({
   config,
@@ -79,6 +80,9 @@ export function MemoCompactView({
           ].join(" ")}
         />
       </div>
+
+      {/* 본문에 적힌 주소는 textarea 안에선 누를 수 없다 — 아래에 실제 링크로. */}
+      <MemoLinks text={config.text} />
     </div>
   );
 }

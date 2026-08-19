@@ -62,9 +62,18 @@ function buildSharedBlock(title: string, text: string, url: string | null): stri
     parts.push(`<p>${escapeHtml(text.trim()).replace(/\n/g, "<br/>")}</p>`);
   }
   if (url) {
+    // 공유받은 웹페이지는 한눈에 '링크'로 보여야 한다(요구) — 🔗 + 사이트 이름 +
+    // 전체 주소. 노트 본문 스타일이 <a>에 색·밑줄을 주고, sanitize가 새 탭을
+    // 강제한다. (본문 text 안에 섞여 온 주소는 렌더 시 자동 링크로 처리된다.)
     const safe = escapeHtml(url);
+    let host = "";
+    try {
+      host = escapeHtml(new URL(url).host.replace(/^www\./i, ""));
+    } catch {
+      /* URL은 이미 검증됨 — 방어적 처리 */
+    }
     parts.push(
-      `<p><a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a></p>`,
+      `<p>🔗 <a href="${safe}" target="_blank" rel="noopener noreferrer">${host ? `${host} — ` : ""}${safe}</a></p>`,
     );
   }
   return parts.join("");

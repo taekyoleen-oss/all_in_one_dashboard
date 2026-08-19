@@ -20,6 +20,7 @@ import {
 } from "./types";
 import { MemoLockPrompt, useMemoLock } from "./MemoLock";
 import { useMemoText } from "./useMemoText";
+import { MemoLinks } from "./MemoLinks";
 
 const SIZE_ORDER: MemoSize[] = ["sm", "md", "lg"];
 const SIZE_LABEL: Record<MemoSize, string> = { sm: "작게", md: "보통", lg: "크게" };
@@ -134,6 +135,8 @@ export function MemoExpandedView({
               MEMO_SIZE_CLASS_EXPANDED[viewSize],
             ].join(" ")}
           />
+          {/* 본문에 적힌 주소는 textarea 안에선 누를 수 없다 — 아래에 실제 링크로. */}
+          <MemoLinks text={config.text} />
         </div>
       </div>
 

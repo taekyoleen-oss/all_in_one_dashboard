@@ -67,7 +67,8 @@ export function RichTextArea({
   // Set the initial HTML exactly once per resetKey (uncontrolled thereafter).
   React.useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = sanitizeHtml(initialHtml);
+      // linkify: 평문으로 적힌 주소(공유로 받은 본문 등)도 실제 링크로 보이게.
+      editorRef.current.innerHTML = sanitizeHtml(initialHtml, { linkify: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
@@ -108,6 +109,21 @@ export function RichTextArea({
     // Plain text falls through to the browser's default (debounced save fires on input).
   };
 
+  /**
+   * contentEditable 안에서는 브라우저가 링크를 열지 않는다(캐럿만 옮긴다).
+   * 편집 중에도 링크가 실제로 연결되도록 클릭을 직접 처리한다 —
+   * **클릭 = 새 탭에서 열기**, **Alt+클릭 = 캐럿 놓기**(링크 글자 수정용).
+   */
+  const openLinkOnClick = (e: React.MouseEvent) => {
+    if (e.altKey) return;
+    const href = (e.target as HTMLElement)
+      .closest?.("a[href]")
+      ?.getAttribute("href");
+    if (!href) return;
+    e.preventDefault();
+    window.open(href, "_blank", "noopener,noreferrer");
+  };
+
   const onDrop = (e: React.DragEvent) => {
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.some((f) => f.type.startsWith("image/"))) {
@@ -135,6 +151,7 @@ export function RichTextArea({
           onActivity();
         }}
         onBlur={() => onPersist(editorKey, false)}
+        onClick={openLinkOnClick}
         onKeyUp={onActivity}
         onMouseUp={onActivity}
         onFocus={onActivity}
