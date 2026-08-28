@@ -99,12 +99,12 @@ res = await fetch(`${BASE}/api/widget/tasks/${added.id}`, { method: "DELETE", he
 const afterDel = await rest(`pb_tasks?id=eq.${added.id}&select=id`).then((r) => r.json());
 check("DELETE → DB 행 삭제", res.status === 200 && afterDel.length === 0);
 
-// 7) no_target: mobileSync OFF → POST 409
+// 7) 지정 해제: 임시 위젯 OFF → 더 이상 임시 위젯이 지정 대상이 아니어야 한다.
+//    (⚠ 사용자 실계정에 mobileSync 켠 실위젯이 있을 수 있으므로 "null" 단정도,
+//     쓰기 프로브(POST)도 하지 않는다 — 실데이터 오염 방지.)
 await rest(`pb_widgets?id=eq.${widgetId}`, { method: "PATCH", body: JSON.stringify({ config: { mobileSync: false } }) });
-res = await fetch(`${BASE}/api/widget/tasks`, { method: "POST", headers: AUTH, body: JSON.stringify({ title: "x" }) });
-check("지정 해제 후 POST → 409 no_target", res.status === 409);
 body = await (await fetch(`${BASE}/api/widget/tasks`, { headers: AUTH })).json();
-check("지정 해제 후 GET → instanceId null", body.instanceId === null && body.items.length === 0);
+check("지정 해제 후 GET → 임시 위젯이 지정 대상 아님", body.instanceId !== widgetId, `now: ${body.instanceId ?? "null"}`);
 
 // 8) 정리
 await rest(`pb_tasks?instance_id=eq.${widgetId}`, { method: "DELETE" });
