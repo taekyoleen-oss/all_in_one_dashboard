@@ -5,7 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.Button
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.appwidget.GlanceAppWidget
@@ -35,7 +34,6 @@ import androidx.glance.unit.ColorProvider
 import com.tkleen.schedule.LauncherActivity
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.AgendaItem
-import com.tkleen.schedule.pairing.PairingActivity
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -72,7 +70,7 @@ private fun Root(paired: Boolean, unauthorized: Boolean, items: List<AgendaItem>
             .padding(12.dp),
     ) {
         if (!paired || unauthorized) {
-            Unpaired(revoked = unauthorized)
+            PairingCta(revoked = unauthorized, subject = "일정")
         } else {
             Header(syncedAt)
             Spacer(GlanceModifier.height(6.dp))
@@ -165,27 +163,6 @@ private fun ItemRow(item: AgendaItem, now: ZonedDateTime) {
                 Text(meta, maxLines = 1, style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp))
             }
         }
-    }
-}
-
-@Composable
-private fun Unpaired(revoked: Boolean) {
-    Column(
-        modifier = GlanceModifier.fillMaxSize(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            if (revoked) "연결이 해제되었습니다" else "일정 위젯을 연결하세요",
-            style = TextStyle(color = AgendaTheme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        )
-        Spacer(GlanceModifier.height(4.dp))
-        Text(
-            "웹 설정 > 위젯에서 코드를 발급받아 입력",
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp),
-        )
-        Spacer(GlanceModifier.height(8.dp))
-        Button(text = if (revoked) "다시 연결" else "연결하기", onClick = actionStartActivity<PairingActivity>())
     }
 }
 

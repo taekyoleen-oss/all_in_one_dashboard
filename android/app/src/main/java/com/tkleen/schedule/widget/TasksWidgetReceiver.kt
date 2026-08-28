@@ -6,9 +6,12 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import com.tkleen.schedule.sync.AgendaSyncWorker
 
-/** 홈 화면 일정 위젯 리시버 — 배치 시 15분 동기화를 걸고, 전부 제거되면 멈춘다. */
-class AgendaWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = AgendaWidget()
+/**
+ * 작업 위젯 리시버. 동기화 작업은 아젠다와 공유(AgendaSyncWorker가 둘 다 갱신).
+ * 취소는 두 위젯이 모두 사라졌을 때만(cancelIfNoWidgets) — 비대칭 정지 방지.
+ */
+class TasksWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = TasksWidget()
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
@@ -22,13 +25,11 @@ class AgendaWidgetReceiver : GlanceAppWidgetReceiver() {
         appWidgetIds: IntArray,
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        // 재부팅·앱 업데이트 뒤에도 주기 작업이 살아 있도록 보강(KEEP이라 중복 무해).
         AgendaSyncWorker.schedulePeriodic(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        // 작업 위젯이 남아 있으면 유지 — 둘 다 없을 때만 멈춘다.
         AgendaSyncWorker.cancelIfNoWidgets(context)
     }
 }

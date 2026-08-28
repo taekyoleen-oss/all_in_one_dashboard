@@ -76,6 +76,102 @@ object WidgetApi {
         }
     }
 
+    /* ── 작업(tasks) ───────────────────────────────────────────────────── */
+
+    sealed class TasksResult {
+        data class Ok(val itemsJson: String, val etag: String?, val linked: Boolean) : TasksResult()
+        object NotModified : TasksResult()
+        object Unauthorized : TasksResult()
+        data class Error(val message: String) : TasksResult()
+    }
+
+    /** 지정된 웹 '작업' 위젯의 목록. linked=false면 웹에서 아직 지정 안 됨. */
+    fun fetchTasks(token: String, etag: String?): TasksResult {
+        return try {
+            val conn = open("$BASE/api/widget/tasks", "GET")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (etag != null) conn.setRequestProperty("If-None-Match", etag)
+            when (conn.responseCode) {
+                200 -> {
+                    val body = JSONObject(conn.inputStream.bufferedReader().readText())
+                    TasksResult.Ok(
+                        itemsJson = body.getJSONArray("items").toString(),
+                        etag = conn.getHeaderField("ETag"),
+                        linked = !body.isNull("instanceId"),
+                    )
+                }
+                304 -> TasksResult.NotModified
+                401 -> TasksResult.Unauthorized
+                else -> TasksResult.Error("HTTP ${conn.responseCode}")
+            }
+        } catch (e: Exception) {
+            TasksResult.Error(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    sealed class MutResult {
+        object Ok : MutResult()
+        data class Fail(val message: String) : MutResult()
+    }
+
+    /** 작업 추가 — 409(no_target)면 서버 안내 문구를 그대로 보여준다. */
+    fun addTask(token: String, title: String): MutResult {
+        return try {
+            val conn = open("$BASE/api/widget/tasks", "POST")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use {
+                it.write(JSONObject().put("title", title).toString().toByteArray(Charsets.UTF_8))
+            }
+            if (conn.responseCode in 200..299) {
+                MutResult.Ok
+            } else {
+                MutResult.Fail(errorMessage(conn, "추가에 실패했습니다"))
+            }
+        } catch (e: Exception) {
+            MutResult.Fail("네트워크 오류: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+    /** 완료 토글 — true=성공. 실패해도 다음 동기화가 서버 진실로 복원한다.
+     *  HttpURLConnection은 PATCH를 못 보내므로(자바 한계) 서버의 POST 별칭을 쓴다. */
+    fun setTaskDone(token: String, id: String, done: Boolean): Boolean {
+        return try {
+            val conn = open("$BASE/api/widget/tasks/$id", "POST")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use {
+                it.write(JSONObject().put("done", done).toString().toByteArray(Charsets.UTF_8))
+            }
+            conn.responseCode in 200..299
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 삭제 — 404(이미 없음)도 성공으로 취급(멱등). */
+    fun deleteTask(token: String, id: String): Boolean {
+        return try {
+            val conn = open("$BASE/api/widget/tasks/$id", "DELETE")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.responseCode in 200..299 || conn.responseCode == 404
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun errorMessage(conn: HttpURLConnection, fallback: String): String {
+        return try {
+            JSONObject(conn.errorStream?.bufferedReader()?.readText() ?: "")
+                .optString("message", "")
+                .ifEmpty { "$fallback (HTTP ${conn.responseCode})" }
+        } catch (e: Exception) {
+            "$fallback (HTTP ${conn.responseCode})"
+        }
+    }
+
     private fun open(url: String, method: String): HttpURLConnection {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.requestMethod = method

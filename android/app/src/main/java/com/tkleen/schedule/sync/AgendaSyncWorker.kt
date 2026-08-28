@@ -15,6 +15,7 @@ import androidx.glance.appwidget.updateAll
 import com.tkleen.schedule.data.WidgetApi
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.widget.AgendaWidget
+import com.tkleen.schedule.widget.TasksWidget
 import java.util.concurrent.TimeUnit
 
 /**
@@ -47,7 +48,19 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             is WidgetApi.AgendaResult.Error ->
                 if (runAttemptCount < 3) Result.retry() else Result.success()
         }
+
+        // 작업(tasks)도 같은 주기로 — 실패는 캐시 유지(다음 주기에 재시도, retry 미사용).
+        when (val t = WidgetApi.fetchTasks(token, WidgetStore.tasksEtag(ctx))) {
+            is WidgetApi.TasksResult.Ok ->
+                WidgetStore.putTasks(ctx, t.itemsJson, t.etag, t.linked, System.currentTimeMillis())
+            WidgetApi.TasksResult.NotModified ->
+                WidgetStore.touchTasksSynced(ctx, System.currentTimeMillis())
+            WidgetApi.TasksResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
+            is WidgetApi.TasksResult.Error -> Unit
+        }
+
         AgendaWidget().updateAll(ctx) // 304여도 날짜 경계·갱신 시각 표시를 다시 그린다.
+        TasksWidget().updateAll(ctx)
         return result
     }
 
@@ -85,6 +98,21 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             val wm = WorkManager.getInstance(context)
             wm.cancelUniqueWork(PERIODIC)
             wm.cancelUniqueWork(ONCE)
+        }
+
+        /**
+         * 두 위젯(오늘 일정·작업)이 **모두** 홈 화면에서 사라졌을 때만 주기 작업을
+         * 멈춘다 — 리시버별 onDisabled가 상대 위젯의 동기화를 끊는 비대칭 방지.
+         */
+        fun cancelIfNoWidgets(context: Context) {
+            val awm = android.appwidget.AppWidgetManager.getInstance(context)
+            val agenda = awm.getAppWidgetIds(
+                android.content.ComponentName(context, com.tkleen.schedule.widget.AgendaWidgetReceiver::class.java),
+            )
+            val tasks = awm.getAppWidgetIds(
+                android.content.ComponentName(context, com.tkleen.schedule.widget.TasksWidgetReceiver::class.java),
+            )
+            if (agenda.isEmpty() && tasks.isEmpty()) cancelAll(context)
         }
     }
 }

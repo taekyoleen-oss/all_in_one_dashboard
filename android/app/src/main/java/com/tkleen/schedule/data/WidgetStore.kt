@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.tkleen.schedule.data.model.AgendaItem
+import com.tkleen.schedule.data.model.TaskItem
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -29,6 +30,10 @@ object WidgetStore {
     private const val K_ETAG = "agenda_etag"
     private const val K_SYNCED_AT = "synced_at"
     private const val K_UNAUTHORIZED = "unauthorized"
+    private const val K_TASKS = "tasks_json"
+    private const val K_TASKS_ETAG = "tasks_etag"
+    private const val K_TASKS_LINKED = "tasks_linked"
+    private const val K_TASKS_SYNCED_AT = "tasks_synced_at"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -118,5 +123,46 @@ object WidgetStore {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    /* ── 작업(tasks) 캐시 ──────────────────────────────────────────────── */
+
+    fun putTasks(context: Context, itemsJson: String, etag: String?, linked: Boolean, syncedAt: Long) {
+        prefs(context).edit()
+            .putString(K_TASKS, itemsJson)
+            .putString(K_TASKS_ETAG, etag)
+            .putBoolean(K_TASKS_LINKED, linked)
+            .putLong(K_TASKS_SYNCED_AT, syncedAt)
+            .apply()
+    }
+
+    fun touchTasksSynced(context: Context, syncedAt: Long) {
+        prefs(context).edit().putLong(K_TASKS_SYNCED_AT, syncedAt).apply()
+    }
+
+    fun tasksEtag(context: Context): String? = prefs(context).getString(K_TASKS_ETAG, null)
+
+    /** 웹에서 '모바일 홈 화면에 표시'가 켜진 작업 위젯이 있는지(없으면 안내 표시). */
+    fun tasksLinked(context: Context): Boolean = prefs(context).getBoolean(K_TASKS_LINKED, false)
+
+    fun tasksSyncedAt(context: Context): Long = prefs(context).getLong(K_TASKS_SYNCED_AT, 0L)
+
+    fun taskItems(context: Context): List<TaskItem> {
+        val json = prefs(context).getString(K_TASKS, null) ?: return emptyList()
+        return try {
+            TaskItem.listFromJson(json)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * 낙관적 캐시 변형(체크/삭제 즉시 반영용). ETag를 함께 지운다 — API 호출이
+     * 실패한 경우에도 다음 동기화가 304로 스킵하지 않고 서버 진실을 다시 받아
+     * 로컬 변형을 복원한다.
+     */
+    fun mutateTasks(context: Context, transform: (List<TaskItem>) -> List<TaskItem>) {
+        val next = TaskItem.listToJson(transform(taskItems(context)))
+        prefs(context).edit().putString(K_TASKS, next).remove(K_TASKS_ETAG).apply()
     }
 }

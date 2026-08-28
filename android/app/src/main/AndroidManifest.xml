@@ -200,6 +200,29 @@
             </intent-filter>
         </activity>
 
+        <!-- 작업 위젯 — 웹 '작업' 위젯과 양방향 동기화 목록 -->
+        <receiver
+            android:name=".widget.TasksWidgetReceiver"
+            android:exported="true"
+            android:label="@string/tasks_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tasks_widget_info" />
+        </receiver>
+
+        <!-- 위젯 ＋ 버튼이 여는 작업 입력 화면(앱 내부 PendingIntent 전용) -->
+        <activity
+            android:name=".tasks.TaskAddActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:label="@string/tasks_add_title"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight"
+            android:windowSoftInputMode="stateVisible" />
+
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
 
         <activity android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"

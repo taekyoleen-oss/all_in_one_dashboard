@@ -1,7 +1,8 @@
 /**
  * /api/widget/tasks/[id] — 작업 1건 완료 토글·삭제(Bearer 디바이스 토큰).
  *
- *  PATCH  : { done: boolean } — 완료/해제.
+ *  PATCH  : { done: boolean } — 완료/해제. POST는 PATCH의 별칭 —
+ *           안드로이드 HttpURLConnection이 PATCH 메서드를 못 보내는 자바 한계 우회.
  *  DELETE : 행 삭제(웹 위젯은 realtime으로 즉시 반영).
  *  갱신·삭제는 항상 토큰으로 해석한 user_id로 스코프 — 타인 id는 404.
  */
@@ -58,6 +59,8 @@ export async function PATCH(
   }
   return Response.json({ id, done }, { headers: NO_STORE });
 }
+
+export const POST = PATCH;
 
 export async function DELETE(
   request: NextRequest,

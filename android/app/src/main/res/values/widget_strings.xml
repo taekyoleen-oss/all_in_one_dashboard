@@ -6,4 +6,9 @@
     <string name="widget_pairing_title">일정 위젯 연결</string>
     <string name="widget_preview_line1">치과 정기 검진 (오후 3:30)</string>
     <string name="widget_preview_line2">내일 · 가족 모임 (오전 11:00)</string>
+    <string name="tasks_widget_label">작업</string>
+    <string name="tasks_widget_description">웹 대시보드의 작업 위젯과 실시간으로 동기화되는 작업 목록.</string>
+    <string name="tasks_add_title">작업 추가</string>
+    <string name="tasks_preview_line1">☑ 장보기 목록 정리</string>
+    <string name="tasks_preview_line2">☐ 보고서 초안 작성</string>
 </resources>
