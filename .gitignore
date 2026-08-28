@@ -48,3 +48,13 @@ next-env.d.ts
 .gstack/
 
 .vercel
+
+# Android TWA (Bubblewrap) — 서명 비밀·빌드 산출물은 커밋 금지
+android/*.keystore
+android/keystore.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/*.apk
+android/*.aab
+android/*.idsig

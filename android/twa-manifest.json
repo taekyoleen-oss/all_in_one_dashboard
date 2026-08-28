@@ -1,0 +1,49 @@
+{
+  "packageId": "com.tkleen.schedule",
+  "host": "all-in-one-dashboard-eight.vercel.app",
+  "name": "모두의 Dashboard",
+  "launcherName": "Dashboard",
+  "display": "standalone",
+  "themeColor": "#1B2845",
+  "themeColorDark": "#1B2845",
+  "navigationColor": "#1B2845",
+  "navigationColorDark": "#1B2845",
+  "navigationDividerColor": "#1B2845",
+  "navigationDividerColorDark": "#1B2845",
+  "backgroundColor": "#1B2845",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://all-in-one-dashboard-eight.vercel.app/icon-512.png",
+  "maskableIconUrl": "https://all-in-one-dashboard-eight.vercel.app/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersion": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://all-in-one-dashboard-eight.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://all-in-one-dashboard-eight.vercel.app/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "shareTarget": {
+    "action": "/share",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
