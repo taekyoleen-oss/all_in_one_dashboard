@@ -16,8 +16,8 @@ const MAX_TITLE_LEN = 500;
 
 export interface Tasks {
   rows: TaskRow[];
-  /** 맨 아래에 추가(빈 문자열 no-op). */
-  add: (title: string) => void;
+  /** 맨 아래에 추가(빈 문자열 no-op). dueOn은 "YYYY-MM-DD"(선택). */
+  add: (title: string, dueOn?: string | null) => void;
   toggle: (id: string, done: boolean) => void;
   remove: (id: string) => void;
 }
@@ -43,7 +43,7 @@ export function useTasks(instanceId: string): Tasks {
       }
       const { data } = await supabase
         .from("pb_tasks")
-        .select("id, user_id, instance_id, title, done, created_at")
+        .select("id, user_id, instance_id, title, done, due_on, created_at")
         .eq("instance_id", instanceId)
         .order("created_at", { ascending: true });
       if (!alive) return;
@@ -91,16 +91,19 @@ export function useTasks(instanceId: string): Tasks {
   }, [supabase, instanceId, nonce, channelUid]);
 
   const add = React.useCallback(
-    async (title: string) => {
+    async (title: string, dueOn?: string | null) => {
       const t = title.trim().slice(0, MAX_TITLE_LEN);
       if (!t) return;
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase
-        .from("pb_tasks")
-        .insert({ user_id: user.id, instance_id: instanceId, title: t });
+      await supabase.from("pb_tasks").insert({
+        user_id: user.id,
+        instance_id: instanceId,
+        title: t,
+        due_on: dueOn || null,
+      });
       refresh();
     },
     [supabase, instanceId, refresh],

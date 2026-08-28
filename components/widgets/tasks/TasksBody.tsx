@@ -8,6 +8,7 @@
 import * as React from "react";
 import { Smartphone, Trash2 } from "lucide-react";
 import { QuickAdd, quickBtnClass, quickInputClass } from "@/components/widgets/shared/QuickAdd";
+import { taskDateLabel } from "./dateLabel";
 import { useTasks } from "./useTasks";
 
 export function TasksBody({
@@ -21,12 +22,13 @@ export function TasksBody({
 }) {
   const { rows, add, toggle, remove } = useTasks(instanceId);
   const [draft, setDraft] = React.useState("");
+  const [draftDate, setDraftDate] = React.useState("");
   const [confirmId, setConfirmId] = React.useState<string | null>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    add(draft);
-    setDraft(""); // 폼은 열어 두고 입력만 비움(연속 추가, QuickAdd 관례)
+    add(draft, draftDate || null);
+    setDraft(""); // 폼은 열어 두고 입력만 비움(연속 추가, QuickAdd 관례 — 일자는 유지)
   };
 
   const textCls = large ? "text-sm" : "text-xs";
@@ -66,6 +68,11 @@ export function TasksBody({
               >
                 {t.title}
               </span>
+              {t.due_on ? (
+                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                  {taskDateLabel(t.due_on, new Date())}
+                </span>
+              ) : null}
               {confirmId === t.id ? (
                 <button
                   type="button"
@@ -94,13 +101,20 @@ export function TasksBody({
 
       <QuickAdd label="작업 추가">
         {() => (
-          <form onSubmit={submit} className="flex items-center gap-1.5">
+          <form onSubmit={submit} className="flex flex-wrap items-center gap-1.5">
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="할 작업 입력"
-              className={`${quickInputClass} flex-1`}
+              className={`${quickInputClass} min-w-24 flex-1`}
               autoFocus
+            />
+            <input
+              type="date"
+              value={draftDate}
+              onChange={(e) => setDraftDate(e.target.value)}
+              aria-label="작업 일자 (선택)"
+              className={`${quickInputClass} shrink-0`}
             />
             <button type="submit" disabled={!draft.trim()} className={quickBtnClass}>
               추가

@@ -1,7 +1,8 @@
 /**
- * /api/widget/tasks/[id] — 작업 1건 완료 토글·삭제(Bearer 디바이스 토큰).
+ * /api/widget/tasks/[id] — 작업 1건 수정·삭제(Bearer 디바이스 토큰).
  *
- *  PATCH  : { done: boolean } — 완료/해제. POST는 PATCH의 별칭 —
+ *  PATCH  : { done?, title?, dueOn? } — 있는 필드만 수정(모바일 수정 화면).
+ *           dueOn은 "YYYY-MM-DD" 또는 null(일자 제거). POST는 PATCH의 별칭 —
  *           안드로이드 HttpURLConnection이 PATCH 메서드를 못 보내는 자바 한계 우회.
  *  DELETE : 행 삭제(웹 위젯은 realtime으로 즉시 반영).
  *  갱신·삭제는 항상 토큰으로 해석한 user_id로 스코프 — 타인 id는 404.
@@ -30,10 +31,43 @@ export async function PATCH(
       { status: 400, headers: NO_STORE },
     );
   }
-  const done = (raw as { done?: unknown })?.done;
-  if (typeof done !== "boolean") {
+  const { done, title, dueOn } = (raw ?? {}) as {
+    done?: unknown;
+    title?: unknown;
+    dueOn?: unknown;
+  };
+  const patch: { done?: boolean; title?: string; due_on?: string | null } = {};
+  if (done !== undefined) {
+    if (typeof done !== "boolean") {
+      return Response.json(
+        { error: "bad_request", message: "done은 boolean이어야 합니다." },
+        { status: 400, headers: NO_STORE },
+      );
+    }
+    patch.done = done;
+  }
+  if (title !== undefined) {
+    const clean = typeof title === "string" ? title.trim().slice(0, 500) : "";
+    if (!clean) {
+      return Response.json(
+        { error: "bad_request", message: "작업 내용을 입력해 주세요." },
+        { status: 400, headers: NO_STORE },
+      );
+    }
+    patch.title = clean;
+  }
+  if (dueOn !== undefined) {
+    if (dueOn !== null && !(typeof dueOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dueOn))) {
+      return Response.json(
+        { error: "bad_request", message: "dueOn은 YYYY-MM-DD 또는 null이어야 합니다." },
+        { status: 400, headers: NO_STORE },
+      );
+    }
+    patch.due_on = dueOn;
+  }
+  if (Object.keys(patch).length === 0) {
     return Response.json(
-      { error: "bad_request", message: "done은 boolean이어야 합니다." },
+      { error: "bad_request", message: "수정할 필드가 없습니다." },
       { status: 400, headers: NO_STORE },
     );
   }
@@ -41,10 +75,10 @@ export async function PATCH(
   const { id } = await ctx.params;
   const { data, error } = await createAdminClient()
     .from("pb_tasks")
-    .update({ done })
+    .update(patch)
     .eq("id", id)
     .eq("user_id", device.userId)
-    .select("id");
+    .select("id, title, done, due_on");
   if (error) {
     return Response.json(
       { error: "upstream", message: "변경에 실패했습니다." },
@@ -57,7 +91,11 @@ export async function PATCH(
       { status: 404, headers: NO_STORE },
     );
   }
-  return Response.json({ id, done }, { headers: NO_STORE });
+  const row = data[0];
+  return Response.json(
+    { id, title: row.title, done: row.done, dueOn: row.due_on },
+    { headers: NO_STORE },
+  );
 }
 
 export const POST = PATCH;

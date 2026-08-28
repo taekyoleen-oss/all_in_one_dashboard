@@ -34,6 +34,7 @@ class PairingActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.hide() // 액션바 제목이 입력 위로 겹치는 문제 방지(TaskEditActivity와 동일)
         appWidgetId = intent?.getIntExtra(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
@@ -106,6 +107,7 @@ class PairingActivity : Activity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
+                fitsSystemWindows = true // edge-to-edge에서 상태바와 겹치지 않게
                 setPadding(pad, pad * 2, pad, pad)
                 addView(title)
                 addView(space(pad / 2))

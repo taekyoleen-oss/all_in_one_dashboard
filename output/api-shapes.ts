@@ -788,6 +788,8 @@ export const TaskRowSchema = z.object({
   instance_id: z.string(),
   title: z.string(),
   done: z.boolean(),
+  /** 작업 일자(YYYY-MM-DD) — 선택. */
+  due_on: z.string().nullable(),
   created_at: z.string(),
 });
 export type TaskRow = z.infer<typeof TaskRowSchema>;
@@ -797,6 +799,8 @@ export const WidgetTaskSchema = z.object({
   id: z.string(),
   title: z.string(),
   done: z.boolean(),
+  /** 작업 일자(YYYY-MM-DD) — 선택. */
+  dueOn: z.string().nullable(),
   createdAt: z.string(),
 });
 export type WidgetTask = z.infer<typeof WidgetTaskSchema>;

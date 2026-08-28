@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   if (instanceId) {
     const { data, error } = await admin
       .from("pb_tasks")
-      .select("id, title, done, created_at")
+      .select("id, title, done, due_on, created_at")
       .eq("user_id", device.userId)
       .eq("instance_id", instanceId)
       .order("created_at", { ascending: true });
@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
       id: r.id,
       title: r.title,
       done: r.done,
+      dueOn: r.due_on,
       createdAt: r.created_at,
     }));
   }
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       { status: 400, headers: NO_STORE },
     );
   }
-  const title = ((raw as { title?: unknown })?.title ?? "") as string;
+  const { title, dueOn } = (raw ?? {}) as { title?: unknown; dueOn?: unknown };
   const clean = typeof title === "string" ? title.trim().slice(0, 500) : "";
   if (!clean) {
     return Response.json(
@@ -96,6 +97,8 @@ export async function POST(request: NextRequest) {
       { status: 400, headers: NO_STORE },
     );
   }
+  const cleanDue =
+    typeof dueOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dueOn) ? dueOn : null;
 
   const admin = createAdminClient();
   let instanceId: string | null;
@@ -116,8 +119,13 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await admin
     .from("pb_tasks")
-    .insert({ user_id: device.userId, instance_id: instanceId, title: clean })
-    .select("id, title, done, created_at")
+    .insert({
+      user_id: device.userId,
+      instance_id: instanceId,
+      title: clean,
+      due_on: cleanDue,
+    })
+    .select("id, title, done, due_on, created_at")
     .single();
   if (error || !data) {
     return Response.json(
@@ -126,7 +134,13 @@ export async function POST(request: NextRequest) {
     );
   }
   return Response.json(
-    { id: data.id, title: data.title, done: data.done, createdAt: data.created_at },
+    {
+      id: data.id,
+      title: data.title,
+      done: data.done,
+      dueOn: data.due_on,
+      createdAt: data.created_at,
+    },
     { status: 201, headers: NO_STORE },
   );
 }

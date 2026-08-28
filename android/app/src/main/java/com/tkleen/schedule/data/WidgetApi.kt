@@ -114,16 +114,16 @@ object WidgetApi {
         data class Fail(val message: String) : MutResult()
     }
 
-    /** 작업 추가 — 409(no_target)면 서버 안내 문구를 그대로 보여준다. */
-    fun addTask(token: String, title: String): MutResult {
+    /** 작업 추가(일자 선택) — 409(no_target)면 서버 안내 문구를 그대로 보여준다. */
+    fun addTask(token: String, title: String, dueOn: String?): MutResult {
         return try {
             val conn = open("$BASE/api/widget/tasks", "POST")
             conn.setRequestProperty("Authorization", "Bearer $token")
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
-            conn.outputStream.use {
-                it.write(JSONObject().put("title", title).toString().toByteArray(Charsets.UTF_8))
-            }
+            val body = JSONObject().put("title", title)
+            if (dueOn != null) body.put("dueOn", dueOn)
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             if (conn.responseCode in 200..299) {
                 MutResult.Ok
             } else {
@@ -134,20 +134,25 @@ object WidgetApi {
         }
     }
 
-    /** 완료 토글 — true=성공. 실패해도 다음 동기화가 서버 진실로 복원한다.
-     *  HttpURLConnection은 PATCH를 못 보내므로(자바 한계) 서버의 POST 별칭을 쓴다. */
-    fun setTaskDone(token: String, id: String, done: Boolean): Boolean {
+    /**
+     * 작업 수정(제목·완료·일자 중 있는 필드만) — 모바일 수정 화면.
+     * HttpURLConnection은 PATCH를 못 보내므로(자바 한계) 서버의 POST 별칭을 쓴다.
+     * dueOn: JSONObject.NULL을 넘기면 일자 제거.
+     */
+    fun updateTask(token: String, id: String, fields: JSONObject): MutResult {
         return try {
             val conn = open("$BASE/api/widget/tasks/$id", "POST")
             conn.setRequestProperty("Authorization", "Bearer $token")
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
-            conn.outputStream.use {
-                it.write(JSONObject().put("done", done).toString().toByteArray(Charsets.UTF_8))
+            conn.outputStream.use { it.write(fields.toString().toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode in 200..299) {
+                MutResult.Ok
+            } else {
+                MutResult.Fail(errorMessage(conn, "변경에 실패했습니다"))
             }
-            conn.responseCode in 200..299
         } catch (e: Exception) {
-            false
+            MutResult.Fail("네트워크 오류: ${e.message ?: e.javaClass.simpleName}")
         }
     }
 

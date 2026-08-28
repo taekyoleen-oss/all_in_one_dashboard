@@ -71,12 +71,12 @@ check("GET tasks: instanceId=지정 위젯, items 0", res.status === 200 && body
 res = await fetch(`${BASE}/api/widget/tasks`, { headers: { ...AUTH, "if-none-match": etag0 } });
 check("If-None-Match → 304", res.status === 304);
 
-// 4) POST 추가(모바일 → 웹 방향) → DB 행 확인
-res = await fetch(`${BASE}/api/widget/tasks`, { method: "POST", headers: AUTH, body: JSON.stringify({ title: "모바일에서 추가한 작업" }) });
+// 4) POST 추가(모바일 → 웹 방향, 일자 포함) → DB 행 확인
+res = await fetch(`${BASE}/api/widget/tasks`, { method: "POST", headers: AUTH, body: JSON.stringify({ title: "모바일에서 추가한 작업", dueOn: "2027-01-05" }) });
 const added = await res.json();
-check("POST 추가 → 201", res.status === 201 && added.id, added.title);
-const dbRow = await rest(`pb_tasks?id=eq.${added.id}&select=title,done,instance_id`).then((r) => r.json());
-check("DB 행 생성(웹 위젯이 realtime으로 보게 될 행)", dbRow[0]?.title === "모바일에서 추가한 작업" && dbRow[0]?.instance_id === widgetId);
+check("POST 추가(dueOn 포함) → 201 + dueOn 반환", res.status === 201 && added.id && added.dueOn === "2027-01-05", added.title);
+const dbRow = await rest(`pb_tasks?id=eq.${added.id}&select=title,done,due_on,instance_id`).then((r) => r.json());
+check("DB 행 생성(due_on 저장)", dbRow[0]?.title === "모바일에서 추가한 작업" && dbRow[0]?.due_on === "2027-01-05" && dbRow[0]?.instance_id === widgetId);
 
 // 5) 웹 → 모바일 방향: 서비스 롤로 직접 insert(웹 위젯의 RLS insert와 동일 행) 후 GET에 포함되는지
 const webAdd = await rest("pb_tasks", {
@@ -86,10 +86,15 @@ const webAdd = await rest("pb_tasks", {
 body = await (await fetch(`${BASE}/api/widget/tasks`, { headers: AUTH })).json();
 check("웹 추가분이 모바일 GET에 포함(2건)", body.items.length === 2 && body.items.some((i) => i.title === "웹에서 추가한 작업"));
 
-// 6) PATCH done → DELETE
+// 6) PATCH done → 제목·일자 수정(모바일 수정 화면 경로) → DELETE
 res = await fetch(`${BASE}/api/widget/tasks/${added.id}`, { method: "PATCH", headers: AUTH, body: JSON.stringify({ done: true }) });
 const afterPatch = await rest(`pb_tasks?id=eq.${added.id}&select=done`).then((r) => r.json());
 check("PATCH done → DB 반영", res.status === 200 && afterPatch[0]?.done === true);
+res = await fetch(`${BASE}/api/widget/tasks/${added.id}`, { method: "POST", headers: AUTH, body: JSON.stringify({ title: "수정된 제목", dueOn: null }) });
+const afterEdit = await rest(`pb_tasks?id=eq.${added.id}&select=title,due_on`).then((r) => r.json());
+check("POST 별칭으로 제목·일자 수정(일자 제거)", res.status === 200 && afterEdit[0]?.title === "수정된 제목" && afterEdit[0]?.due_on === null);
+res = await fetch(`${BASE}/api/widget/tasks/${added.id}`, { method: "PATCH", headers: AUTH, body: JSON.stringify({ dueOn: "1/5" }) });
+check("잘못된 dueOn → 400", res.status === 400);
 res = await fetch(`${BASE}/api/widget/tasks/${added.id}`, { method: "DELETE", headers: AUTH });
 const afterDel = await rest(`pb_tasks?id=eq.${added.id}&select=id`).then((r) => r.json());
 check("DELETE → DB 행 삭제", res.status === 200 && afterDel.length === 0);

@@ -316,3 +316,7 @@ begin
     alter publication supabase_realtime add table pb_tasks;
   end if;
 end $$;
+
+-- ========== 20260829120001_pb_tasks_due_on.sql ==========
+alter table pb_tasks
+  add column if not exists due_on date;

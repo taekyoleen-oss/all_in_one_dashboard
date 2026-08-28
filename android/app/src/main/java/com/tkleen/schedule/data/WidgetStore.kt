@@ -34,6 +34,8 @@ object WidgetStore {
     private const val K_TASKS_ETAG = "tasks_etag"
     private const val K_TASKS_LINKED = "tasks_linked"
     private const val K_TASKS_SYNCED_AT = "tasks_synced_at"
+    private const val K_TASKS_FILTER = "tasks_filter"
+    private const val K_TASKS_GRACE = "tasks_grace"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -133,6 +135,8 @@ object WidgetStore {
             .putString(K_TASKS_ETAG, etag)
             .putBoolean(K_TASKS_LINKED, linked)
             .putLong(K_TASKS_SYNCED_AT, syncedAt)
+            // 서버 동기화 = '갱신' — 유예 중이던 완료 항목이 이제 진행중 목록에서 빠진다.
+            .remove(K_TASKS_GRACE)
             .apply()
     }
 
@@ -157,7 +161,7 @@ object WidgetStore {
     }
 
     /**
-     * 낙관적 캐시 변형(체크/삭제 즉시 반영용). ETag를 함께 지운다 — API 호출이
+     * 낙관적 캐시 변형(수정/삭제 즉시 반영용). ETag를 함께 지운다 — API 호출이
      * 실패한 경우에도 다음 동기화가 304로 스킵하지 않고 서버 진실을 다시 받아
      * 로컬 변형을 복원한다.
      */
@@ -165,4 +169,27 @@ object WidgetStore {
         val next = TaskItem.listToJson(transform(taskItems(context)))
         prefs(context).edit().putString(K_TASKS, next).remove(K_TASKS_ETAG).apply()
     }
+
+    /* ── 작업 위젯 필터 + 완료 유예 ────────────────────────────────────── */
+
+    /** 위젯 상단 필터: "pending"(기본) | "done" | "all". */
+    fun tasksFilter(context: Context): String =
+        prefs(context).getString(K_TASKS_FILTER, "pending") ?: "pending"
+
+    fun setTasksFilter(context: Context, filter: String) {
+        prefs(context).edit().putString(K_TASKS_FILTER, filter).apply()
+    }
+
+    /**
+     * 완료 유예(요구): 방금 완료한 작업은 흐리게 표시된 채 진행중 목록에 남고,
+     * **다음 동기화(갱신)** 때 빠진다. putTasks가 유예 목록을 비운다.
+     */
+    fun markGrace(context: Context, id: String) {
+        val next = HashSet(graceIds(context))
+        next.add(id)
+        prefs(context).edit().putStringSet(K_TASKS_GRACE, next).apply()
+    }
+
+    fun graceIds(context: Context): Set<String> =
+        prefs(context).getStringSet(K_TASKS_GRACE, emptySet()) ?: emptySet()
 }

@@ -213,15 +213,15 @@
                 android:resource="@xml/tasks_widget_info" />
         </receiver>
 
-        <!-- 위젯 ＋ 버튼이 여는 작업 입력 화면(앱 내부 PendingIntent 전용) -->
+        <!-- 위젯 ＋(추가)·행 탭(수정)이 여는 작업 입력/수정 화면(앱 내부 PendingIntent 전용) -->
         <activity
-            android:name=".tasks.TaskAddActivity"
+            android:name=".tasks.TaskEditActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:label="@string/tasks_add_title"
             android:theme="@android:style/Theme.DeviceDefault.DayNight"
-            android:windowSoftInputMode="stateVisible" />
+            android:windowSoftInputMode="adjustResize|stateVisible" />
 
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
 

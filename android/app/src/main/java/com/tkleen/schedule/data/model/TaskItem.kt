@@ -8,6 +8,7 @@ data class TaskItem(
     val id: String,
     val title: String,
     val done: Boolean,
+    val dueOn: String?, // "YYYY-MM-DD" 또는 null
 ) {
     companion object {
         fun listFromJson(itemsJson: String): List<TaskItem> {
@@ -18,7 +19,14 @@ data class TaskItem(
                 val id = o.optString("id", "")
                 val title = o.optString("title", "")
                 if (id.isEmpty() || title.isEmpty()) continue
-                out.add(TaskItem(id = id, title = title, done = o.optBoolean("done", false)))
+                out.add(
+                    TaskItem(
+                        id = id,
+                        title = title,
+                        done = o.optBoolean("done", false),
+                        dueOn = o.optString("dueOn").takeIf { it.isNotEmpty() && !o.isNull("dueOn") },
+                    ),
+                )
             }
             return out
         }
@@ -27,7 +35,9 @@ data class TaskItem(
         fun listToJson(items: List<TaskItem>): String {
             val arr = JSONArray()
             for (t in items) {
-                arr.put(JSONObject().put("id", t.id).put("title", t.title).put("done", t.done))
+                val o = JSONObject().put("id", t.id).put("title", t.title).put("done", t.done)
+                if (t.dueOn != null) o.put("dueOn", t.dueOn)
+                arr.put(o)
             }
             return arr.toString()
         }
