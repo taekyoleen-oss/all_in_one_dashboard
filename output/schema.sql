@@ -279,3 +279,40 @@ create policy pb_widget_devices_delete_own on pb_widget_devices
   for delete using (auth.uid() = user_id);
 
 -- pb_widget_pairing_codes: 정책 없음(deny-by-default) — service-role 경로로만 접근.
+
+-- ========== 20260828120002_pb_tasks.sql ==========
+create table if not exists pb_tasks (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  instance_id text not null,   -- 위젯 인스턴스 id(pb_widgets.id) — 기기 간 동일
+  title       text not null,
+  done        boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+alter table pb_tasks enable row level security;
+create index if not exists pb_tasks_user_instance_idx
+  on pb_tasks(user_id, instance_id, created_at);
+
+grant select, insert, update, delete on pb_tasks to authenticated;
+
+drop policy if exists pb_tasks_all on pb_tasks;
+create policy pb_tasks_all on pb_tasks
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- 실시간 DELETE 이벤트에 instance_id가 포함되도록(클라이언트 필터용) 전체 old-row 게시.
+alter table pb_tasks replica identity full;
+
+-- supabase_realtime 퍼블리케이션에 테이블 추가(이미 있으면 건너뜀 — 멱등).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'pb_tasks'
+  ) then
+    alter publication supabase_realtime add table pb_tasks;
+  end if;
+end $$;

@@ -246,6 +246,33 @@ export type Database = {
         }
         Relationships: []
       }
+      pb_tasks: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          instance_id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          instance_id: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          instance_id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pb_user_settings: {
         Row: {
           default_dashboard_id: string | null

@@ -49,6 +49,31 @@ export function nextKstMorningIso(now: Date, hour = 9): string {
   return new Date(ms).toISOString();
 }
 
+/* ── 작업(tasks) 대상 인스턴스 해석 ─────────────────────────────────────────
+ * '작업' 위젯 config의 mobileSync=true 인스턴스 중 mobileSyncAt(켠 시각)이 가장
+ * 최신인 1개가 모바일 홈 화면에 표시된다. 교차 인스턴스 배선 없이 config 플래그만으로
+ * 단일 지정을 해석한다(여럿 켜져 있으면 마지막으로 켠 위젯이 이긴다 — UI에 안내). */
+export interface TasksInstanceRow {
+  id: string;
+  config: unknown;
+}
+
+/** mobileSync 켜진 인스턴스 중 최신(mobileSyncAt) 1개의 id — 없으면 null. */
+export function pickTasksInstance(rows: TasksInstanceRow[]): string | null {
+  let bestId: string | null = null;
+  let bestAt = -1;
+  for (const row of rows) {
+    const cfg = row.config as { mobileSync?: unknown; mobileSyncAt?: unknown } | null;
+    if (cfg?.mobileSync !== true) continue;
+    const at = typeof cfg.mobileSyncAt === "number" ? cfg.mobileSyncAt : 0;
+    if (at >= bestAt) {
+      bestAt = at;
+      bestId = row.id;
+    }
+  }
+  return bestId;
+}
+
 /* ── 요청 제한 ──────────────────────────────────────────────────────────────
  * ponytail: 인스턴스 메모리 슬라이딩 윈도우 — Vercel 다중 인스턴스 간 비공유라
  * 소프트 한도다(디바이스 몇 대 규모엔 충분). 전역 강제가 필요해지면 DB 카운터로. */

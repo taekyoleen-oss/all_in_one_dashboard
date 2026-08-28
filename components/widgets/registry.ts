@@ -57,6 +57,7 @@ import { vehicleWidget } from "./vehicle";
 import { noteWidget } from "./note";
 import { credentialsWidget } from "./credentials";
 import { circleScheduleWidget } from "./circle-schedule";
+import { tasksWidget } from "./tasks";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -106,6 +107,9 @@ const DEFINITIONS: WidgetDefinition[] = [
 
   // ── 지인 일정 정리 (카카오톡 텍스트 → 약속 추출, 구분별 정리) ──
   circleScheduleWidget as WidgetDefinition,
+
+  // ── 작업 (pb_tasks 테이블 — 안드로이드 홈 화면 위젯과 양방향 동기화) ──
+  tasksWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */

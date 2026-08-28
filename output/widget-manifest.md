@@ -61,6 +61,7 @@
 | type | displayName | category | dataMode | copyBehavior | 비고 |
 |------|-------------|----------|----------|--------------|------|
 | `note` | 노트 | extended | static(config) | config | 강의 기록용 리치 텍스트 노트. 굵게·기울임·밑줄·취소선·글자색·형광펜·글자크기(px)·제목(H2/H3)·글머리/번호목록·정렬·인용·구분선·링크·**이미지(자동축소)**·**표(삽입+행/열 추가삭제)**·**파일 첨부**(인라인 base64, ≤5MB). `contentEditable`+execCommand 엔진(의존성 0). 붙여넣기/드롭 HTML·이미지 **살균**(allowlist sanitizer — script/onerror/javascript: 제거) 후 저장·렌더. CompactView=읽기전용 미리보기(하이드레이션 가드), ExpandedView=전체 에디터. 본문·첨부 모두 config jsonb. |
+| `tasks` | 작업 | extended | static(supabase+realtime) | – | – | 작업 목록(추가·완료·삭제). 데이터는 `pb_tasks`(RLS·realtime)라 기기 간 동기화. 속성 '모바일 홈 화면에 표시'를 켜면 안드로이드 홈 화면 '작업' 위젯(/api/widget/tasks)과 양방향 연동(여러 인스턴스면 마지막으로 켠 쪽). |
 
 **Batch 5 파일**: `note/{types,sanitize,media,richText,Toolbar,NoteEditor,Attachments,CompactView,ExpandedView,ConfigEditor,index}`. 살균기는 SSR 폴백(정규식 strip) + 클라 DOMParser allowlist 2중. 첨부는 인라인 저장(사용자 선택), Storage 업로드는 향후 업그레이드 여지.
 

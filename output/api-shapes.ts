@@ -770,3 +770,40 @@ export const WidgetDeviceSchema = z.object({
   last_seen_at: z.string().nullable(),
 });
 export type WidgetDevice = z.infer<typeof WidgetDeviceSchema>;
+
+/* ===========================================================================
+ *  TASKS — 작업 위젯  (pb_tasks 행 + /api/widget/tasks 브리지)
+ * ===========================================================================
+ *
+ *  웹 '작업' 위젯(useTasks: RLS 직접 CRUD + realtime)과 안드로이드 홈 화면 위젯
+ *  (/api/widget/tasks, 디바이스 토큰)이 같은 행을 공유한다. 모바일에 보일 목록은
+ *  '작업' 위젯 config의 mobileSync=true 인스턴스(여럿이면 mobileSyncAt 최신)로
+ *  서버가 해석한다.
+ */
+
+/** 작업 1행 — pb_tasks Row(웹 훅이 safeParse로 방어 검증). */
+export const TaskRowSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  instance_id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+  created_at: z.string(),
+});
+export type TaskRow = z.infer<typeof TaskRowSchema>;
+
+/** 브리지 응답의 작업 1건(모바일 위젯 표시용 최소 필드). */
+export const WidgetTaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+  createdAt: z.string(),
+});
+export type WidgetTask = z.infer<typeof WidgetTaskSchema>;
+
+/** GET /api/widget/tasks 응답 — instanceId=null은 '모바일 표시' 지정 위젯 없음. */
+export const WidgetTasksSchema = z.object({
+  instanceId: z.string().nullable(),
+  items: z.array(WidgetTaskSchema),
+});
+export type WidgetTasks = z.infer<typeof WidgetTasksSchema>;
