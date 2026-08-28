@@ -34,6 +34,7 @@ import {
   Ban,
   Trash2,
   LogOut,
+  Smartphone,
 } from "lucide-react";
 import { useSignOut } from "@/lib/auth/useSignOut";
 import { initialOf } from "@/components/canvas/AccountMenu";
@@ -42,6 +43,11 @@ import { widgetRegistry } from "@/components/widgets/registry";
 import { useHiddenWidgets } from "@/lib/utils/paletteVisibility";
 import { createClient } from "@/lib/supabase/client";
 import type { WidgetDefinition } from "@/lib/widgets/contract";
+import {
+  WidgetDeviceSchema,
+  type WidgetDevice,
+  type WidgetPairingCode,
+} from "@/output/api-shapes";
 import type { MemberRow } from "@/lib/auth/access";
 import {
   approveMemberAction,
@@ -61,7 +67,7 @@ export interface SettingsDialogProps {
   onBeforeSignOut?: () => Promise<void> | void;
 }
 
-type Tab = "apps" | "account" | "members";
+type Tab = "apps" | "widget" | "account" | "members";
 
 export function SettingsDialog({
   open,
@@ -124,6 +130,9 @@ export function SettingsDialog({
           <TabButton active={tab === "apps"} onClick={() => setTab("apps")}>
             <LayoutGrid size={14} aria-hidden /> 앱 표시
           </TabButton>
+          <TabButton active={tab === "widget"} onClick={() => setTab("widget")}>
+            <Smartphone size={14} aria-hidden /> 위젯
+          </TabButton>
           <TabButton active={tab === "account"} onClick={() => setTab("account")}>
             <KeyRound size={14} aria-hidden /> 계정
           </TabButton>
@@ -138,6 +147,8 @@ export function SettingsDialog({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {tab === "apps" ? (
             <AppVisibility />
+          ) : tab === "widget" ? (
+            <WidgetDeviceSettings />
           ) : tab === "members" ? (
             <MembersSettings />
           ) : (
@@ -246,6 +257,184 @@ function AppVisibility() {
       </ul>
       <p className="text-[11px] text-muted-foreground">
         숨겨도 이미 보드에 추가한 위젯은 그대로 동작합니다. 이 설정은 이 기기에만 저장됩니다.
+      </p>
+    </div>
+  );
+}
+
+/* --------------------- 위젯(안드로이드 홈 화면) 디바이스 --------------------- */
+
+/** "8.28 14:05" 수준의 짧은 표기 — 목록 메타용. */
+function shortWhen(iso: string | null): string {
+  if (!iso) return "아직 사용 안 함";
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes(),
+  ).padStart(2, "0")}`;
+}
+
+function WidgetDeviceSettings() {
+  const supabase = React.useMemo(() => createClient(), []);
+  const [devices, setDevices] = React.useState<WidgetDevice[] | null>(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const [pairing, setPairing] = React.useState<WidgetPairingCode | null>(null);
+  const [left, setLeft] = React.useState(0);
+  const [issuing, setIssuing] = React.useState(false);
+  const [confirmId, setConfirmId] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // 내 디바이스 목록 — RLS(select_own)가 스코프하므로 필터 불요. MembersSettings 패턴.
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase
+        .from("pb_widget_devices")
+        .select("id, label, created_at, last_seen_at")
+        .order("created_at", { ascending: false });
+      if (!alive) return;
+      setDevices(
+        (data ?? []).flatMap((row) => {
+          const parsed = WidgetDeviceSchema.safeParse(row);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [supabase, reloadKey]);
+
+  // 남은 시간 카운트다운 — 초기값은 발급 핸들러가 세팅(effect 본문 동기 setState 회피).
+  React.useEffect(() => {
+    if (!pairing) return;
+    const timer = window.setInterval(() => {
+      const ms = Date.parse(pairing.expiresAt) - Date.now();
+      if (ms <= 0) setPairing(null);
+      else setLeft(Math.ceil(ms / 1000));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [pairing]);
+
+  const issue = async () => {
+    if (issuing) return;
+    setIssuing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/widget/pairing-codes", { method: "POST" });
+      const body = (await res.json()) as WidgetPairingCode & { message?: string };
+      if (!res.ok) {
+        setError(body.message ?? "코드 발급에 실패했습니다.");
+        return;
+      }
+      setPairing(body);
+      setLeft(Math.max(0, Math.ceil((Date.parse(body.expiresAt) - Date.now()) / 1000)));
+    } catch {
+      setError("코드 발급에 실패했습니다. 네트워크를 확인해 주세요.");
+    } finally {
+      setIssuing(false);
+    }
+  };
+
+  const revoke = async (id: string) => {
+    await supabase.from("pb_widget_devices").delete().eq("id", id);
+    setConfirmId(null);
+    setReloadKey((k) => k + 1);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-muted-foreground">
+        안드로이드 홈 화면 위젯(지인 일정)을 이 계정에 연결합니다. 휴대폰 위젯의 설정
+        화면에 아래 페어링 코드를 입력하면 연결됩니다.
+      </p>
+
+      {/* 페어링 코드 발급 */}
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <h3 className="text-sm font-medium text-foreground">페어링 코드</h3>
+        {pairing ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-2xl font-semibold tracking-[0.3em] text-foreground">
+              {pairing.code}
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} 남음 · 1회용
+            </span>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            코드는 5분간, 한 번만 사용할 수 있습니다. 새로 발급하면 이전 코드는 무효가
+            됩니다.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => void issue()}
+          disabled={issuing}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          {issuing ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
+          {pairing ? "새 코드 발급" : "페어링 코드 발급"}
+        </button>
+        {error ? (
+          <p className="flex items-center gap-1.5 text-xs text-destructive">
+            <AlertCircle size={14} /> {error}
+          </p>
+        ) : null}
+      </div>
+
+      {/* 등록된 디바이스 */}
+      <div className="flex flex-col gap-2">
+        <h3 className="text-sm font-medium text-foreground">등록된 위젯 디바이스</h3>
+        {devices === null ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 size={14} className="animate-spin" /> 불러오는 중…
+          </p>
+        ) : devices.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+            아직 연결된 디바이스가 없습니다. 위젯에서 페어링 코드를 입력하면 여기에
+            표시됩니다.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {devices.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-foreground">{d.label ?? "이름 없는 기기"}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    등록 {shortWhen(d.created_at)} · 마지막 사용 {shortWhen(d.last_seen_at)}
+                  </p>
+                </div>
+                {confirmId === d.id ? (
+                  <button
+                    type="button"
+                    onClick={() => void revoke(d.id)}
+                    className="shrink-0 rounded-md bg-destructive px-2 py-1 text-[11px] font-medium text-white outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    폐기 확인
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    title="폐기 — 이 기기의 위젯 연결이 즉시 끊깁니다"
+                    onClick={() => setConfirmId(d.id)}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-border text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-9"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        설치 방법: ① 안드로이드 앱(APK) 설치 → ② 홈 화면 길게 눌러 ‘위젯’에서 추가 →
+        ③ 위젯 설정 화면에 이 코드 입력. 폐기하면 그 기기의 위젯은 더 이상 일정을 읽지
+        못합니다.
       </p>
     </div>
   );

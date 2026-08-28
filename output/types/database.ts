@@ -90,28 +90,37 @@ export type Database = {
       }
       pb_circle_appointments: {
         Row: {
+          completed_at: string | null
           content: string
           created_at: string
           id: string
+          snooze_until: string | null
           source: string | null
+          status: string
           target_id: string | null
           user_id: string
           when_at: string | null
         }
         Insert: {
+          completed_at?: string | null
           content: string
           created_at?: string
           id?: string
+          snooze_until?: string | null
           source?: string | null
+          status?: string
           target_id?: string | null
           user_id: string
           when_at?: string | null
         }
         Update: {
+          completed_at?: string | null
           content?: string
           created_at?: string
           id?: string
+          snooze_until?: string | null
           source?: string | null
+          status?: string
           target_id?: string | null
           user_id?: string
           when_at?: string | null
@@ -274,6 +283,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pb_widget_devices: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          last_seen_at: string | null
+          revoked_at: string | null
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pb_widget_pairing_codes: {
+        Row: {
+          code_hash: string
+          consumed_at: string | null
+          expires_at: string
+          user_id: string
+        }
+        Insert: {
+          code_hash: string
+          consumed_at?: string | null
+          expires_at: string
+          user_id: string
+        }
+        Update: {
+          code_hash?: string
+          consumed_at?: string | null
+          expires_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       pb_widgets: {
         Row: {

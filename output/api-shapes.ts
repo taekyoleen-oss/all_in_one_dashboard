@@ -702,3 +702,71 @@ export const CircleAppointmentSchema = z.object({
   created_at: z.string(),
 });
 export type CircleAppointment = z.infer<typeof CircleAppointmentSchema>;
+
+/* ===========================================================================
+ *  ANDROID WIDGET BRIDGE — 홈 화면 위젯  (/api/widget/*, PLAN-android-widget.md)
+ * ===========================================================================
+ *
+ *  네이티브 위젯(Jetpack Glance)이 쓰는 서버 표면. 웹 세션 대신 **디바이스 토큰**
+ *  (Bearer, sha256 해시만 pb_widget_devices에 저장)으로 인증한다. 발급 흐름:
+ *  설정 UI가 POST /api/widget/pairing-codes(웹 세션)로 6자리 코드를 받고,
+ *  위젯이 POST /api/widget/pair(코드 검증)로 토큰을 교환한다.
+ *
+ *  GET /api/widget/agenda?days=N  : 오늘부터 N일(KST) 창의 일정. ETag/304 지원.
+ *  PATCH /api/widget/appointments/[id] : { status, snoozeUntil? } 상태 변경.
+ */
+
+/** 위젯에서 조작 가능한 일정 상태. */
+export const WidgetAppointmentStatusSchema = z.enum(["pending", "done", "snoozed"]);
+export type WidgetAppointmentStatus = z.infer<typeof WidgetAppointmentStatusSchema>;
+
+/** 아젠다 1행 — pb_circle_appointments + 대상(pb_circle_targets) 파생. */
+export const WidgetAgendaItemSchema = z.object({
+  id: z.string(),
+  /** 약속 한 문장(content — 시간 접미사 포함 원문). */
+  title: z.string(),
+  /** 대상(구분) 이름 — 미지정이면 null. */
+  targetName: z.string().nullable(),
+  /** 정렬용 시각(when_at, ISO). 이 API는 시각 있는 일정만 내려보낸다. */
+  startAt: z.string(),
+  /** 데이터 모델에 종일 개념이 없어 항상 false(계획서 shape 유지용). */
+  allDay: z.boolean(),
+  status: WidgetAppointmentStatusSchema,
+  /** 연기 시각(ISO) — snoozed일 때 아젠다 배치 기준. */
+  snoozeUntil: z.string().nullable(),
+  /** 대상 색(pb_circle_targets.color) — 좌측 인디케이터용. */
+  colorToken: z.string().nullable(),
+});
+export type WidgetAgendaItem = z.infer<typeof WidgetAgendaItemSchema>;
+
+/** GET /api/widget/agenda 응답. */
+export const WidgetAgendaSchema = z.object({
+  generatedAt: z.string(),
+  items: z.array(WidgetAgendaItemSchema),
+});
+export type WidgetAgenda = z.infer<typeof WidgetAgendaSchema>;
+
+/** POST /api/widget/pairing-codes 응답(웹 세션 전용). */
+export const WidgetPairingCodeSchema = z.object({
+  /** 6자리 숫자 코드 — 이 응답에만 존재(서버는 해시만 저장). */
+  code: z.string(),
+  expiresAt: z.string(),
+});
+export type WidgetPairingCode = z.infer<typeof WidgetPairingCodeSchema>;
+
+/** POST /api/widget/pair 응답 — 토큰 원문은 이 응답에만 존재. */
+export const WidgetPairSchema = z.object({
+  token: z.string(),
+  deviceId: z.string(),
+  label: z.string().nullable(),
+});
+export type WidgetPair = z.infer<typeof WidgetPairSchema>;
+
+/** 설정 UI 디바이스 목록 행(pb_widget_devices의 클라이언트 노출 컬럼만). */
+export const WidgetDeviceSchema = z.object({
+  id: z.string(),
+  label: z.string().nullable(),
+  created_at: z.string(),
+  last_seen_at: z.string().nullable(),
+});
+export type WidgetDevice = z.infer<typeof WidgetDeviceSchema>;
