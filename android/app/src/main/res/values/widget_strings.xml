@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯(P3) 전용 문자열 — 생성된 strings.xml(bubblewrap)과 분리해 재생성 충돌 회피. -->
+<resources>
+    <string name="widget_label">오늘 일정</string>
+    <string name="widget_description">오늘·내일 일정을 표시하고 위젯에서 완료·연기합니다.</string>
+    <string name="widget_pairing_title">일정 위젯 연결</string>
+    <string name="widget_preview_line1">치과 정기 검진 (오후 3:30)</string>
+    <string name="widget_preview_line2">내일 · 가족 모임 (오전 11:00)</string>
+</resources>

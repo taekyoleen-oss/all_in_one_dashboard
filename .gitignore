@@ -58,3 +58,6 @@ android/app/build/
 android/*.apk
 android/*.aab
 android/*.idsig
+android/*.log
+android/*.done
+.playwright-mcp/

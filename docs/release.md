@@ -18,7 +18,9 @@ PLAN-android-widget.md P2 산출. 앱은 Bubblewrap TWA 셸(웹 = all-in-one-das
 
 ## 빌드 절차 (Windows, 이 PC)
 
-도구: `@bubblewrap/cli`(전역), JDK 17·Android SDK는 `~/.bubblewrap/`에 설치됨(빌드 시 자동 사용).
+도구: `@bubblewrap/cli`(전역), **JDK 17 x64** `~/.bubblewrap/jdk-x64/jdk-17.0.20.1+1`
+(bubblewrap 자동설치본 `jdk/`는 **32비트라 gradle 데몬 힙 확보 실패** — config.json이 x64를 가리킴),
+Android SDK `~/.bubblewrap/android_sdk`.
 
 ```bash
 cd android
@@ -27,16 +29,28 @@ export BUBBLEWRAP_KEY_PASSWORD=$(grep -oP '(?<=^keyPassword=).*' keystore.proper
 env -u NoDefaultCurrentDirectoryInExePath bubblewrap build --skipPwaValidation
 ```
 
-- 산출물: `android/app-release-signed.apk` (사이드로드 배포용), `app-release-bundle.aab`(Play용, 필요 시).
+- 산출물: `android/app-release-signed.apk` (사이드로드 배포용).
 - ⚠ `NoDefaultCurrentDirectoryInExePath=1`인 셸(Claude Code 등)에서는 위처럼 `env -u`로 해제해야
   bubblewrap이 `gradlew.bat`을 찾는다.
 - ⚠ 다운로드 중 `Failed to delete original file …` 오류는 백신의 임시파일 잠금 경합(일시적) —
   성공할 때까지 재실행하면 진행된다(의존성은 시도마다 캐시에 누적).
+- ⚠ Kotlin 소스의 한글 주석은 `gradle.properties`의 `-Dfile.encoding=UTF-8`이 지킨다(한국어
+  Windows 기본 CP949). 그리고 **Kotlin 블록 주석은 중첩**되므로 주석 안에 `/`+`*` 문자열 금지.
 
-## 버전 규칙
+## 버전 규칙 (⚠ P3부터 bubblewrap update 금지)
 
-- 릴리스마다 `android/twa-manifest.json`의 `appVersionCode` **+1**, `appVersion`은 표시용 문자열.
-- 수정 후 `bubblewrap update --skipVersionUpgrade` → build. (versionCode를 안 올리면 기기에서 업데이트 설치 거부)
+`android/`에는 위젯(Kotlin·Glance) 코드가 **손으로 통합**돼 있다 — `bubblewrap update`는
+`app/build.gradle`·`AndroidManifest.xml`을 재생성해 **위젯 통합을 덮어쓴다. 실행 금지.**
+
+- 릴리스마다 `android/app/build.gradle`의 `versionCode`/`versionName` **+1** (직접 수정).
+- `android/twa-manifest.json`의 `appVersionCode`/`appVersion`도 같은 값으로 맞춘 뒤 체크섬 동기화
+  (안 하면 build가 "적용할까요?" 대화형 프롬프트에 걸리고, Y로 답하면 위젯이 덮어써진다):
+  ```powershell
+  $b=[IO.File]::ReadAllBytes("$PWD\twa-manifest.json")
+  $s=([BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash($b)) -replace '-','').ToLower()
+  [IO.File]::WriteAllText("$PWD\manifest-checksum.txt",$s)
+  ```
+- versionCode를 안 올리면 기기에서 업데이트 설치가 거부된다.
 
 ## 웹 쪽 변경 시
 

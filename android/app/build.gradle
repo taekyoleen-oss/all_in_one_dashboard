@@ -18,6 +18,9 @@ import groovy.xml.MarkupBuilder
 
 plugins {
     id 'com.android.application'
+    // 위젯(P3): Jetpack Glance는 Kotlin @Composable — 두 플러그인은 루트 classpath에서 해석된다.
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 def twaManifest = [
@@ -55,10 +58,11 @@ android {
     namespace "com.tkleen.schedule"
     defaultConfig {
         applicationId "com.tkleen.schedule"
-        minSdkVersion 21
+        // 21→26: Glance 1.1(minSdk 23)·Android Keystore·java.time 때문. Android 8.0+(2017) 커버.
+        minSdkVersion 26
         targetSdkVersion 36
-        versionCode 1
-        versionName "1"
+        versionCode 2
+        versionName "2"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
@@ -162,6 +166,9 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
     lintOptions {
         checkReleaseBuilds false
     }
@@ -210,7 +217,11 @@ repositories {
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    
+
         implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
-    
+
+    // 위젯(P3, PLAN-android-widget.md): Glance 렌더링 + 15분 주기 동기화.
+    // HTTP·JSON은 플랫폼 내장(HttpURLConnection·org.json)이라 okhttp/kotlinx-serialization 미도입.
+    implementation 'androidx.glance:glance-appwidget:1.1.1'
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
 }

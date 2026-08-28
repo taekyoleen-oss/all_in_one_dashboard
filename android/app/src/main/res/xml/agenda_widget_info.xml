@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 일정 위젯 메타 (P3). 갱신은 WorkManager 담당 → updatePeriodMillis=0.
+     targetCell*(API 31+)이 우선, min*는 하위 버전 폴백. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:maxResizeWidth="500dp"
+    android:maxResizeHeight="450dp"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:configure="com.tkleen.schedule.pairing.PairingActivity"
+    android:initialLayout="@layout/agenda_widget_preview"
+    android:previewLayout="@layout/agenda_widget_preview"
+    android:description="@string/widget_description" />
