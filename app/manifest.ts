@@ -19,6 +19,15 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       { src: "/icon.svg", type: "image/svg+xml", sizes: "any" },
       { src: "/apple-icon", type: "image/png", sizes: "180x180" },
+      // TWA(Bubblewrap)·안드로이드 런처용 PNG — lib/brandIcon 공유 드로잉.
+      { src: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { src: "/icon-512.png", type: "image/png", sizes: "512x512" },
+      {
+        src: "/icon-maskable-512.png",
+        type: "image/png",
+        sizes: "512x512",
+        purpose: "maskable",
+      },
     ],
     // Web Share Target — when the installed PWA is picked from the mobile share
     // sheet, the OS opens /share with the shared title/text/url as query params.
