@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tkleen.schedule",
+      "sha256_cert_fingerprints": [
+        "5E:CF:C1:15:67:E1:53:8E:DD:F1:28:C8:F4:3F:69:B0:95:B8:98:35:FE:95:D8:CD:F0:AD:B4:F5:2E:FB:9D:99"
+      ]
+    }
+  }
+]
