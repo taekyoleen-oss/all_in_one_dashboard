@@ -49,7 +49,10 @@ class TasksListActivity : Activity() {
             finish()
             return
         }
-        filter = WidgetStore.tasksFilter(this)
+        // 위젯의 필터 버튼으로 들어오면 그 필터로 시작(그리고 저장 → 위젯 표시도 따라감).
+        filter = intent?.getStringExtra("filter")?.takeIf { it in setOf("pending", "done", "all") }
+            ?.also { WidgetStore.setTasksFilter(this, it) }
+            ?: WidgetStore.tasksFilter(this)
         buildUi()
         render()
         refreshFromServer()
