@@ -9,15 +9,9 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
-import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
-import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.updateAll
-import com.tkleen.schedule.sync.AgendaSyncWorker
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
@@ -41,6 +35,7 @@ import androidx.glance.text.TextStyle
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.TaskItem
 import com.tkleen.schedule.tasks.TaskEditActivity
+import com.tkleen.schedule.tasks.TasksListActivity
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -128,35 +123,15 @@ private fun TasksRoot(
     }
 }
 
-/**
- * 필터 선택 칩 — 선택된 것은 강조색+굵게, 나머지는 흐리게.
- *
- * ⚠ 액션은 **Glance 표준 콜백**(actionRunCallback)만 쓴다: 보이지 않는
- * (Theme.NoDisplay) 트램펄린 액티비티는 targetSdk 36의 백그라운드 액티비티 실행
- * 제한에서 조용히 무시돼 v7~v10 내내 필터·✕가 죽었다. 반대로 화면을 여는
- * ＋·행 탭(TaskEditActivity)은 항상 동작했고, v5의 콜백 방식도 동작했다.
- * 버튼마다 **전용 콜백 클래스**를 둬 파라미터 없이 구분한다(병합 여지 0).
- */
-@Composable
-private fun FilterChip(label: String, value: String, current: String) {
-    val on = current == value
-    val action = when (value) {
-        "done" -> actionRunCallback<FilterDoneAction>()
-        "all" -> actionRunCallback<FilterAllAction>()
-        else -> actionRunCallback<FilterPendingAction>()
-    }
-    Text(
-        label,
-        modifier = GlanceModifier
-            .clickable(action)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        style = TextStyle(
-            color = if (on) AgendaTheme.accentProvider else AgendaTheme.textDim,
-            fontSize = 12.sp,
-            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-        ),
-    )
+internal fun filterLabelOf(value: String): String = when (value) {
+    "done" -> "완료만"
+    "all" -> "전체"
+    else -> "진행중"
 }
+
+/** 관리 화면을 여는 인텐트 — 위젯의 모든 탭이 여기로 모인다(유일하게 확실한 경로). */
+private fun manageIntent(context: Context): Intent =
+    Intent(context, TasksListActivity::class.java).apply { data = Uri.parse("pbtask://manage") }
 
 @Composable
 private fun TasksHeader(filter: String, syncedAt: Long) {
@@ -170,11 +145,12 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
             ),
         )
         Spacer(GlanceModifier.width(8.dp))
-        // 필터: 진행 · 완료 · 전체를 옆으로 나열해 직접 선택(요구). 순환 대신 3버튼이라
-        // 상태 계산이 없고, 각 버튼이 고유 data URI라 PendingIntent 병합도 불가능하다.
-        FilterChip("진행", "pending", filter)
-        FilterChip("완료", "done", filter)
-        FilterChip("전체", "all", filter)
+        // 현재 보기 상태 표시(조작은 관리 화면에서 — 위젯 내 버튼이 이 기기에서
+        // 동작하지 않아 조작 경로를 '탭 = 화면 열기' 하나로 통일했다).
+        Text(
+            "· ${filterLabelOf(filter)}",
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 12.sp),
+        )
         Spacer(GlanceModifier.defaultWeight())
         if (syncedAt > 0) {
             val t = java.time.ZonedDateTime.ofInstant(
@@ -186,11 +162,11 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
                 style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
             )
         }
-        // 지금 갱신(요구) — 즉시 동기화. 삭제 예정·완료 유예도 이때 함께 반영된다.
+        // 목록 열기 — 필터·완료·삭제·추가·수정 전부 이 화면에서.
         Text(
-            "지금 갱신",
+            "목록 열기",
             modifier = GlanceModifier
-                .clickable(actionRunCallback<SyncNowAction>())
+                .clickable(actionStartActivity(manageIntent(LocalContext.current)))
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
@@ -275,20 +251,14 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
                 fontWeight = FontWeight.Bold,
             ),
         )
+        // 행 오른쪽도 수정 화면으로(삭제는 그 화면과 목록 화면에 있다) — 위젯 내
+        // 인플레이스 토글은 이 기기에서 동작하지 않아 제거했다.
         Text(
-            "✕",
-            // Glance 콜백 + 항목 파라미터(목록 항목의 fill-in 인텐트로 안전하게 전달).
+            "›",
             modifier = GlanceModifier
-                .clickable(
-                    actionRunCallback<ToggleDeleteMarkAction>(
-                        actionParametersOf(PARAM_TASK_ID to item.id),
-                    ),
-                )
+                .clickable(actionStartActivity(editIntent))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            style = TextStyle(
-                color = if (markedForDelete) AgendaTheme.danger else AgendaTheme.textDim,
-                fontSize = 14.sp,
-            ),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 16.sp),
         )
     }
 }
@@ -329,52 +299,5 @@ internal fun taskDateLabel(dueOn: String, today: LocalDate = LocalDate.now(ZoneI
         "$base (${TASK_KOR_DOW[d.dayOfWeek.value - 1]})"
     } catch (e: Exception) {
         ""
-    }
-}
-
-/* ── 위젯 액션 ─────────────────────────────────────────────────────────── */
-
-internal val PARAM_TASK_ID = ActionParameters.Key<String>("taskId")
-
-/* ── 위젯 액션(Glance 표준 콜백) ─────────────────────────────────────────
- * 콜백은 suspend라 updateAll을 끝까지 기다린다(트램펄린의 갱신 유실 없음).
- * 필터는 값마다 클래스를 분리해 파라미터 없이 구분한다. */
-
-private suspend fun applyFilter(context: Context, value: String) {
-    WidgetStore.setTasksFilter(context, value)
-    if (value == "pending") AgendaSyncWorker.cancelFilterRevert(context)
-    else AgendaSyncWorker.scheduleFilterRevert(context)
-    TasksWidget().updateAll(context)
-}
-
-class FilterPendingAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
-        applyFilter(context, "pending")
-}
-
-class FilterDoneAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
-        applyFilter(context, "done")
-}
-
-class FilterAllAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
-        applyFilter(context, "all")
-}
-
-/** ✕ = 삭제 예정 마크 토글(요구). 서버 호출 0 — 즉시 '삭제' 표시/해제. */
-class ToggleDeleteMarkAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val id = parameters[PARAM_TASK_ID] ?: return
-        WidgetStore.toggleDeleteMark(context, id)
-        TasksWidget().updateAll(context)
-    }
-}
-
-/** '지금 갱신' — 즉시 동기화(삭제 예정 실행·완료 유예 반영도 이때). */
-class SyncNowAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        AgendaSyncWorker.syncNow(context)
-        TasksWidget().updateAll(context)
     }
 }

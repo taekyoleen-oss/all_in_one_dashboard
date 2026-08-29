@@ -219,6 +219,17 @@
              액티비티가 없다 — 보이지 않는 트램펄린 액티비티는 targetSdk 36의
              백그라운드 액티비티 실행 제한에 막혀 동작하지 않았다(v7~v10). -->
 
+        <!-- 작업 관리 화면 — 위젯 '목록 열기' 탭이 여는 전체 조작 화면
+             (필터·완료 토글·삭제·추가·수정). 위젯 내 인플레이스 버튼이 이 기기에서
+             동작하지 않아 조작을 여기로 통일했다. -->
+        <activity
+            android:name=".tasks.TasksListActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=":widgetaction"
+            android:label="@string/tasks_widget_label"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
         <!-- 위젯 ＋(추가)·행 탭(수정)이 여는 작업 입력/수정 화면(앱 내부 PendingIntent 전용) -->
         <activity
             android:name=".tasks.TaskEditActivity"
