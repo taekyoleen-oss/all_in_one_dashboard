@@ -215,23 +215,28 @@
 
         <!-- 위젯 탭 액션 트램펄린(화면 없음) — 버튼마다 전용 클래스(PendingIntent
              filterEquals가 extras를 무시해 같은 클래스는 병합되는 함정 회피) -->
+        <!-- taskAffinity를 앱 태스크와 분리 — 이게 없으면 트램펄린이 TWA 태스크를
+             전면으로 끌어올려 "위젯을 눌렀는데 앱이 열린다"가 된다(사용자 신고). -->
         <activity
             android:name=".widget.WidgetActionActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity=":widgetaction"
             android:theme="@android:style/Theme.NoDisplay" />
         <activity
             android:name=".widget.CycleFilterActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity=":widgetaction"
             android:theme="@android:style/Theme.NoDisplay" />
         <activity
             android:name=".widget.SyncNowActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity=":widgetaction"
             android:theme="@android:style/Theme.NoDisplay" />
 
         <!-- 위젯 ＋(추가)·행 탭(수정)이 여는 작업 입력/수정 화면(앱 내부 PendingIntent 전용) -->
@@ -240,6 +245,7 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity=":widgetaction"
             android:label="@string/tasks_add_title"
             android:theme="@android:style/Theme.DeviceDefault.DayNight"
             android:windowSoftInputMode="adjustResize|stateVisible" />

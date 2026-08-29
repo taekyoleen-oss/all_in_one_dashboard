@@ -19,6 +19,11 @@ export interface Tasks {
   /** 맨 아래에 추가(빈 문자열 no-op). dueOn은 "YYYY-MM-DD"(선택). */
   add: (title: string, dueOn?: string | null) => void;
   toggle: (id: string, done: boolean) => void;
+  /** 제목·완료·일자 수정(모바일 수정 화면과 동일 조작). */
+  update: (
+    id: string,
+    patch: { title?: string; done?: boolean; dueOn?: string | null },
+  ) => void;
   remove: (id: string) => void;
 }
 
@@ -117,6 +122,24 @@ export function useTasks(instanceId: string): Tasks {
     [supabase, refresh],
   );
 
+  /** 수정(제목·완료·일자) — 모바일 수정 화면과 같은 조작을 웹에서도 제공. */
+  const update = React.useCallback(
+    async (id: string, patch: { title?: string; done?: boolean; dueOn?: string | null }) => {
+      const next: { title?: string; done?: boolean; due_on?: string | null } = {};
+      if (patch.title !== undefined) {
+        const t = patch.title.trim().slice(0, MAX_TITLE_LEN);
+        if (!t) return;
+        next.title = t;
+      }
+      if (patch.done !== undefined) next.done = patch.done;
+      if (patch.dueOn !== undefined) next.due_on = patch.dueOn || null;
+      if (Object.keys(next).length === 0) return;
+      await supabase.from("pb_tasks").update(next).eq("id", id);
+      refresh();
+    },
+    [supabase, refresh],
+  );
+
   const remove = React.useCallback(
     async (id: string) => {
       await supabase.from("pb_tasks").delete().eq("id", id);
@@ -125,5 +148,5 @@ export function useTasks(instanceId: string): Tasks {
     [supabase, refresh],
   );
 
-  return { rows, add, toggle, remove };
+  return { rows, add, toggle, update, remove };
 }
