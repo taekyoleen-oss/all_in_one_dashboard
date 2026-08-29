@@ -213,6 +213,14 @@
                 android:resource="@xml/tasks_widget_info" />
         </receiver>
 
+        <!-- 위젯 탭 액션 트램펄린(화면 없음) — 필터 순환·삭제 마크·지금 갱신 -->
+        <activity
+            android:name=".widget.WidgetActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <!-- 위젯 ＋(추가)·행 탭(수정)이 여는 작업 입력/수정 화면(앱 내부 PendingIntent 전용) -->
         <activity
             android:name=".tasks.TaskEditActivity"

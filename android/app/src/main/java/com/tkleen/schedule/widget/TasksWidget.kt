@@ -11,14 +11,11 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -143,10 +140,15 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         )
         Spacer(GlanceModifier.width(8.dp))
         // 필터 '콤보박스' — 탭할 때마다 진행중 → 완료 → 전체 순환.
+        // 모든 탭 동작은 트램펄린 액티비티 경유(WidgetActionActivity 주석 참조).
         Text(
             "${filterLabel(filter)} ▾",
             modifier = GlanceModifier
-                .clickable(actionRunCallback<CycleTasksFilterAction>())
+                .clickable(
+                    actionStartActivity<WidgetActionActivity>(
+                        actionParametersOf(PARAM_WIDGET_ACTION to "cycleFilter"),
+                    ),
+                )
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             style = TextStyle(color = AgendaTheme.text, fontSize = 12.sp, fontWeight = FontWeight.Medium),
         )
@@ -161,6 +163,22 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
                 style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
             )
         }
+        // 지금 갱신(요구) — 즉시 동기화. 삭제 예정·완료 유예도 이때 함께 반영된다.
+        Text(
+            "지금 갱신",
+            modifier = GlanceModifier
+                .clickable(
+                    actionStartActivity<WidgetActionActivity>(
+                        actionParametersOf(PARAM_WIDGET_ACTION to "syncNow"),
+                    ),
+                )
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            style = TextStyle(
+                color = AgendaTheme.accentProvider,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
         // ＋ 추가 — 위젯은 텍스트 입력 불가라(계획서 §0.3) 작은 입력 화면을 연다.
         Text(
             "＋",
@@ -219,7 +237,8 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
         Spacer(GlanceModifier.width(4.dp))
         Text(
             if (item.dueOn != null) taskDateLabel(item.dueOn) else "",
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
+            // 본문과 같은 크기(요구) — 색만 흐리게 구분.
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
         )
         Spacer(GlanceModifier.width(4.dp))
         // 삭제 예정 표시(요구) — 다음 갱신 때 실제 삭제, ✕ 재탭으로 취소.
@@ -233,11 +252,14 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
         )
         Text(
             "✕",
-            // clickable 먼저 + 넉넉한 패딩 = 실제 터치 영역 확대(눌러도 반응 없던 문제 수정).
+            // clickable 먼저 + 넉넉한 패딩 = 실제 터치 영역 확대. 트램펄린 경유(신뢰 경로).
             modifier = GlanceModifier
                 .clickable(
-                    actionRunCallback<ToggleDeleteMarkAction>(
-                        actionParametersOf(PARAM_TASK_ID to item.id),
+                    actionStartActivity<WidgetActionActivity>(
+                        actionParametersOf(
+                            PARAM_WIDGET_ACTION to "toggleDeleteMark",
+                            PARAM_TASK_ID to item.id,
+                        ),
                     ),
                 )
                 .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -270,16 +292,19 @@ private fun NotLinked() {
 
 /**
  * 일자 표시 규칙(웹 components/widgets/tasks/dateLabel.ts와 동일):
- * 다른 연도 "2027.1.5" · 같은 연도 "9.15" · 같은 연월 "15일".
+ * 다른 연도 "2027.1.5" · 같은 연도 "9.15" · 같은 연월 "15일" + 요일 "(토)" 병기(요구).
  */
+private val TASK_KOR_DOW = arrayOf("월", "화", "수", "목", "금", "토", "일") // DayOfWeek.value 1=월
+
 internal fun taskDateLabel(dueOn: String, today: LocalDate = LocalDate.now(ZoneId.of("Asia/Seoul"))): String {
     return try {
         val d = LocalDate.parse(dueOn.take(10))
-        when {
+        val base = when {
             d.year != today.year -> "${d.year}.${d.monthValue}.${d.dayOfMonth}"
             d.monthValue != today.monthValue -> "${d.monthValue}.${d.dayOfMonth}"
             else -> "${d.dayOfMonth}일"
         }
+        "$base (${TASK_KOR_DOW[d.dayOfWeek.value - 1]})"
     } catch (e: Exception) {
         ""
     }
@@ -287,32 +312,9 @@ internal fun taskDateLabel(dueOn: String, today: LocalDate = LocalDate.now(ZoneI
 
 /* ── 위젯 액션 ─────────────────────────────────────────────────────────── */
 
+// 키 이름 = WidgetActionActivity·TaskEditActivity가 읽는 인텐트 extra 이름과 동일해야 한다.
+internal val PARAM_WIDGET_ACTION = ActionParameters.Key<String>("widgetAction")
 internal val PARAM_TASK_ID = ActionParameters.Key<String>("taskId")
 internal val PARAM_TASK_TITLE = ActionParameters.Key<String>("taskTitle")
 internal val PARAM_TASK_DONE = ActionParameters.Key<Boolean>("taskDone")
 internal val PARAM_TASK_DUE = ActionParameters.Key<String>("taskDue")
-
-/** 필터 순환: 진행중 → 완료 → 전체 → 진행중. */
-class CycleTasksFilterAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val next = when (WidgetStore.tasksFilter(context)) {
-            "pending" -> "done"
-            "done" -> "all"
-            else -> "pending"
-        }
-        WidgetStore.setTasksFilter(context, next)
-        TasksWidget().updateAll(context)
-    }
-}
-
-/**
- * ✕ 탭 = 삭제 예정 마크 토글(요구). 서버 호출 없이 즉시 다시 그려 '삭제' 표시가
- * 붙고(재탭 시 해제), 실제 삭제는 다음 동기화에서 AgendaSyncWorker가 수행한다.
- */
-class ToggleDeleteMarkAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val id = parameters[PARAM_TASK_ID] ?: return
-        WidgetStore.toggleDeleteMark(context, id)
-        TasksWidget().updateAll(context)
-    }
-}

@@ -61,8 +61,8 @@ android {
         // 21→26: Glance 1.1(minSdk 23)·Android Keystore·java.time 때문. Android 8.0+(2017) 커버.
         minSdkVersion 26
         targetSdkVersion 36
-        versionCode 6
-        versionName "6"
+        versionCode 7
+        versionName "7"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
@@ -159,7 +159,10 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
+            // 위젯 액션(Glance ActionCallback 등)은 리플렉션으로 클래스명을 해석한다 —
+            // keep 규칙 없는 R8이 이를 깨면 위젯 탭이 조용히 죽는다(실기기에서 콜백류만
+            // 오작동한 증상). 사이드로드 배포라 크기 이득도 무의미 → 난독화 끔.
+            minifyEnabled false
         }
     }
     compileOptions {

@@ -69,7 +69,7 @@ export function TasksBody({
                 {t.title}
               </span>
               {t.due_on ? (
-                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                <span className={`shrink-0 tabular-nums text-muted-foreground ${textCls}`}>
                   {taskDateLabel(t.due_on, new Date())}
                 </span>
               ) : null}

@@ -100,6 +100,33 @@ class TaskEditActivity : Activity() {
 
         val status = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f) }
         val saveBtn = Button(this).apply { text = "저장" }
+        val cancelBtn = Button(this).apply { text = "취소" }
+        cancelBtn.setOnClickListener { finish() } // 저장하지 않고 닫기
+        val deleteBtn = Button(this).apply {
+            text = "이 작업 삭제"
+            setTextColor(0xFFDC2626.toInt())
+        }
+        deleteBtn.setOnClickListener {
+            deleteBtn.isEnabled = false
+            status.text = "삭제 중…"
+            Thread {
+                val token = WidgetStore.loadToken(this)
+                val ok = token != null && WidgetApi.deleteTask(token, editId!!)
+                runOnUiThread {
+                    if (ok) {
+                        WidgetStore.mutateTasks(this) { list -> list.filterNot { it.id == editId } }
+                        WidgetStore.clearDeleteMark(this, editId!!)
+                        val app = applicationContext
+                        CoroutineScope(Dispatchers.Default).launch { TasksWidget().updateAll(app) }
+                        Toast.makeText(this, "삭제되었습니다", Toast.LENGTH_SHORT).show()
+                        finish()
+                    } else {
+                        deleteBtn.isEnabled = true
+                        status.text = "삭제에 실패했습니다. 네트워크를 확인해 주세요."
+                    }
+                }
+            }.start()
+        }
 
         saveBtn.setOnClickListener {
             val text = input.text.toString().trim()
@@ -161,7 +188,19 @@ class TaskEditActivity : Activity() {
                     addView(statusGroup)
                 }
                 addView(space(pad / 2))
-                addView(saveBtn, LinearLayout.LayoutParams(pad * 10, LinearLayout.LayoutParams.WRAP_CONTENT))
+                // 저장 | 취소 나란히(요구), 삭제는 아래(수정 모드만).
+                addView(
+                    LinearLayout(this@TaskEditActivity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        addView(saveBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                        addView(cancelBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+                )
+                if (isEdit) {
+                    addView(space(pad / 4))
+                    addView(deleteBtn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+                }
                 addView(space(pad / 2))
                 addView(status)
             },
