@@ -2,48 +2,27 @@ package com.tkleen.schedule.widget
 
 import android.app.Activity
 import android.os.Bundle
-import android.widget.Toast
 import androidx.glance.appwidget.updateAll
 import com.tkleen.schedule.data.WidgetStore
-import com.tkleen.schedule.sync.AgendaSyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * 위젯 탭 액션 트램펄린(화면 없음, Theme.NoDisplay — onCreate에서 즉시 finish).
+ * ✕(삭제 예정 마크 토글) 트램펄린 — 화면 없음, 즉시 finish.
  *
- *  왜 액티비티인가: 실기기에서 actionRunCallback(브로드캐스트 경로) 기반 탭(필터
- *  순환·✕ 마크)이 간헐적으로 죽는 반면, actionStartActivity(＋·행 탭)는 항상
- *  동작했다 — 위젯 클릭의 PendingIntent.getActivity 경로가 런처·전원관리 정책에서
- *  가장 확실하다. 모든 위젯 탭 동작을 이 경로로 통일한다.
- *
- *  extras: widgetAction = cycleFilter | toggleDeleteMark(+taskId) | syncNow
+ *  목록 행 안의 액션이라 taskId를 extra로 받는다(목록은 fill-in 인텐트가 항목별
+ *  extras를 전달하므로 안전). 헤더 버튼들처럼 extras로 동작을 분기하지 않는다 —
+ *  같은 클래스 + extras만 다른 PendingIntent는 filterEquals 기준으로 병합되는
+ *  함정이 있다(CycleFilterActivity 주석 참조).
  */
 class WidgetActionActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        intent?.getStringExtra("taskId")?.let { WidgetStore.toggleDeleteMark(this, it) }
         val app = applicationContext
-        when (intent?.getStringExtra("widgetAction")) {
-            "cycleFilter" -> {
-                val next = when (WidgetStore.tasksFilter(this)) {
-                    "pending" -> "done"
-                    "done" -> "all"
-                    else -> "pending"
-                }
-                WidgetStore.setTasksFilter(this, next)
-                CoroutineScope(Dispatchers.Default).launch { TasksWidget().updateAll(app) }
-            }
-            "toggleDeleteMark" -> {
-                intent?.getStringExtra("taskId")?.let { WidgetStore.toggleDeleteMark(this, it) }
-                CoroutineScope(Dispatchers.Default).launch { TasksWidget().updateAll(app) }
-            }
-            "syncNow" -> {
-                AgendaSyncWorker.syncNow(this)
-                Toast.makeText(this, "갱신 중…", Toast.LENGTH_SHORT).show()
-            }
-        }
+        CoroutineScope(Dispatchers.Default).launch { TasksWidget().updateAll(app) }
         finish() // Theme.NoDisplay는 onResume 전에 반드시 finish
     }
 }

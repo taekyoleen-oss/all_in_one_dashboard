@@ -139,16 +139,12 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
             ),
         )
         Spacer(GlanceModifier.width(8.dp))
-        // 필터 '콤보박스' — 탭할 때마다 진행중 → 완료 → 전체 순환.
-        // 모든 탭 동작은 트램펄린 액티비티 경유(WidgetActionActivity 주석 참조).
+        // 필터 '콤보박스' — 탭할 때마다 진행중 → 완료 → 전체 순환, 10분 뒤 진행중 복귀.
+        // 헤더 버튼은 버튼마다 전용 액티비티(extras 없는 PendingIntent — 병합 충돌 원천 차단).
         Text(
             "${filterLabel(filter)} ▾",
             modifier = GlanceModifier
-                .clickable(
-                    actionStartActivity<WidgetActionActivity>(
-                        actionParametersOf(PARAM_WIDGET_ACTION to "cycleFilter"),
-                    ),
-                )
+                .clickable(actionStartActivity<CycleFilterActivity>())
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             style = TextStyle(color = AgendaTheme.text, fontSize = 12.sp, fontWeight = FontWeight.Medium),
         )
@@ -167,11 +163,7 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         Text(
             "지금 갱신",
             modifier = GlanceModifier
-                .clickable(
-                    actionStartActivity<WidgetActionActivity>(
-                        actionParametersOf(PARAM_WIDGET_ACTION to "syncNow"),
-                    ),
-                )
+                .clickable(actionStartActivity<SyncNowActivity>())
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
@@ -256,10 +248,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             modifier = GlanceModifier
                 .clickable(
                     actionStartActivity<WidgetActionActivity>(
-                        actionParametersOf(
-                            PARAM_WIDGET_ACTION to "toggleDeleteMark",
-                            PARAM_TASK_ID to item.id,
-                        ),
+                        actionParametersOf(PARAM_TASK_ID to item.id),
                     ),
                 )
                 .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -313,7 +302,6 @@ internal fun taskDateLabel(dueOn: String, today: LocalDate = LocalDate.now(ZoneI
 /* ── 위젯 액션 ─────────────────────────────────────────────────────────── */
 
 // 키 이름 = WidgetActionActivity·TaskEditActivity가 읽는 인텐트 extra 이름과 동일해야 한다.
-internal val PARAM_WIDGET_ACTION = ActionParameters.Key<String>("widgetAction")
 internal val PARAM_TASK_ID = ActionParameters.Key<String>("taskId")
 internal val PARAM_TASK_TITLE = ActionParameters.Key<String>("taskTitle")
 internal val PARAM_TASK_DONE = ActionParameters.Key<Boolean>("taskDone")

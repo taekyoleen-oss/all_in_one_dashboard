@@ -35,6 +35,10 @@ object WidgetStore {
     private const val K_TASKS_LINKED = "tasks_linked"
     private const val K_TASKS_SYNCED_AT = "tasks_synced_at"
     private const val K_TASKS_FILTER = "tasks_filter"
+    private const val K_TASKS_FILTER_AT = "tasks_filter_at"
+
+    /** 비-기본 필터(완료·전체)가 유지되는 시간 — 지나면 진행중으로 자동 복귀(요구). */
+    const val FILTER_REVERT_MS: Long = 10 * 60_000L
     private const val K_TASKS_GRACE = "tasks_grace"
     private const val K_TASKS_DELETE_MARKS = "tasks_delete_marks"
 
@@ -173,12 +177,28 @@ object WidgetStore {
 
     /* ── 작업 위젯 필터 + 완료 유예 ────────────────────────────────────── */
 
-    /** 위젯 상단 필터: "pending"(기본) | "done" | "all". */
-    fun tasksFilter(context: Context): String =
-        prefs(context).getString(K_TASKS_FILTER, "pending") ?: "pending"
+    /**
+     * 위젯 상단 필터: "pending"(기본) | "done" | "all".
+     * 완료·전체는 켠 지 10분이 지나면 진행중으로 자가 복귀한다(요구) — 렌더 시점
+     * 판정 + 만료 시 저장값도 정리(외출옷 위젯의 시간대 자가 복귀와 같은 패턴).
+     */
+    fun tasksFilter(context: Context): String {
+        val p = prefs(context)
+        val stored = p.getString(K_TASKS_FILTER, "pending") ?: "pending"
+        if (stored == "pending") return "pending"
+        val at = p.getLong(K_TASKS_FILTER_AT, 0L)
+        if (System.currentTimeMillis() - at > FILTER_REVERT_MS) {
+            p.edit().putString(K_TASKS_FILTER, "pending").apply()
+            return "pending"
+        }
+        return stored
+    }
 
     fun setTasksFilter(context: Context, filter: String) {
-        prefs(context).edit().putString(K_TASKS_FILTER, filter).apply()
+        prefs(context).edit()
+            .putString(K_TASKS_FILTER, filter)
+            .putLong(K_TASKS_FILTER_AT, System.currentTimeMillis())
+            .apply()
     }
 
     /**

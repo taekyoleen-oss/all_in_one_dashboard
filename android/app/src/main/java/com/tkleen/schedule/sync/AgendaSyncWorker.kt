@@ -101,6 +101,30 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             )
         }
 
+        private const val FILTER_REVERT = "pb-tasks-filter-revert"
+
+        /**
+         * 필터 자동 복귀 예약(요구): 완료·전체로 바꾼 지 10분 뒤 동기화를 한 번 돌려
+         * 위젯을 다시 그린다 — tasksFilter()의 만료 판정이 진행중으로 복귀시킨다.
+         * (네트워크 제약 없음 — 오프라인이어도 재렌더는 되어야 한다.)
+         */
+        fun scheduleFilterRevert(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                FILTER_REVERT,
+                ExistingWorkPolicy.REPLACE,
+                OneTimeWorkRequestBuilder<AgendaSyncWorker>()
+                    .setInitialDelay(
+                        com.tkleen.schedule.data.WidgetStore.FILTER_REVERT_MS,
+                        TimeUnit.MILLISECONDS,
+                    )
+                    .build(),
+            )
+        }
+
+        fun cancelFilterRevert(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(FILTER_REVERT)
+        }
+
         fun cancelAll(context: Context) {
             val wm = WorkManager.getInstance(context)
             wm.cancelUniqueWork(PERIODIC)
