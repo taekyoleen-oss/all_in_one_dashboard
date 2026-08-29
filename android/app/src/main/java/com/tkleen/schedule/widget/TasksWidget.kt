@@ -34,12 +34,9 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
-import com.tkleen.schedule.data.WidgetApi
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.TaskItem
 import com.tkleen.schedule.tasks.TaskEditActivity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -63,8 +60,9 @@ class TasksWidget : GlanceAppWidget() {
         val syncedAt = WidgetStore.tasksSyncedAt(context)
         val filter = WidgetStore.tasksFilter(context)
         val grace = WidgetStore.graceIds(context)
+        val deleteMarks = WidgetStore.pendingDeleteIds(context)
         provideContent {
-            TasksRoot(paired, unauthorized, linked, items, syncedAt, filter, grace)
+            TasksRoot(paired, unauthorized, linked, items, syncedAt, filter, grace, deleteMarks)
         }
     }
 }
@@ -78,6 +76,7 @@ private fun TasksRoot(
     syncedAt: Long,
     filter: String,
     grace: Set<String>,
+    deleteMarks: Set<String>,
 ) {
     Column(
         modifier = GlanceModifier
@@ -110,7 +109,9 @@ private fun TasksRoot(
                     }
                 } else {
                     LazyColumn(GlanceModifier.fillMaxSize()) {
-                        items(visible, itemId = { it.id.hashCode().toLong() }) { TaskRow(it) }
+                        items(visible, itemId = { it.id.hashCode().toLong() }) {
+                            TaskRow(it, markedForDelete = deleteMarks.contains(it.id))
+                        }
                     }
                 }
             }
@@ -140,8 +141,8 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         Text(
             "${filterLabel(filter)} ▾",
             modifier = GlanceModifier
-                .padding(horizontal = 4.dp)
-                .clickable(actionRunCallback<CycleTasksFilterAction>()),
+                .clickable(actionRunCallback<CycleTasksFilterAction>())
+                .padding(horizontal = 6.dp, vertical = 4.dp),
             style = TextStyle(color = AgendaTheme.text, fontSize = 12.sp, fontWeight = FontWeight.Medium),
         )
         Spacer(GlanceModifier.defaultWeight())
@@ -159,8 +160,8 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         Text(
             "＋",
             modifier = GlanceModifier
-                .padding(horizontal = 6.dp)
-                .clickable(actionStartActivity<TaskEditActivity>()),
+                .clickable(actionStartActivity<TaskEditActivity>())
+                .padding(horizontal = 8.dp, vertical = 2.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
                 fontSize = 18.sp,
@@ -171,7 +172,7 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
 }
 
 @Composable
-private fun TaskRow(item: TaskItem) {
+private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
     // 행 탭 = 수정 화면. Glance actionStartActivity는 파라미터를 인텐트 extra로 전달한다.
     val editParams = buildList {
         add(PARAM_TASK_ID to item.id)
@@ -196,11 +197,13 @@ private fun TaskRow(item: TaskItem) {
         Text(
             item.title,
             maxLines = 1,
+            // clickable을 padding보다 먼저 — 터치 영역이 패딩까지 포함되도록(✕ 오탐지의 원인).
             modifier = GlanceModifier
                 .defaultWeight()
-                .clickable(actionStartActivity<TaskEditActivity>(actionParametersOf(*editParams))),
+                .clickable(actionStartActivity<TaskEditActivity>(actionParametersOf(*editParams)))
+                .padding(vertical = 4.dp),
             style = TextStyle(
-                color = if (item.done) AgendaTheme.textDim else AgendaTheme.text,
+                color = if (item.done || markedForDelete) AgendaTheme.textDim else AgendaTheme.text,
                 fontSize = 13.sp,
                 textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None,
             ),
@@ -212,16 +215,32 @@ private fun TaskRow(item: TaskItem) {
                 style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
             )
         }
+        if (markedForDelete) {
+            // 삭제 예정 표시(요구) — 다음 갱신 때 실제 삭제, ✕ 재탭으로 취소.
+            Spacer(GlanceModifier.width(4.dp))
+            Text(
+                "삭제",
+                style = TextStyle(
+                    color = AgendaTheme.danger,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+        }
         Text(
             "✕",
+            // clickable 먼저 + 넉넉한 패딩 = 실제 터치 영역 확대(눌러도 반응 없던 문제 수정).
             modifier = GlanceModifier
-                .padding(horizontal = 6.dp)
                 .clickable(
-                    actionRunCallback<DeleteTaskAction>(
+                    actionRunCallback<ToggleDeleteMarkAction>(
                         actionParametersOf(PARAM_TASK_ID to item.id),
                     ),
-                ),
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
+                )
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            style = TextStyle(
+                color = if (markedForDelete) AgendaTheme.danger else AgendaTheme.textDim,
+                fontSize = 14.sp,
+            ),
         )
     }
 }
@@ -282,12 +301,14 @@ class CycleTasksFilterAction : ActionCallback {
     }
 }
 
-class DeleteTaskAction : ActionCallback {
+/**
+ * ✕ 탭 = 삭제 예정 마크 토글(요구). 서버 호출 없이 즉시 다시 그려 '삭제' 표시가
+ * 붙고(재탭 시 해제), 실제 삭제는 다음 동기화에서 AgendaSyncWorker가 수행한다.
+ */
+class ToggleDeleteMarkAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val id = parameters[PARAM_TASK_ID] ?: return
-        WidgetStore.mutateTasks(context) { list -> list.filterNot { it.id == id } }
+        WidgetStore.toggleDeleteMark(context, id)
         TasksWidget().updateAll(context)
-        val token = WidgetStore.loadToken(context) ?: return
-        withContext(Dispatchers.IO) { WidgetApi.deleteTask(token, id) }
     }
 }

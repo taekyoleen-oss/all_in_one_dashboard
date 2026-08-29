@@ -176,6 +176,7 @@ class TaskEditActivity : Activity() {
             list.map { if (it.id == id) it.copy(title = title, done = done, dueOn = due) else it }
         }
         if (done && !wasDone) WidgetStore.markGrace(this, id)
+        WidgetStore.clearDeleteMark(this, id) // 편집해서 저장 = 유지 의사 — 삭제 예정 해제
         val app = applicationContext
         CoroutineScope(Dispatchers.Default).launch { TasksWidget().updateAll(app) }
     }

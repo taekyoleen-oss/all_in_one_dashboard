@@ -16,6 +16,8 @@ object AgendaTheme {
     val bg = ColorProvider(day = Color(0xFFFFFFFF), night = Color(0xFF16191C))
     val text = ColorProvider(day = Color(0xFF1B2845), night = Color(0xFFECEFF4))
     val textDim = ColorProvider(day = Color(0xFF64748B), night = Color(0xFF9AA5B1))
+    /** 삭제 예정 등 파괴적 상태 표시. */
+    val danger = ColorProvider(day = Color(0xFFDC2626), night = Color(0xFFF87171))
 
     /** 대상 색(pb_circle_targets.color, hex 문자열) — 파싱 실패·미지정은 강조색. */
     fun tokenColor(token: String?): Color {

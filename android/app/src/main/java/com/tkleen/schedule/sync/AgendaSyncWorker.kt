@@ -49,6 +49,13 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
                 if (runAttemptCount < 3) Result.retry() else Result.success()
         }
 
+        // 삭제 예정 마크(✕로 표시해 둔 작업) 먼저 실행 — 성공한 것만 마크 해제,
+        // 실패(오프라인 등)는 마크 유지 → 다음 동기화에서 재시도. 이후 fetch가
+        // 서버 진실(삭제 반영된 목록)을 받아 위젯에서 사라진다.
+        for (id in WidgetStore.pendingDeleteIds(ctx)) {
+            if (WidgetApi.deleteTask(token, id)) WidgetStore.clearDeleteMark(ctx, id)
+        }
+
         // 작업(tasks)도 같은 주기로 — 실패는 캐시 유지(다음 주기에 재시도, retry 미사용).
         when (val t = WidgetApi.fetchTasks(token, WidgetStore.tasksEtag(ctx))) {
             is WidgetApi.TasksResult.Ok ->

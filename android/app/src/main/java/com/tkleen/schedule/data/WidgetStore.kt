@@ -36,6 +36,7 @@ object WidgetStore {
     private const val K_TASKS_SYNCED_AT = "tasks_synced_at"
     private const val K_TASKS_FILTER = "tasks_filter"
     private const val K_TASKS_GRACE = "tasks_grace"
+    private const val K_TASKS_DELETE_MARKS = "tasks_delete_marks"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -192,4 +193,29 @@ object WidgetStore {
 
     fun graceIds(context: Context): Set<String> =
         prefs(context).getStringSet(K_TASKS_GRACE, emptySet()) ?: emptySet()
+
+    /* ── 삭제 예정 마크(요구) ──────────────────────────────────────────────
+     * ✕ 1탭 = 마크(행에 '삭제' 표시, 서버 호출 없음 — 즉시 시각 피드백),
+     * ✕ 재탭 = 해제(유지). 실제 삭제는 다음 동기화 때 AgendaSyncWorker가 수행. */
+
+    fun toggleDeleteMark(context: Context, id: String): Boolean {
+        val next = HashSet(pendingDeleteIds(context))
+        val marked = if (next.contains(id)) {
+            next.remove(id); false
+        } else {
+            next.add(id); true
+        }
+        prefs(context).edit().putStringSet(K_TASKS_DELETE_MARKS, next).apply()
+        return marked
+    }
+
+    fun clearDeleteMark(context: Context, id: String) {
+        val next = HashSet(pendingDeleteIds(context))
+        if (next.remove(id)) {
+            prefs(context).edit().putStringSet(K_TASKS_DELETE_MARKS, next).apply()
+        }
+    }
+
+    fun pendingDeleteIds(context: Context): Set<String> =
+        prefs(context).getStringSet(K_TASKS_DELETE_MARKS, emptySet()) ?: emptySet()
 }
