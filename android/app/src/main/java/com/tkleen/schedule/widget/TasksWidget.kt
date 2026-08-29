@@ -109,7 +109,12 @@ private fun TasksRoot(
                     }
                 } else {
                     LazyColumn(GlanceModifier.fillMaxSize()) {
-                        items(visible, itemId = { it.id.hashCode().toLong() }) {
+                        // itemId에 마크 상태 비트 포함: 상태가 바뀌면 다른 항목으로 취급되어
+                        // 완전 재바인딩 — 재활용 뷰의 클릭 바인딩이 낡는 문제(재탭 무반응) 차단.
+                        items(
+                            visible,
+                            itemId = { (it.id.hashCode().toLong() shl 1) + (if (deleteMarks.contains(it.id)) 1L else 0L) },
+                        ) {
                             TaskRow(it, markedForDelete = deleteMarks.contains(it.id))
                         }
                     }
@@ -208,25 +213,24 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
                 textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None,
             ),
         )
-        if (item.dueOn != null) {
-            Spacer(GlanceModifier.width(4.dp))
-            Text(
-                taskDateLabel(item.dueOn),
-                style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
-            )
-        }
-        if (markedForDelete) {
-            // 삭제 예정 표시(요구) — 다음 갱신 때 실제 삭제, ✕ 재탭으로 취소.
-            Spacer(GlanceModifier.width(4.dp))
-            Text(
-                "삭제",
-                style = TextStyle(
-                    color = AgendaTheme.danger,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-        }
+        // ⚠ 행의 자식 뷰 구조는 상태와 무관하게 항상 동일해야 한다 — 상태에 따라
+        // 뷰가 생기고 없어지면 같은 itemId의 재활용 뷰에서 클릭 바인딩이 깨지는
+        // 런처가 있다(✕ 재탭 무반응의 원인). 라벨은 상시 렌더, 없을 땐 빈 문자열.
+        Spacer(GlanceModifier.width(4.dp))
+        Text(
+            if (item.dueOn != null) taskDateLabel(item.dueOn) else "",
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
+        )
+        Spacer(GlanceModifier.width(4.dp))
+        // 삭제 예정 표시(요구) — 다음 갱신 때 실제 삭제, ✕ 재탭으로 취소.
+        Text(
+            if (markedForDelete) "삭제" else "",
+            style = TextStyle(
+                color = AgendaTheme.danger,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+        )
         Text(
             "✕",
             // clickable 먼저 + 넉넉한 패딩 = 실제 터치 영역 확대(눌러도 반응 없던 문제 수정).
