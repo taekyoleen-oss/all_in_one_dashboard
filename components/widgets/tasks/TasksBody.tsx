@@ -41,6 +41,16 @@ export function TasksBody({
   const [draftDate, setDraftDate] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("pending");
   const [editId, setEditId] = React.useState<string | null>(null);
+  // ✕ 1탭 = '삭제' 표시(예정), 재탭 = 취소 — 모바일 위젯과 같은 방식(요구).
+  // 웹은 realtime이라 '다음 갱신' 개념이 없으므로 상단의 '삭제 실행'으로 확정한다.
+  const [pendingDelete, setPendingDelete] = React.useState<Set<string>>(new Set());
+
+  const toggleDeleteMark = (id: string) =>
+    setPendingDelete((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,26 +65,39 @@ export function TasksBody({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-1 flex shrink-0 items-center gap-2">
-        <label className="sr-only" htmlFor={`tasks-filter-${instanceId}`}>
-          작업 상태 필터
-        </label>
-        <select
-          id={`tasks-filter-${instanceId}`}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as Filter)}
-          className="rounded-md border border-border bg-background px-1.5 py-0.5 text-[11px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-            <option key={f} value={f}>
-              {FILTER_LABEL[f]}
-            </option>
-          ))}
-        </select>
-        <span className="text-[10px] text-muted-foreground">
+      {/* 필터: 모바일 위젯과 같은 3버튼 나열(기본 진행). */}
+      <div className="mb-1 flex shrink-0 items-center gap-1" role="group" aria-label="작업 상태 필터">
+        {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
+          <button
+            key={f}
+            type="button"
+            aria-pressed={filter === f}
+            onClick={() => setFilter(f)}
+            className={[
+              "rounded-md px-1.5 py-0.5 text-[11px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              filter === f
+                ? "bg-primary/10 font-bold text-primary"
+                : "text-muted-foreground hover:bg-accent/40",
+            ].join(" ")}
+          >
+            {FILTER_LABEL[f]}
+          </button>
+        ))}
+        <span className="ml-1 text-[10px] text-muted-foreground">
           남은 {rows.filter((t) => !t.done).length}개
         </span>
-        {mobileSync ? (
+        {pendingDelete.size > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              pendingDelete.forEach((id) => remove(id));
+              setPendingDelete(new Set());
+            }}
+            className="ml-auto rounded-md bg-destructive px-2 py-0.5 text-[10px] font-medium text-white outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {pendingDelete.size}개 삭제 실행
+          </button>
+        ) : mobileSync ? (
           <span className="ml-auto flex items-center gap-1 text-[10px] text-primary">
             <Smartphone size={11} aria-hidden /> 모바일 표시 중
           </span>
@@ -104,12 +127,12 @@ export function TasksBody({
                 />
               </li>
             ) : (
-              <li key={t.id}>
+              <li key={t.id} className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setEditId(t.id)}
                   title="클릭해서 수정"
-                  className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left outline-none transition-colors hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left outline-none transition-colors hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span
                     className={[
@@ -123,7 +146,10 @@ export function TasksBody({
                     className={[
                       "min-w-0 flex-1 truncate",
                       textCls,
-                      t.done ? "text-muted-foreground line-through" : "text-foreground",
+                      t.done || pendingDelete.has(t.id)
+                        ? "text-muted-foreground"
+                        : "text-foreground",
+                      t.done ? "line-through" : "",
                     ].join(" ")}
                   >
                     {t.title}
@@ -133,6 +159,21 @@ export function TasksBody({
                       {taskDateLabel(t.due_on, new Date())}
                     </span>
                   ) : null}
+                  {pendingDelete.has(t.id) ? (
+                    <span className="shrink-0 text-[10px] font-bold text-destructive">삭제</span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${t.title} 삭제 표시`}
+                  title={pendingDelete.has(t.id) ? "삭제 표시 취소" : "삭제 예정으로 표시"}
+                  onClick={() => toggleDeleteMark(t.id)}
+                  className={[
+                    "inline-flex size-6 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-8",
+                    pendingDelete.has(t.id) ? "text-destructive" : "text-muted-foreground",
+                  ].join(" ")}
+                >
+                  <X size={13} />
                 </button>
               </li>
             ),

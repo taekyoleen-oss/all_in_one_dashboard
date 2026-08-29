@@ -224,13 +224,20 @@
             android:noHistory="true"
             android:taskAffinity=":widgetaction"
             android:theme="@android:style/Theme.NoDisplay" />
+        <!-- 필터 3버튼(진행·완료·전체) — 값은 data URI(pbfilter://…)로 구분 -->
         <activity
-            android:name=".widget.CycleFilterActivity"
+            android:name=".widget.SetFilterActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:taskAffinity=":widgetaction"
-            android:theme="@android:style/Theme.NoDisplay" />
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="pbfilter" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".widget.SyncNowActivity"
             android:exported="false"

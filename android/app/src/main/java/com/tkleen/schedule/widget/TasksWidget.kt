@@ -1,15 +1,16 @@
 package com.tkleen.schedule.widget
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
-import androidx.glance.action.actionStartActivity
+import androidx.glance.LocalContext
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
@@ -41,8 +42,8 @@ import java.time.format.DateTimeFormatter
 /**
  * 작업 위젯 — 웹 '작업' 위젯(모바일 표시 지정 인스턴스)과 양방향 동기화.
  *
- *  헤더 필터(진행중 기본 · 탭할 때마다 진행중→완료→전체 순환 — 위젯엔 드롭다운이
- *  없어 콤보박스를 순환 버튼으로 구현) + ＋ 추가. 각 행은 진행/완료 **표시 라벨** +
+ *  헤더 필터(진행·완료·전체 3버튼을 옆으로 나열, 기본 진행 — 위젯엔 드롭다운이
+ *  없고 순환 방식은 오작동이 잦아 직접 선택으로) + ＋ 추가. 각 행은 진행/완료 **표시 라벨** +
  *  제목(+일자) + ✕ 삭제이고, 행을 탭하면 수정 화면(TaskEditActivity)이 열린다.
  *
  *  완료 유예(요구): 방금 완료한 작업은 흐린 글씨로 진행중 목록에 남고, 다음
@@ -121,11 +122,28 @@ private fun TasksRoot(
     }
 }
 
-private fun filterLabel(filter: String): String = when (filter) {
-    "done" -> "완료"
-    "all" -> "전체"
-    else -> "진행중"
+/** 필터 선택 칩 — 선택된 것은 강조색+굵게, 나머지는 흐리게. */
+@Composable
+private fun FilterChip(label: String, value: String, current: String) {
+    val on = current == value
+    Text(
+        label,
+        modifier = GlanceModifier
+            .clickable(actionStartActivity(filterIntent(LocalContext.current, value)))
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        style = TextStyle(
+            color = if (on) AgendaTheme.accentProvider else AgendaTheme.textDim,
+            fontSize = 12.sp,
+            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+        ),
+    )
 }
+
+/** 필터 값마다 고유 data URI — filterEquals가 data를 보므로 버튼별 PendingIntent 보장. */
+private fun filterIntent(context: Context, value: String): Intent =
+    Intent(context, SetFilterActivity::class.java).apply {
+        data = Uri.parse("pbfilter://$value")
+    }
 
 @Composable
 private fun TasksHeader(filter: String, syncedAt: Long) {
@@ -139,15 +157,11 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
             ),
         )
         Spacer(GlanceModifier.width(8.dp))
-        // 필터 '콤보박스' — 탭할 때마다 진행중 → 완료 → 전체 순환, 10분 뒤 진행중 복귀.
-        // 헤더 버튼은 버튼마다 전용 액티비티(extras 없는 PendingIntent — 병합 충돌 원천 차단).
-        Text(
-            "${filterLabel(filter)} ▾",
-            modifier = GlanceModifier
-                .clickable(actionStartActivity<CycleFilterActivity>())
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            style = TextStyle(color = AgendaTheme.text, fontSize = 12.sp, fontWeight = FontWeight.Medium),
-        )
+        // 필터: 진행 · 완료 · 전체를 옆으로 나열해 직접 선택(요구). 순환 대신 3버튼이라
+        // 상태 계산이 없고, 각 버튼이 고유 data URI라 PendingIntent 병합도 불가능하다.
+        FilterChip("진행", "pending", filter)
+        FilterChip("완료", "done", filter)
+        FilterChip("전체", "all", filter)
         Spacer(GlanceModifier.defaultWeight())
         if (syncedAt > 0) {
             val t = java.time.ZonedDateTime.ofInstant(
@@ -163,7 +177,12 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         Text(
             "지금 갱신",
             modifier = GlanceModifier
-                .clickable(actionStartActivity<SyncNowActivity>())
+                .clickable(
+                    actionStartActivity(
+                        Intent(LocalContext.current, SyncNowActivity::class.java)
+                            .setData(Uri.parse("pbwidget://sync")),
+                    ),
+                )
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
@@ -175,7 +194,12 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         Text(
             "＋",
             modifier = GlanceModifier
-                .clickable(actionStartActivity<TaskEditActivity>())
+                .clickable(
+                    actionStartActivity(
+                        Intent(LocalContext.current, TaskEditActivity::class.java)
+                            .setData(Uri.parse("pbtask://add")),
+                    ),
+                )
                 .padding(horizontal = 8.dp, vertical = 2.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
@@ -188,13 +212,14 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
 
 @Composable
 private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
-    // 행 탭 = 수정 화면. Glance actionStartActivity는 파라미터를 인텐트 extra로 전달한다.
-    val editParams = buildList {
-        add(PARAM_TASK_ID to item.id)
-        add(PARAM_TASK_TITLE to item.title)
-        add(PARAM_TASK_DONE to item.done)
-        if (item.dueOn != null) add(PARAM_TASK_DUE to item.dueOn)
-    }.toTypedArray()
+    // 행 탭 = 수정 화면. 항목별 고유 data URI + extras(값 전달)로 병합 없이 정확히 연다.
+    val editIntent = Intent(LocalContext.current, TaskEditActivity::class.java).apply {
+        data = Uri.parse("pbtask://edit/${item.id}")
+        putExtra("taskId", item.id)
+        putExtra("taskTitle", item.title)
+        putExtra("taskDone", item.done)
+        if (item.dueOn != null) putExtra("taskDue", item.dueOn)
+    }
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -215,7 +240,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             // clickable을 padding보다 먼저 — 터치 영역이 패딩까지 포함되도록(✕ 오탐지의 원인).
             modifier = GlanceModifier
                 .defaultWeight()
-                .clickable(actionStartActivity<TaskEditActivity>(actionParametersOf(*editParams)))
+                .clickable(actionStartActivity(editIntent))
                 .padding(vertical = 4.dp),
             style = TextStyle(
                 color = if (item.done || markedForDelete) AgendaTheme.textDim else AgendaTheme.text,
@@ -244,13 +269,10 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
         )
         Text(
             "✕",
-            // clickable 먼저 + 넉넉한 패딩 = 실제 터치 영역 확대. 트램펄린 경유(신뢰 경로).
+            // 항목마다 고유 data URI — 목록의 ✕들이 하나의 PendingIntent로 병합되어
+            // 첫 항목/마지막 항목만 반응하던 문제(재탭 무반응 포함)를 원천 차단한다.
             modifier = GlanceModifier
-                .clickable(
-                    actionStartActivity<WidgetActionActivity>(
-                        actionParametersOf(PARAM_TASK_ID to item.id),
-                    ),
-                )
+                .clickable(actionStartActivity(deleteMarkIntent(LocalContext.current, item.id)))
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             style = TextStyle(
                 color = if (markedForDelete) AgendaTheme.danger else AgendaTheme.textDim,
@@ -301,8 +323,9 @@ internal fun taskDateLabel(dueOn: String, today: LocalDate = LocalDate.now(ZoneI
 
 /* ── 위젯 액션 ─────────────────────────────────────────────────────────── */
 
-// 키 이름 = WidgetActionActivity·TaskEditActivity가 읽는 인텐트 extra 이름과 동일해야 한다.
-internal val PARAM_TASK_ID = ActionParameters.Key<String>("taskId")
-internal val PARAM_TASK_TITLE = ActionParameters.Key<String>("taskTitle")
-internal val PARAM_TASK_DONE = ActionParameters.Key<Boolean>("taskDone")
-internal val PARAM_TASK_DUE = ActionParameters.Key<String>("taskDue")
+/** ✕(삭제 예정 마크) — 항목마다 고유 data URI로 PendingIntent 분리. */
+private fun deleteMarkIntent(context: Context, taskId: String): Intent =
+    Intent(context, WidgetActionActivity::class.java).apply {
+        data = Uri.parse("pbtask://delete/$taskId")
+        putExtra("taskId", taskId)
+    }
