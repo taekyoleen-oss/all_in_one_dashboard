@@ -32,8 +32,8 @@ import java.time.ZoneId
  *  - 겹침 수정(요구): targetSdk 36 edge-to-edge에서 액션바 제목("작업 추가")이
  *    입력 위로 겹쳐 보이던 문제 → 액션바 숨김 + fitsSystemWindows로 시스템 바
  *    인셋 회피(제목은 레이아웃 안에서만 그린다).
- *  - 수정 저장은 낙관 캐시 반영(완료 전환 시 유예 마크 — 흐린 채 남았다가 다음
- *    갱신 때 진행중에서 빠짐) 후 API 호출. 추가는 저장 후 즉시 동기화.
+ *  - 수정 저장은 낙관 캐시 반영 후 API 호출(완료 전환은 진행 필터에서 즉시
+ *    빠진다 — 요구, v14에서 유예 제거). 추가는 저장 후 즉시 동기화.
  */
 class TaskEditActivity : Activity() {
 
@@ -205,13 +205,11 @@ class TaskEditActivity : Activity() {
         input.requestFocus()
     }
 
-    /** 수정 결과를 캐시에 즉시 반영 — 완료 전환은 유예(다음 갱신까지 흐리게 유지). */
+    /** 수정 결과를 캐시에 즉시 반영 — 완료 전환은 진행 필터에서 즉시 빠진다. */
     private fun applyOptimisticEdit(id: String, title: String, done: Boolean, due: String?) {
-        val wasDone = WidgetStore.taskItems(this).firstOrNull { it.id == id }?.done == true
         WidgetStore.mutateTasks(this) { list ->
             list.map { if (it.id == id) it.copy(title = title, done = done, dueOn = due) else it }
         }
-        if (done && !wasDone) WidgetStore.markGrace(this, id)
         WidgetStore.clearDeleteMark(this, id) // 편집해서 저장 = 유지 의사 — 삭제 예정 해제
         // finish() 직전이라 launch는 취소될 수 있다 — 갱신을 끝내고 넘어간다.
         runBlocking { TasksWidget().updateAll(applicationContext) }

@@ -43,12 +43,11 @@ import java.time.format.DateTimeFormatter
 /**
  * 작업 위젯 — 웹 '작업' 위젯(모바일 표시 지정 인스턴스)과 양방향 동기화.
  *
- *  헤더 필터(진행·완료·전체 3버튼을 옆으로 나열, 기본 진행 — 위젯엔 드롭다운이
- *  없고 순환 방식은 오작동이 잦아 직접 선택으로) + ＋ 추가. 각 행은 진행/완료 **표시 라벨** +
- *  제목(+일자) + ✕ 삭제이고, 행을 탭하면 수정 화면(TaskEditActivity)이 열린다.
+ *  헤더 필터(진행·완료·전체 3버튼, 기본 진행)는 **화면 전환 없이** 위젯 목록을
+ *  바꾼다(SetTasksFilterActivity — 투명 포그라운드에서 재렌더 후 즉시 닫힘) + ＋ 추가.
+ *  각 행은 진행/완료 **표시 라벨** + 제목(+일자)이고, 행을 탭하면 수정 화면이 열린다.
  *
- *  완료 유예(요구): 방금 완료한 작업은 흐린 글씨로 진행중 목록에 남고, 다음
- *  동기화(putTasks가 유예 목록을 비움) 때 진행중에서 빠진다.
+ *  완료된 작업은 진행 필터에서 **즉시** 사라진다(요구, v14) — 완료·전체에서만 보인다.
  */
 class TasksWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -58,10 +57,9 @@ class TasksWidget : GlanceAppWidget() {
         val items = WidgetStore.taskItems(context)
         val syncedAt = WidgetStore.tasksSyncedAt(context)
         val filter = WidgetStore.tasksFilter(context)
-        val grace = WidgetStore.graceIds(context)
         val deleteMarks = WidgetStore.pendingDeleteIds(context)
         provideContent {
-            TasksRoot(paired, unauthorized, linked, items, syncedAt, filter, grace, deleteMarks)
+            TasksRoot(paired, unauthorized, linked, items, syncedAt, filter, deleteMarks)
         }
     }
 }
@@ -74,7 +72,6 @@ private fun TasksRoot(
     items: List<TaskItem>,
     syncedAt: Long,
     filter: String,
-    grace: Set<String>,
     deleteMarks: Set<String>,
 ) {
     Column(
@@ -92,7 +89,8 @@ private fun TasksRoot(
                 val visible = when (filter) {
                     "done" -> items.filter { it.done }
                     "all" -> items
-                    else -> items.filter { !it.done || grace.contains(it.id) }
+                    // 완료는 진행 필터에서 즉시 제외(요구) — 유예 없이 완료·전체에서만 보인다.
+                    else -> items.filter { !it.done }
                 }
                 TasksHeader(filter, syncedAt)
                 Spacer(GlanceModifier.height(6.dp))
@@ -129,22 +127,27 @@ internal fun filterLabelOf(value: String): String = when (value) {
     else -> "진행중"
 }
 
-/** 관리 화면을 여는 인텐트 — 위젯의 모든 탭이 여기로 모인다(유일하게 확실한 경로). */
-private fun manageIntent(context: Context, filter: String? = null): Intent =
+/** 관리 화면(완료 토글·삭제·추가·수정)을 여는 인텐트. */
+private fun manageIntent(context: Context): Intent =
     Intent(context, TasksListActivity::class.java).apply {
-        // 필터마다 고유 data URI — PendingIntent가 값별로 분리된다(extras는 비교 제외).
-        data = Uri.parse("pbtask://manage/${filter ?: "current"}")
-        if (filter != null) putExtra("filter", filter)
+        data = Uri.parse("pbtask://manage/current")
     }
 
-/** 위젯 헤더의 필터 버튼 — 선택된 것은 강조색·굵게. 탭하면 그 필터로 목록이 열린다. */
+/**
+ * 위젯 헤더의 필터 버튼 — 선택된 것은 강조색·굵게. 탭하면 **화면 전환 없이**
+ * 위젯 목록이 그 필터로 바뀐다(투명 SetTasksFilterActivity가 포그라운드에서
+ * 필터 저장 + 재렌더를 끝내고 닫힌다 — 근거는 그 클래스 주석).
+ * 값마다 고유 data URI(`pbfilter://{value}`)라 PendingIntent 병합이 없다.
+ */
 @Composable
 private fun FilterButton(label: String, value: String, current: String) {
     val on = current == value
+    val intent = Intent(LocalContext.current, SetTasksFilterActivity::class.java)
+        .setData(Uri.parse("pbfilter://$value"))
     Text(
         label,
         modifier = GlanceModifier
-            .clickable(actionStartActivity(manageIntent(LocalContext.current, value)))
+            .clickable(actionStartActivity(intent))
             .padding(horizontal = 7.dp, vertical = 6.dp),
         style = TextStyle(
             color = if (on) AgendaTheme.accentProvider else AgendaTheme.textDim,
@@ -166,9 +169,7 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
             ),
         )
         Spacer(GlanceModifier.width(6.dp))
-        // 필터 버튼(진행·완료·전체) — 위젯 내부에서 값만 바꾸는 방식은 이 기기에서
-        // 동작하지 않으므로, 각 버튼이 **그 필터로 관리 화면을 연다**(작동 보장 경로).
-        // 화면에서 본 필터가 저장돼 위젯 표시도 따라 바뀐다.
+        // 필터 버튼(진행·완료·전체) — 화면 전환 없이 위젯 목록이 그 필터로 바뀐다.
         FilterButton("진행", "pending", filter)
         FilterButton("완료", "done", filter)
         FilterButton("전체", "all", filter)
@@ -183,8 +184,7 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
                 style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
             )
         }
-        // 목록(관리 화면) — 완료 토글·삭제·새로고침이 여기 있다. 필터 버튼도 같은
-        // 화면을 열지만 이 버튼은 '현재 필터 유지'로 연다.
+        // 목록(관리 화면) — 완료 토글·삭제·새로고침이 여기 있다.
         Text(
             "목록",
             modifier = GlanceModifier

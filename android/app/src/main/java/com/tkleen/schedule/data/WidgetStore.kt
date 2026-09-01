@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.tkleen.schedule.data.model.AgendaItem
 import com.tkleen.schedule.data.model.TaskItem
+import com.tkleen.schedule.sync.AgendaSyncWorker
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -39,7 +40,6 @@ object WidgetStore {
 
     /** 비-기본 필터(완료·전체)가 유지되는 시간 — 지나면 진행중으로 자동 복귀(요구). */
     const val FILTER_REVERT_MS: Long = 10 * 60_000L
-    private const val K_TASKS_GRACE = "tasks_grace"
     private const val K_TASKS_DELETE_MARKS = "tasks_delete_marks"
 
     private fun prefs(context: Context) =
@@ -140,8 +140,6 @@ object WidgetStore {
             .putString(K_TASKS_ETAG, etag)
             .putBoolean(K_TASKS_LINKED, linked)
             .putLong(K_TASKS_SYNCED_AT, syncedAt)
-            // 서버 동기화 = '갱신' — 유예 중이던 완료 항목이 이제 진행중 목록에서 빠진다.
-            .remove(K_TASKS_GRACE)
             .apply()
     }
 
@@ -175,7 +173,7 @@ object WidgetStore {
         prefs(context).edit().putString(K_TASKS, next).remove(K_TASKS_ETAG).apply()
     }
 
-    /* ── 작업 위젯 필터 + 완료 유예 ────────────────────────────────────── */
+    /* ── 작업 위젯 필터 ────────────────────────────────────────────────── */
 
     /**
      * 위젯 상단 필터: "pending"(기본) | "done" | "all".
@@ -199,20 +197,11 @@ object WidgetStore {
             .putString(K_TASKS_FILTER, filter)
             .putLong(K_TASKS_FILTER_AT, System.currentTimeMillis())
             .apply()
+        // 완료·전체는 10분 뒤 복귀 시점에 재렌더가 필요하다(만료 판정은 렌더 시점) —
+        // 모든 호출처(위젯 필터 버튼·관리 화면)에서 예약이 걸리도록 여기서 건다.
+        if (filter == "pending") AgendaSyncWorker.cancelFilterRevert(context)
+        else AgendaSyncWorker.scheduleFilterRevert(context)
     }
-
-    /**
-     * 완료 유예(요구): 방금 완료한 작업은 흐리게 표시된 채 진행중 목록에 남고,
-     * **다음 동기화(갱신)** 때 빠진다. putTasks가 유예 목록을 비운다.
-     */
-    fun markGrace(context: Context, id: String) {
-        val next = HashSet(graceIds(context))
-        next.add(id)
-        prefs(context).edit().putStringSet(K_TASKS_GRACE, next).apply()
-    }
-
-    fun graceIds(context: Context): Set<String> =
-        prefs(context).getStringSet(K_TASKS_GRACE, emptySet()) ?: emptySet()
 
     /* ── 삭제 예정 마크(요구) ──────────────────────────────────────────────
      * ✕ 1탭 = 마크(행에 '삭제' 표시, 서버 호출 없음 — 즉시 시각 피드백),

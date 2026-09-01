@@ -213,11 +213,17 @@
                 android:resource="@xml/tasks_widget_info" />
         </receiver>
 
-        <!-- 위젯 탭 액션 트램펄린(화면 없음) — 버튼마다 전용 클래스(PendingIntent
-             filterEquals가 extras를 무시해 같은 클래스는 병합되는 함정 회피) -->
-        <!-- 위젯 버튼(필터·✕·지금 갱신)은 Glance 표준 콜백(브로드캐스트)이라 별도
-             액티비티가 없다 — 보이지 않는 트램펄린 액티비티는 targetSdk 36의
-             백그라운드 액티비티 실행 제한에 막혀 동작하지 않았다(v7~v10). -->
+        <!-- 위젯 필터 버튼(진행·완료·전체)의 목적지 — **투명** 액티비티로 포그라운드를
+             잡은 채 필터 저장 + 위젯 재렌더를 끝내고 즉시 닫힌다(보이는 UI 없음).
+             v5~v11의 인플레이스 버튼 실패는 탭 유실이 아니라 비포그라운드 프로세스의
+             Glance 재렌더(WorkManager) 지연이었다 — 상세는 클래스 주석. -->
+        <activity
+            android:name=".widget.SetTasksFilterActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=":widgetaction"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- 작업 관리 화면 — 위젯 '목록 열기' 탭이 여는 전체 조작 화면
              (필터·완료 토글·삭제·추가·수정). 위젯 내 인플레이스 버튼이 이 기기에서
