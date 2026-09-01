@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 위젯 필터 트램펄린(SetTasksFilterActivity) 전용 — 완전 투명 + 창 애니메이션
+         없음(열림·닫힘 전환 동안 런처 입력이 막히는 시간을 없앤다) + 스플래시 없음. -->
+    <style name="PbInvisible" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

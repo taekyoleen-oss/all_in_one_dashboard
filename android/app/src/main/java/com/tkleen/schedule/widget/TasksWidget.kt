@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -17,6 +20,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -36,6 +40,7 @@ import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.TaskItem
 import com.tkleen.schedule.tasks.TaskEditActivity
 import com.tkleen.schedule.tasks.TasksListActivity
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -50,18 +55,43 @@ import java.time.format.DateTimeFormatter
  *  완료된 작업은 진행 필터에서 **즉시** 사라진다(요구, v14) — 완료·전체에서만 보인다.
  */
 class TasksWidget : GlanceAppWidget() {
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val paired = WidgetStore.isPaired(context)
-        val unauthorized = WidgetStore.unauthorized(context)
-        val linked = WidgetStore.tasksLinked(context)
-        val items = WidgetStore.taskItems(context)
-        val syncedAt = WidgetStore.tasksSyncedAt(context)
-        val filter = WidgetStore.tasksFilter(context)
-        val deleteMarks = WidgetStore.pendingDeleteIds(context)
-        provideContent {
-            TasksRoot(paired, unauthorized, linked, items, syncedAt, filter, deleteMarks)
+    companion object {
+        /**
+         * 데이터 버전 틱 — **stale 렌더의 근본 수정**(v15, adb 실측으로 확정).
+         * Glance 세션은 한 번 뜨면 수십 초 살아 있는데, 살아 있는 세션에 대한
+         * updateAll은 재구성만 일으켜 provideGlance 시점에 캡처된 **옛 값으로 다시
+         * 그린다** — 직전 렌더 후 ~1분 안의 탭이 "안 먹는" 것처럼 보이던 진짜 원인
+         * (v5~v11의 인플레이스 버튼 무반응도 상당 부분 이것). 값을 바꾸면 컴포지션이
+         * 구독 중인 이 플로우로 재구성되고, 그때 prefs를 다시 읽는다.
+         */
+        internal val refreshTick = MutableStateFlow(0)
+
+        /** 데이터 변경 후 위젯 반영 — 살아있는 세션(틱)과 닫힌 세션(updateAll) 모두 커버. */
+        suspend fun refresh(context: Context) {
+            refreshTick.value++
+            TasksWidget().updateAll(context.applicationContext)
         }
     }
+
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent {
+            val tick by refreshTick.collectAsState()
+            // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다(위 주석).
+            val s = remember(tick) { TasksUi(context) }
+            TasksRoot(s.paired, s.unauthorized, s.linked, s.items, s.syncedAt, s.filter, s.deleteMarks)
+        }
+    }
+}
+
+/** 렌더 한 번에 쓰는 값 묶음 — remember(tick)으로 틱마다 재로드. */
+private class TasksUi(context: Context) {
+    val paired = WidgetStore.isPaired(context)
+    val unauthorized = WidgetStore.unauthorized(context)
+    val linked = WidgetStore.tasksLinked(context)
+    val items = WidgetStore.taskItems(context)
+    val syncedAt = WidgetStore.tasksSyncedAt(context)
+    val filter = WidgetStore.tasksFilter(context)
+    val deleteMarks = WidgetStore.pendingDeleteIds(context)
 }
 
 @Composable

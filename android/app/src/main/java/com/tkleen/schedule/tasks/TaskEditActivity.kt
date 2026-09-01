@@ -19,7 +19,6 @@ import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.pairing.PairingActivity
 import com.tkleen.schedule.sync.AgendaSyncWorker
 import com.tkleen.schedule.widget.TasksWidget
-import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import java.time.LocalDate
@@ -114,7 +113,7 @@ class TaskEditActivity : Activity() {
                     if (ok) {
                         WidgetStore.mutateTasks(this) { list -> list.filterNot { it.id == editId } }
                         WidgetStore.clearDeleteMark(this, editId!!)
-                        runBlocking { TasksWidget().updateAll(applicationContext) }
+                        runBlocking { TasksWidget.refresh(applicationContext) }
                         Toast.makeText(this, "삭제되었습니다", Toast.LENGTH_SHORT).show()
                         finish()
                     } else {
@@ -212,7 +211,7 @@ class TaskEditActivity : Activity() {
         }
         WidgetStore.clearDeleteMark(this, id) // 편집해서 저장 = 유지 의사 — 삭제 예정 해제
         // finish() 직전이라 launch는 취소될 수 있다 — 갱신을 끝내고 넘어간다.
-        runBlocking { TasksWidget().updateAll(applicationContext) }
+        runBlocking { TasksWidget.refresh(applicationContext) }
     }
 
     private fun dateButtonLabel(): String = dueOn?.let { "일자: $it" } ?: "일자 선택 (선택)"

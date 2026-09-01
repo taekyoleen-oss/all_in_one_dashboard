@@ -67,7 +67,7 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
         }
 
         AgendaWidget().updateAll(ctx) // 304여도 날짜 경계·갱신 시각 표시를 다시 그린다.
-        TasksWidget().updateAll(ctx)
+        TasksWidget.refresh(ctx) // 살아있는 세션도 새 데이터로 재구성(틱)
         return result
     }
 

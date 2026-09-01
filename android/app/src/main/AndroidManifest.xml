@@ -223,7 +223,7 @@
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:taskAffinity=":widgetaction"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:theme="@style/PbInvisible" />
 
         <!-- 작업 관리 화면 — 위젯 '목록 열기' 탭이 여는 전체 조작 화면
              (필터·완료 토글·삭제·추가·수정). 위젯 내 인플레이스 버튼이 이 기기에서

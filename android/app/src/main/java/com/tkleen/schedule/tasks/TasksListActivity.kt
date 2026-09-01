@@ -13,7 +13,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.glance.appwidget.updateAll
 import com.tkleen.schedule.data.WidgetApi
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.TaskItem
@@ -67,7 +66,7 @@ class TasksListActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        runBlocking { TasksWidget().updateAll(applicationContext) }
+        runBlocking { TasksWidget.refresh(applicationContext) }
     }
 
     /* ── UI 골격 ─────────────────────────────────────────────────────── */
