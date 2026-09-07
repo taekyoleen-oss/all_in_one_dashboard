@@ -12,7 +12,7 @@
 
 import * as React from "react";
 import { LocationPicker } from "@/components/widgets/shared/LocationPicker";
-import { rememberPlace } from "@/lib/widgets/route/recent";
+import { rememberPlace } from "@/lib/widgets/route/places";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import type { RouteConfig, RoutePlace } from "./types";
 
