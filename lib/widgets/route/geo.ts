@@ -220,9 +220,16 @@ export function boundsOf(path: readonly LonLat[]): BBox | null {
 }
 
 /**
+ * 지도에 담을 최소 범위(도). 약 400m — 한 점만 있을 때(도착지 미리보기) 최대 줌으로
+ * 확대돼 주변이 전혀 안 보이는 것을 막는다.
+ */
+const MIN_FIT_SPAN_DEG = 0.004;
+
+/**
  * bbox 전체가 width×height 이미지 안에 들어오는 **가장 큰 정수 줌**과 중심을 고른다.
  *
  * 줌이 정수 단위라 여백은 최대 2배까지 남을 수 있다(지도 서비스 공통 제약).
+ * 범위가 지나치게 좁으면(같은 지점 하나뿐인 경우 포함) 최소 범위까지 넓혀 잡는다.
  */
 export function fitView(
   bounds: BBox,
@@ -234,6 +241,15 @@ export function fitView(
     (bounds.west + bounds.east) / 2,
     (bounds.south + bounds.north) / 2,
   ];
+  // 퇴화(한 점)·초소형 범위를 중심 기준으로 넓힌다.
+  const halfLon = Math.max((bounds.east - bounds.west) / 2, MIN_FIT_SPAN_DEG / 2);
+  const halfLat = Math.max((bounds.north - bounds.south) / 2, MIN_FIT_SPAN_DEG / 2);
+  bounds = {
+    west: center[0] - halfLon,
+    east: center[0] + halfLon,
+    south: center[1] - halfLat,
+    north: center[1] + halfLat,
+  };
   const availW = Math.max(1, width - padding * 2);
   const availH = Math.max(1, height - padding * 2);
 

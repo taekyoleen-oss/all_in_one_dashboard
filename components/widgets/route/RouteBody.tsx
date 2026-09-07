@@ -24,14 +24,17 @@ import {
   Star,
   Navigation,
   History,
+  Search,
   TriangleAlert,
 } from "lucide-react";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { useNow } from "@/lib/utils/useNow";
 import {
+  boundsOf,
   projectOntoPath,
   formatDistance,
   formatDuration,
+  type BBox,
   type LonLat,
 } from "@/lib/widgets/route/geo";
 import { nextGuidance } from "@/lib/widgets/route/guidance";
@@ -141,8 +144,8 @@ export function RouteBody({
   }, [config.start, gps.position]);
 
   // 출발지 잠금을 풀고 현재 위치에서 다시 계산하기 위한 카운터('경로 다시 계산').
-  const [retryKey, setRetryKey] = React.useState(0);
-  const route = useWalkRoute(origin, config.end, config.avoidStairs, retryKey);
+  const [searchKey, setSearchKey] = React.useState(0);
+  const route = useWalkRoute(origin, config.end, config.avoidStairs, searchKey);
 
   const apply = React.useCallback(
     (next: RouteConfig) => save(instanceId, next),
@@ -172,12 +175,38 @@ export function RouteBody({
     );
   }, [route.data, here]);
 
+  // 탐색 전 미리보기용 좌표 — 지도가 '지금 고른 지점'을 즉시 보여주기 위한 것.
+  const originPoint: LonLat | null = origin ? [origin.lon, origin.lat] : null;
+  const endPoint: LonLat | null = config.end
+    ? [config.end.lon, config.end.lat]
+    : null;
+  /** 출발·도착 두 점을 담는 범위(한쪽만 있으면 그 점 하나 — fitView가 넓혀준다). */
+  const previewBounds: BBox = React.useMemo(() => {
+    const pts = [originPoint, endPoint].filter((p): p is LonLat => p !== null);
+    return (
+      boundsOf(pts) ?? { west: 126.978, south: 37.5665, east: 126.978, north: 37.5665 }
+    );
+    // 좌표 값이 바뀔 때만 다시 계산한다(배열 아이덴티티는 매 렌더 달라진다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [originPoint?.[0], originPoint?.[1], endPoint?.[0], endPoint?.[1]]);
+
+  // 지금 설정이 화면의 경로와 다른가 — 다르면 '탐색'을 눌러야 한다.
+  // (출발·도착을 바꿔도 경로를 자동으로 다시 부르지 않는다. useWalkRoute 주석 참고)
+  const samePlace = (a: RoutePlace | null, b: RoutePlace | null) =>
+    a === b || (!!a && !!b && a.lat === b.lat && a.lon === b.lon);
+  const needsSearch =
+    route.searched === null ||
+    !samePlace(route.searched.end, config.end) ||
+    route.searched.avoidStairs !== config.avoidStairs ||
+    // 출발지는 '현재 위치'면 좌표가 계속 바뀌므로 지정 출발지일 때만 비교한다.
+    (config.start !== null && !samePlace(route.searched.start, config.start));
+
   // 이탈이 이어지면 스스로 다시 찾는다(자동 재검색 + 취소).
   // 출발지가 '현재 위치'일 때만 결과가 달라지므로 그때만 켠다.
   const auto = useAutoReroute({
     offRoute: Boolean(here && !here.onRoute),
     enabled: usesGps,
-    onReroute: () => setRetryKey((n) => n + 1),
+    onReroute: () => setSearchKey((n) => n + 1),
   });
 
   const saved = isFavorite(
@@ -278,21 +307,41 @@ export function RouteBody({
     );
   }
   if (route.error && !route.data) {
+    // 직전 탐색이 실패한 뒤 지점을 바꿨다면 지금 필요한 건 오류 안내가 아니라
+    // '탐색'이다 — 이걸 빠뜨리면 오류 화면에 갇혀 다시 시도할 방법이 없다.
     return (
       <div className="relative h-full w-full">
         <Notice
-          icon={<TriangleAlert size={20} />}
-          title="경로를 표시할 수 없음"
-          // 서버가 이유를 아는 경우(지역 밖·키 미설정 등)엔 그 문구가 정확하다.
-          detail={route.message ?? "잠시 후 다시 시도해 주세요."}
+          icon={
+            needsSearch ? <Search size={20} /> : <TriangleAlert size={20} />
+          }
+          title={needsSearch ? "탐색을 누르세요" : "경로를 표시할 수 없음"}
+          detail={
+            needsSearch
+              ? "출발·도착이 정해졌습니다. 탐색하면 경로와 고도를 계산합니다."
+              : // 서버가 이유를 아는 경우(지역 밖·키 미설정 등)엔 그 문구가 정확하다.
+                (route.message ?? "잠시 후 다시 시도해 주세요.")
+          }
           action={
-            <button
-              type="button"
-              onClick={() => setPanel("end")}
-              className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              다른 도착지 선택
-            </button>
+            <div className="mt-1 flex items-center gap-1.5">
+              {needsSearch ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchKey((n) => n + 1)}
+                  className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Search size={13} aria-hidden />
+                  탐색
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setPanel("end")}
+                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                다른 도착지 선택
+              </button>
+            </div>
           }
         />
         {picker}
@@ -347,9 +396,20 @@ export function RouteBody({
         >
           <Star size={12} aria-hidden fill={saved ? "currentColor" : "none"} />
         </button>
-        <span className="ml-auto shrink-0 font-mono tabular-nums text-muted-foreground">
-          {formatDistance(data.totalDistance)} · {formatDuration(data.totalTime)}
-        </span>
+        {needsSearch ? (
+          <button
+            type="button"
+            onClick={() => setSearchKey((n) => n + 1)}
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:px-3 pointer-coarse:py-1.5"
+          >
+            <Search size={12} aria-hidden />
+            탐색
+          </button>
+        ) : (
+          <span className="ml-auto shrink-0 font-mono tabular-nums text-muted-foreground">
+            {formatDistance(data.totalDistance)} · {formatDuration(data.totalTime)}
+          </span>
+        )}
       </div>
 
       {/* 마지막 위치로 버티는 중이면 반드시 밝힌다 — 옛 좌표를 현재인 척하지 않는다 */}
@@ -362,14 +422,14 @@ export function RouteBody({
       ) : null}
 
       {/* 다음 안내(요구 2) — 전체보기에서 현재 위치를 따라가며 갱신된다. */}
-      {expanded && guide ? (
+      {expanded && guide && !needsSearch ? (
         <NextGuidance
           step={guide.step}
           toStep={guide.toStep}
           toEnd={guide.toEnd}
           arrived={guide.arrived}
           offRouteBy={here && !here.onRoute ? here.offset : null}
-          onReroute={() => setRetryKey((n) => n + 1)}
+          onReroute={() => setSearchKey((n) => n + 1)}
           canReroute={usesGps}
           autoPending={auto.pending}
           onCancelAuto={auto.cancel}
@@ -378,14 +438,24 @@ export function RouteBody({
 
       {/* 지도 — 남는 세로 공간을 전부 쓴다 */}
       <RouteMap
-        path={data.path as LonLat[]}
-        bounds={data.bounds}
-        current={here?.onRoute ? (here.snapped as LonLat) : null}
+        path={needsSearch ? [] : (data.path as LonLat[])}
+        bounds={needsSearch ? previewBounds : data.bounds}
+        current={!needsSearch && here?.onRoute ? (here.snapped as LonLat) : null}
+        startPoint={needsSearch ? originPoint : null}
+        endPoint={needsSearch ? endPoint : null}
         className={expanded ? "min-h-[260px] flex-1" : "min-h-0 flex-1"}
       />
 
+      {/* 탐색 전이면 지금 보이는 건 '지점 미리보기'라는 사실을 밝힌다 */}
+      {needsSearch ? (
+        <p className="shrink-0 rounded-md border border-primary/40 bg-primary/5 px-2 py-1 text-[11px] text-muted-foreground">
+          출발·도착이 바뀌었습니다. <strong className="font-medium text-foreground">탐색</strong>을
+          누르면 경로와 고도를 다시 계산합니다.
+        </p>
+      ) : null}
+
       {/* 고도 그래프 */}
-      {data.elevation.length > 1 ? (
+      {!needsSearch && data.elevation.length > 1 ? (
         <ElevationChart
           points={data.elevation}
           currentDistance={here?.onRoute ? here.distanceAlong : null}
@@ -395,7 +465,7 @@ export function RouteBody({
       ) : null}
 
       {/* 전체보기: 안내 지점 목록 */}
-      {expanded ? (
+      {expanded && !needsSearch ? (
         <ol className="max-h-40 shrink-0 overflow-y-auto pb-scroll text-xs">
           {data.steps.map((s) => (
             <li

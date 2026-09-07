@@ -42,11 +42,15 @@ function MapLayers({
   path,
   bounds,
   current,
+  startPoint,
+  endPoint,
 }: {
   box: Box;
   path: LonLat[];
   bounds: BBox;
   current?: LonLat | null;
+  startPoint?: LonLat | null;
+  endPoint?: LonLat | null;
 }) {
   const img = imageBox(box);
   const view = fitView(bounds, img.w, img.h, FIT_PADDING);
@@ -56,8 +60,12 @@ function MapLayers({
 
   const points = path.map((p) => toPixel(p, view, img.w, img.h));
   const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const startPx = points[0];
-  const endPx = points[points.length - 1];
+  // 마커는 명시 지점이 있으면 그것을, 없으면 경로의 양 끝을 쓴다 — 아직 탐색하지
+  // 않은 미리보기에서도 출발·도착이 보여야 한다.
+  const startSrc = startPoint ?? path[0] ?? null;
+  const endSrc = endPoint ?? path[path.length - 1] ?? null;
+  const startPx = startSrc ? toPixel(startSrc, view, img.w, img.h) : null;
+  const endPx = endSrc ? toPixel(endSrc, view, img.w, img.h) : null;
   const curPx = current ? toPixel(current, view, img.w, img.h) : null;
 
   return (
@@ -76,24 +84,29 @@ function MapLayers({
         className="absolute inset-0 h-full w-full"
         aria-hidden
       >
-        {/* 경로선 — 흰 테두리를 깔아 어떤 지도 색 위에서도 보이게 한다. */}
-        <polyline
-          points={line}
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth={6}
-          strokeOpacity={0.9}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <polyline
-          points={line}
-          fill="none"
-          stroke="#ff2d55"
-          strokeWidth={3.5}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+        {/* 경로선 — 흰 테두리를 깔아 어떤 지도 색 위에서도 보이게 한다.
+            탐색 전(경로 없음)에는 그리지 않고 지점만 보여준다. */}
+        {points.length > 1 ? (
+          <>
+            <polyline
+              points={line}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth={6}
+              strokeOpacity={0.9}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            <polyline
+              points={line}
+              fill="none"
+              stroke="#ff2d55"
+              strokeWidth={3.5}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </>
+        ) : null}
 
         {startPx ? (
           <g>
@@ -123,12 +136,19 @@ export function RouteMap({
   path,
   bounds,
   current,
+  startPoint,
+  endPoint,
   className,
 }: {
+  /** 경로 폴리라인. 비어 있으면 선 없이 지점만 그린다(탐색 전 미리보기). */
   path: LonLat[];
   bounds: BBox;
   /** 현재 위치(경로에 스냅된 좌표). 없으면 표시하지 않는다. */
   current?: LonLat | null;
+  /** 출발 지점(경로가 없을 때도 표시). 없으면 경로의 첫 점. */
+  startPoint?: LonLat | null;
+  /** 도착 지점(경로가 없을 때도 표시). 없으면 경로의 마지막 점. */
+  endPoint?: LonLat | null;
   className?: string;
 }) {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
@@ -166,8 +186,15 @@ export function RouteMap({
       ref={hostRef}
       className={`relative overflow-hidden rounded-md bg-muted/40 ${className ?? ""}`}
     >
-      {box && path.length > 1 ? (
-        <MapLayers box={box} path={path} bounds={bounds} current={current} />
+      {box ? (
+        <MapLayers
+          box={box}
+          path={path}
+          bounds={bounds}
+          current={current}
+          startPoint={startPoint}
+          endPoint={endPoint}
+        />
       ) : null}
     </div>
   );

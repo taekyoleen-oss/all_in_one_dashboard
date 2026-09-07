@@ -17,6 +17,7 @@ import {
   fitView,
   formatDistance,
   formatDuration,
+  MAX_ZOOM,
   type LonLat,
 } from "./geo.ts";
 
@@ -200,6 +201,29 @@ test("fitView — 한 단계 더 확대하면 넘친다(가장 큰 줌을 골랐
     return x < pad || x > size - pad || y < pad || y > size - pad;
   });
   assert.ok(overflow, `zoom ${view.zoom + 1}에서도 들어가면 한 단계 손해다`);
+});
+
+test("fitView — 한 점만 있어도 주변이 보이는 배율을 고른다(미리보기)", () => {
+  // 도착지만 정한 상태의 미리보기. 예전엔 범위가 0이라 최대 줌으로 확대돼
+  // 주변이 아무것도 안 보였다.
+  const pt = { west: 126.99, south: 37.54, east: 126.99, north: 37.54 };
+  const view = fitView(pt, 512, 512);
+  assert.ok(view.zoom < MAX_ZOOM, `zoom ${view.zoom}`);
+  assert.deepEqual(view.center, [126.99, 37.54]);
+  // 중심에서 약 200m 떨어진 점이 화면 안에 들어와야 한다
+  const off: LonLat = [126.99 + 0.002, 37.54];
+  const [x, y] = toPixel(off, view, 512, 512);
+  assert.ok(x > 0 && x < 512 && y > 0 && y < 512, `(${x}, ${y})`);
+});
+
+test("fitView — 넓은 범위는 최소 범위에 영향받지 않는다", () => {
+  const b = boundsOf(SEOUL)!;
+  const view = fitView(b, 512, 512);
+  // 실제 경로(약 2km)는 최소 범위(400m)보다 훨씬 크므로 종전과 같아야 한다
+  for (const pt of SEOUL) {
+    const [x, y] = toPixel(pt, view, 512, 512);
+    assert.ok(x >= 23 && x <= 489 && y >= 23 && y <= 489, `(${x}, ${y})`);
+  }
 });
 
 test("fitView — 줌은 티맵 지원 범위(6~19) 안이다", () => {
