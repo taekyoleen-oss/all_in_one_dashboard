@@ -21,6 +21,7 @@ import * as React from "react";
 import {
   ArrowLeftRight,
   MapPin,
+  Star,
   Navigation,
   History,
   TriangleAlert,
@@ -34,8 +35,11 @@ import {
   type LonLat,
 } from "@/lib/widgets/route/geo";
 import { nextGuidance } from "@/lib/widgets/route/guidance";
+import { isFavorite, loadFavorites } from "@/lib/widgets/route/favorites";
 import { NextGuidance } from "./NextGuidance";
 import { PlacePicker } from "./PlacePicker";
+import { FavoritesPanel } from "./FavoritesPanel";
+import { useAutoReroute } from "./useAutoReroute";
 import { RouteMap } from "./RouteMap";
 import { ElevationChart } from "./ElevationChart";
 import { useWalkRoute } from "./useWalkRoute";
@@ -113,8 +117,12 @@ export function RouteBody({
   // "5분 전" 표시가 스스로 늙도록 1분마다 갱신(렌더 중 Date.now() 호출 금지 규칙도 지킨다).
   const now = useNow(60_000);
   const usesGps = config.start === null;
-  /** 어떤 지점을 고치는 중인가(null이면 피커가 닫힌 상태). */
-  const [editing, setEditing] = React.useState<"start" | "end" | null>(null);
+  /** 열려 있는 패널(null이면 없음). */
+  const [panel, setPanel] = React.useState<"start" | "end" | "favorites" | null>(
+    null,
+  );
+  /** 즐겨찾기 목록은 패널을 열 때 읽지만, ★ 표시는 항상 최신이어야 한다. */
+  const [favorites, setFavorites] = React.useState(loadFavorites);
 
   // 목적지가 있을 때만 위치를 요청한다 — 설정도 안 한 위젯이 권한 창을 띄우지 않도록.
   const gps = useCurrentPosition({
@@ -164,20 +172,48 @@ export function RouteBody({
     );
   }, [route.data, here]);
 
+  // 이탈이 이어지면 스스로 다시 찾는다(자동 재검색 + 취소).
+  // 출발지가 '현재 위치'일 때만 결과가 달라지므로 그때만 켠다.
+  const auto = useAutoReroute({
+    offRoute: Boolean(here && !here.onRoute),
+    enabled: usesGps,
+    onReroute: () => setRetryKey((n) => n + 1),
+  });
+
+  const saved = isFavorite(
+    favorites,
+    config.start,
+    config.end,
+    config.avoidStairs,
+  );
+
   /** 피커에서 한 곳을 골랐을 때. */
   const pickPlace = (which: "start" | "end", place: RoutePlace) => {
     apply({ ...config, [which]: place });
-    setEditing(null);
+    setPanel(null);
+  };
+
+  /** 패널을 닫을 때 즐겨찾기 ★ 표시를 최신으로 맞춘다. */
+  const closePanel = () => {
+    setFavorites(loadFavorites());
+    setPanel(null);
   };
 
   const picker =
-    editing === null ? null : (
+    panel === null ? null : panel === "favorites" ? (
+      <FavoritesPanel
+        config={config}
+        saved={saved}
+        onLoad={(next) => apply(next)}
+        onClose={closePanel}
+      />
+    ) : (
       <PlacePicker
-        title={editing === "start" ? "출발지" : "도착지"}
-        allowCurrent={editing === "start"}
-        onPick={(place) => pickPlace(editing, place)}
+        title={panel === "start" ? "출발지" : "도착지"}
+        allowCurrent={panel === "start"}
+        onPick={(place) => pickPlace(panel, place)}
         onUseCurrent={() => apply({ ...config, start: null })}
-        onClose={() => setEditing(null)}
+        onClose={closePanel}
       />
     );
 
@@ -193,7 +229,7 @@ export function RouteBody({
           action={
             <button
               type="button"
-              onClick={() => setEditing("end")}
+              onClick={() => setPanel("end")}
               className="mt-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
             >
               도착지 정하기
@@ -214,7 +250,7 @@ export function RouteBody({
           action={
             <button
               type="button"
-              onClick={() => setEditing("start")}
+              onClick={() => setPanel("start")}
               className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
             >
               출발지 직접 지정
@@ -252,7 +288,7 @@ export function RouteBody({
           action={
             <button
               type="button"
-              onClick={() => setEditing("end")}
+              onClick={() => setPanel("end")}
               className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
             >
               다른 도착지 선택
@@ -279,9 +315,9 @@ export function RouteBody({
       {/* 요약 — 출발·도착은 눌러서 바로 바꿀 수 있다 */}
       <div className="flex shrink-0 items-center gap-0.5 text-xs">
         <Navigation size={12} aria-hidden className="mr-1 shrink-0 text-primary" />
-        <PlaceButton label={origin.label} onClick={() => setEditing("start")} />
+        <PlaceButton label={origin.label} onClick={() => setPanel("start")} />
         <span className="shrink-0 text-muted-foreground">→</span>
-        <PlaceButton label={config.end.label} onClick={() => setEditing("end")} />
+        <PlaceButton label={config.end.label} onClick={() => setPanel("end")} />
         <button
           type="button"
           // 출발지가 '현재 위치'면 그 좌표를 굳혀서 도착지로 삼는다(돌아가기).
@@ -299,6 +335,17 @@ export function RouteBody({
           className="ml-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-8"
         >
           <ArrowLeftRight size={12} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => setPanel("favorites")}
+          aria-label={saved ? "즐겨찾기 경로 (저장됨)" : "즐겨찾기 경로"}
+          title={saved ? "즐겨찾기에 저장된 경로" : "즐겨찾기 경로 저장·불러오기"}
+          className={`inline-flex size-6 shrink-0 items-center justify-center rounded outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-8 ${
+            saved ? "text-primary" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Star size={12} aria-hidden fill={saved ? "currentColor" : "none"} />
         </button>
         <span className="ml-auto shrink-0 font-mono tabular-nums text-muted-foreground">
           {formatDistance(data.totalDistance)} · {formatDuration(data.totalTime)}
@@ -324,6 +371,8 @@ export function RouteBody({
           offRouteBy={here && !here.onRoute ? here.offset : null}
           onReroute={() => setRetryKey((n) => n + 1)}
           canReroute={usesGps}
+          autoPending={auto.pending}
+          onCancelAuto={auto.cancel}
         />
       ) : null}
 

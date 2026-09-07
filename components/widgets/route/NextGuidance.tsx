@@ -14,6 +14,7 @@
 import * as React from "react";
 import {
   ArrowDownLeft,
+  Ban,
   ArrowDownRight,
   ArrowUp,
   ArrowUpLeft,
@@ -101,6 +102,20 @@ function RerouteButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+/** 자동 재검색을 이번 이탈에 한해 막는다. */
+function CancelButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded-md border border-current/40 px-2 py-1 text-xs font-medium outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:px-3 pointer-coarse:py-2"
+    >
+      <Ban size={13} aria-hidden />
+      취소
+    </button>
+  );
+}
+
 export function NextGuidance({
   step,
   toStep,
@@ -109,6 +124,8 @@ export function NextGuidance({
   offRouteBy,
   onReroute,
   canReroute,
+  autoPending,
+  onCancelAuto,
 }: {
   step: WalkStep | null;
   toStep: number;
@@ -124,19 +141,34 @@ export function NextGuidance({
    * (누르면 아무 일도 안 일어나는 버튼을 두지 않는다).
    */
   canReroute: boolean;
+  /** 자동 재검색이 예약된 상태인가. */
+  autoPending: boolean;
+  /** 이번 이탈의 자동 재검색을 취소한다. */
+  onCancelAuto: () => void;
 }) {
   if (offRouteBy !== null) {
+    // 자동 재검색이 걸려 있으면 그 사실과 '취소'를 먼저 보여준다 — 일부러 다른
+    // 길로 가는 중일 수 있으므로 사용자가 막을 수 있어야 한다.
+    const near = `경로까지 약 ${formatDistance(offRouteBy)}`;
+    const detail = autoPending
+      ? `${near} · 잠시 후 자동으로 다시 찾습니다`
+      : canReroute
+        ? `${near} · 자동 재검색을 취소했습니다`
+        : `${near} · 경로로 돌아가면 안내가 다시 시작됩니다`;
     return (
       <Banner
         tone="warn"
         icon={<TriangleAlert size={26} aria-hidden />}
         headline="경로에서 벗어났습니다"
-        detail={
-          canReroute
-            ? `경로까지 약 ${formatDistance(offRouteBy)} · 돌아가거나 여기서 다시 계산하세요`
-            : `경로까지 약 ${formatDistance(offRouteBy)} · 경로로 돌아가면 안내가 다시 시작됩니다`
+        detail={detail}
+        action={
+          canReroute ? (
+            <span className="flex shrink-0 items-center gap-1">
+              {autoPending ? <CancelButton onClick={onCancelAuto} /> : null}
+              <RerouteButton onClick={onReroute} />
+            </span>
+          ) : undefined
         }
-        action={canReroute ? <RerouteButton onClick={onReroute} /> : undefined}
       />
     );
   }
