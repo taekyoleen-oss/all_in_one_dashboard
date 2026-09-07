@@ -12,6 +12,7 @@
 
 import * as React from "react";
 import { LocationPicker } from "@/components/widgets/shared/LocationPicker";
+import { rememberPlace } from "@/lib/widgets/route/recent";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import type { RouteConfig, RoutePlace } from "./types";
 
@@ -67,7 +68,11 @@ export function RouteConfigEditor({
         ) : (
           <LocationPicker
             value={config.start ?? PLACEHOLDER}
-            onPick={(loc) => onChange({ ...config, start: loc })}
+            onPick={(loc) => {
+              // 여기서 고른 곳도 위젯 안 피커의 '최근 검색'에 함께 쌓인다.
+              rememberPlace(loc);
+              onChange({ ...config, start: loc });
+            }}
           />
         )}
       </Section>
@@ -75,7 +80,10 @@ export function RouteConfigEditor({
       <Section title="도착지" hint={config.end ? undefined : "도착지를 지정해야 경로가 표시됩니다."}>
         <LocationPicker
           value={config.end ?? PLACEHOLDER}
-          onPick={(loc) => onChange({ ...config, end: loc })}
+          onPick={(loc) => {
+            rememberPlace(loc);
+            onChange({ ...config, end: loc });
+          }}
         />
       </Section>
 

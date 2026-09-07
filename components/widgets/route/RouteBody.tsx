@@ -6,16 +6,36 @@
  *  두 뷰의 차이는 `expanded` 하나뿐이다: 전체보기는 지도를 크게 쓰고 안내 지점
  *  목록을 덧붙이며, 현재 위치를 **watch**로 따라간다(타일은 1회 조회).
  *
+ *  ── 위젯에서 바로 고치기 ──────────────────────────────────────────────────
+ *  상단 요약의 출발·도착은 **버튼**이다. 누르면 그 자리에서 PlacePicker가 열려
+ *  검색·최근 목록·현재 위치로 바꿀 수 있다(⋮ 편집을 거치지 않는다). 변경은
+ *  `useSaveWidgetConfig`로 즉시 영속된다 — 길찾기는 걸으면서 쓰는 위젯이라
+ *  다이얼로그를 여닫는 왕복이 특히 거슬린다.
+ *
  *  상태를 조용히 삼키지 않는다 — 목적지 미설정·위치 권한 거부·서비스 지역 밖은
  *  각각 다른 문구로 알린다. 특히 지역 밖은 서버가 준 문구를 그대로 보여준다
  *  (티맵 보행자 경로는 전국이 아니다).
  */
 
 import * as React from "react";
-import { MapPin, Navigation, TriangleAlert } from "lucide-react";
-import { projectOntoPath, formatDistance, formatDuration, type LonLat } from "@/lib/widgets/route/geo";
+import {
+  ArrowLeftRight,
+  MapPin,
+  Navigation,
+  History,
+  TriangleAlert,
+} from "lucide-react";
+import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
+import { useNow } from "@/lib/utils/useNow";
+import {
+  projectOntoPath,
+  formatDistance,
+  formatDuration,
+  type LonLat,
+} from "@/lib/widgets/route/geo";
 import { nextGuidance } from "@/lib/widgets/route/guidance";
 import { NextGuidance } from "./NextGuidance";
+import { PlacePicker } from "./PlacePicker";
 import { RouteMap } from "./RouteMap";
 import { ElevationChart } from "./ElevationChart";
 import { useWalkRoute } from "./useWalkRoute";
@@ -25,14 +45,26 @@ import type { RouteConfig, RoutePlace } from "./types";
 /** 경로에서 이만큼(m) 넘게 떨어지면 현재 위치를 경로 위에 찍지 않는다. */
 const BASE_OFF_ROUTE_M = 50;
 
+/** "3분 전" — 마지막 위치가 얼마나 묵었는지. */
+function agoLabel(at: number, now: number): string {
+  const mins = Math.max(0, Math.round((now - at) / 60_000));
+  if (mins < 1) return "방금";
+  if (mins < 60) return `${mins}분 전`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return `${Math.round(hours / 24)}일 전`;
+}
+
 function Notice({
   icon,
   title,
   detail,
+  action,
 }: {
   icon: React.ReactNode;
   title: string;
   detail?: string | null;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-3 text-center">
@@ -43,18 +75,47 @@ function Notice({
       {detail ? (
         <p className="text-xs leading-snug text-muted-foreground">{detail}</p>
       ) : null}
+      {action}
     </div>
+  );
+}
+
+/** 요약 줄의 출발/도착 버튼 — 누르면 그 자리에서 바꾼다. */
+function PlaceButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${label} — 눌러서 변경`}
+      className="min-w-0 max-w-[45%] truncate rounded px-1 py-0.5 text-left font-medium text-foreground outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {label}
+    </button>
   );
 }
 
 export function RouteBody({
   config,
+  instanceId,
   expanded = false,
 }: {
   config: RouteConfig;
+  instanceId: string;
   expanded?: boolean;
 }) {
+  const save = useSaveWidgetConfig();
+  // "5분 전" 표시가 스스로 늙도록 1분마다 갱신(렌더 중 Date.now() 호출 금지 규칙도 지킨다).
+  const now = useNow(60_000);
   const usesGps = config.start === null;
+  /** 어떤 지점을 고치는 중인가(null이면 피커가 닫힌 상태). */
+  const [editing, setEditing] = React.useState<"start" | "end" | null>(null);
+
   // 목적지가 있을 때만 위치를 요청한다 — 설정도 안 한 위젯이 권한 창을 띄우지 않도록.
   const gps = useCurrentPosition({
     enabled: Boolean(config.end),
@@ -64,20 +125,29 @@ export function RouteBody({
   const origin: RoutePlace | null = React.useMemo(() => {
     if (config.start) return config.start;
     if (!gps.position) return null;
-    return { label: "현재 위치", lat: gps.position.lat, lon: gps.position.lon };
+    return {
+      label: gps.position.stale ? "마지막 위치" : "현재 위치",
+      lat: gps.position.lat,
+      lon: gps.position.lon,
+    };
   }, [config.start, gps.position]);
 
   // 출발지 잠금을 풀고 현재 위치에서 다시 계산하기 위한 카운터('경로 다시 계산').
   const [retryKey, setRetryKey] = React.useState(0);
   const route = useWalkRoute(origin, config.end, config.avoidStairs, retryKey);
 
+  const apply = React.useCallback(
+    (next: RouteConfig) => save(instanceId, next),
+    [save, instanceId],
+  );
+
   // 현재 위치를 경로에 투영 — 지도 점과 고도 그래프의 세로선이 같은 값을 쓴다.
   const here = React.useMemo(() => {
     if (!route.data || !gps.position) return null;
-    const p = projectOntoPath(
-      route.data.path as LonLat[],
-      [gps.position.lon, gps.position.lat],
-    );
+    const p = projectOntoPath(route.data.path as LonLat[], [
+      gps.position.lon,
+      gps.position.lat,
+    ]);
     // GPS 정확도가 나쁘면 그만큼 관대하게 본다(정확도 50m인데 40m 벗어났다고
     // 이탈로 단정하면 오판이다).
     const limit = Math.max(BASE_OFF_ROUTE_M, gps.position.accuracy);
@@ -87,69 +157,165 @@ export function RouteBody({
   // 다음 안내(요구 2) — 경로를 다시 부르지 않고, 투영된 거리로만 다시 계산한다.
   const guide = React.useMemo(() => {
     if (!route.data || !here) return null;
-    return nextGuidance(route.data.steps, here.distanceAlong, route.data.totalDistance);
+    return nextGuidance(
+      route.data.steps,
+      here.distanceAlong,
+      route.data.totalDistance,
+    );
   }, [route.data, here]);
+
+  /** 피커에서 한 곳을 골랐을 때. */
+  const pickPlace = (which: "start" | "end", place: RoutePlace) => {
+    apply({ ...config, [which]: place });
+    setEditing(null);
+  };
+
+  const picker =
+    editing === null ? null : (
+      <PlacePicker
+        title={editing === "start" ? "출발지" : "도착지"}
+        allowCurrent={editing === "start"}
+        onPick={(place) => pickPlace(editing, place)}
+        onUseCurrent={() => apply({ ...config, start: null })}
+        onClose={() => setEditing(null)}
+      />
+    );
 
   /* ── 안내가 필요한 상태들 ─────────────────────────────────────────────── */
 
   if (!config.end) {
     return (
-      <Notice
-        icon={<MapPin size={20} />}
-        title="도착지를 설정하세요"
-        detail="⋮ 메뉴 > 편집에서 도착지를 지정하면 도보 경로와 고도가 표시됩니다."
-      />
+      <div className="relative h-full w-full">
+        <Notice
+          icon={<MapPin size={20} />}
+          title="도착지를 설정하세요"
+          detail="도착지를 정하면 도보 경로와 고도가 표시됩니다."
+          action={
+            <button
+              type="button"
+              onClick={() => setEditing("end")}
+              className="mt-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              도착지 정하기
+            </button>
+          }
+        />
+        {picker}
+      </div>
     );
   }
   if (usesGps && gps.error) {
-    return <Notice icon={<TriangleAlert size={20} />} title="위치를 사용할 수 없음" detail={gps.error} />;
+    return (
+      <div className="relative h-full w-full">
+        <Notice
+          icon={<TriangleAlert size={20} />}
+          title="위치를 사용할 수 없음"
+          detail={gps.error}
+          action={
+            <button
+              type="button"
+              onClick={() => setEditing("start")}
+              className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              출발지 직접 지정
+            </button>
+          }
+        />
+        {picker}
+      </div>
+    );
   }
   if (!origin) {
-    return <Notice icon={<Navigation size={20} />} title="현재 위치 확인 중…" />;
+    return (
+      <div className="relative h-full w-full">
+        <Notice icon={<Navigation size={20} />} title="현재 위치 확인 중…" />
+        {picker}
+      </div>
+    );
   }
   if (route.loading) {
-    return <Notice icon={<Navigation size={20} />} title="도보 경로를 찾는 중…" />;
+    return (
+      <div className="relative h-full w-full">
+        <Notice icon={<Navigation size={20} />} title="도보 경로를 찾는 중…" />
+        {picker}
+      </div>
+    );
   }
   if (route.error && !route.data) {
     return (
-      <Notice
-        icon={<TriangleAlert size={20} />}
-        title="경로를 표시할 수 없음"
-        // 서버가 이유를 아는 경우(지역 밖·키 미설정 등)엔 그 문구가 정확하다.
-        detail={route.message ?? "잠시 후 다시 시도해 주세요."}
-      />
+      <div className="relative h-full w-full">
+        <Notice
+          icon={<TriangleAlert size={20} />}
+          title="경로를 표시할 수 없음"
+          // 서버가 이유를 아는 경우(지역 밖·키 미설정 등)엔 그 문구가 정확하다.
+          detail={route.message ?? "잠시 후 다시 시도해 주세요."}
+          action={
+            <button
+              type="button"
+              onClick={() => setEditing("end")}
+              className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              다른 도착지 선택
+            </button>
+          }
+        />
+        {picker}
+      </div>
     );
   }
   if (!route.data) return null;
 
   const data = route.data;
+  const staleAt = gps.position?.stale ? gps.position.at : null;
 
   return (
-    // 전체보기는 지도가 주인공이라 최소 높이를 보장하고, 그래도 안 들어가면 세로로
-    // 스크롤한다(짧은 화면에서 지도가 몇십 px로 찌그러지던 문제 — 실브라우저에서 확인).
     <div
-      className={`flex h-full w-full flex-col gap-1.5 ${
+      className={`relative flex h-full w-full flex-col gap-1.5 ${
+        // 전체보기는 지도가 주인공이라 최소 높이를 보장하고, 그래도 안 들어가면
+        // 세로로 스크롤한다(짧은 화면에서 지도가 찌그러지던 문제).
         expanded ? "overflow-y-auto pb-scroll" : ""
       }`}
     >
-      {/* 요약 */}
-      <div className="flex shrink-0 items-center gap-1.5 text-xs">
-        <Navigation size={12} aria-hidden className="shrink-0 text-primary" />
-        <span className="truncate font-medium text-foreground">
-          {origin.label} → {config.end.label}
-        </span>
+      {/* 요약 — 출발·도착은 눌러서 바로 바꿀 수 있다 */}
+      <div className="flex shrink-0 items-center gap-0.5 text-xs">
+        <Navigation size={12} aria-hidden className="mr-1 shrink-0 text-primary" />
+        <PlaceButton label={origin.label} onClick={() => setEditing("start")} />
+        <span className="shrink-0 text-muted-foreground">→</span>
+        <PlaceButton label={config.end.label} onClick={() => setEditing("end")} />
+        <button
+          type="button"
+          // 출발지가 '현재 위치'면 그 좌표를 굳혀서 도착지로 삼는다(돌아가기).
+          // 라벨은 '출발 지점'으로 바꾼다 — 굳은 좌표에 "현재 위치"라는 이름을
+          // 남기면 "현재 위치 → 현재 위치"가 되어 뜻이 통하지 않는다.
+          onClick={() =>
+            apply({
+              ...config,
+              start: config.end,
+              end: usesGps ? { ...origin, label: "출발 지점" } : origin,
+            })
+          }
+          aria-label="출발지와 도착지 맞바꾸기"
+          title="출발지와 도착지 맞바꾸기"
+          className="ml-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-8"
+        >
+          <ArrowLeftRight size={12} aria-hidden />
+        </button>
         <span className="ml-auto shrink-0 font-mono tabular-nums text-muted-foreground">
           {formatDistance(data.totalDistance)} · {formatDuration(data.totalTime)}
         </span>
       </div>
 
-      {/* 다음 안내(요구 2) — 전체보기에서 현재 위치를 따라가며 갱신된다.
-          위치를 못 쓰면 왜 안내가 없는지 밝힌다(조용히 비워두지 않는다). */}
-      {expanded && gps.error ? (
-        <p className="shrink-0 rounded-md border border-border bg-accent/30 px-3 py-2 text-xs text-muted-foreground">
-          위치를 사용할 수 없어 실시간 안내를 표시하지 않습니다 — {gps.error}
+      {/* 마지막 위치로 버티는 중이면 반드시 밝힌다 — 옛 좌표를 현재인 척하지 않는다 */}
+      {staleAt !== null ? (
+        <p className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-accent/30 px-2 py-1 text-[11px] text-muted-foreground">
+          <History size={11} aria-hidden className="shrink-0" />
+          현재 위치를 못 잡아 <strong className="font-medium">마지막 위치</strong>
+          ({agoLabel(staleAt, now.getTime())})를 쓰는 중입니다
         </p>
-      ) : expanded && guide ? (
+      ) : null}
+
+      {/* 다음 안내(요구 2) — 전체보기에서 현재 위치를 따라가며 갱신된다. */}
+      {expanded && guide ? (
         <NextGuidance
           step={guide.step}
           toStep={guide.toStep}
@@ -197,6 +363,8 @@ export function RouteBody({
           ))}
         </ol>
       ) : null}
+
+      {picker}
     </div>
   );
 }

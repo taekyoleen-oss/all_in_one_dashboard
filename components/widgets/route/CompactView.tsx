@@ -9,8 +9,11 @@ import type { CompactViewProps } from "@/lib/widgets/contract";
 import { RouteBody } from "./RouteBody";
 import type { RouteConfig } from "./types";
 
-export function RouteCompactView({ config }: CompactViewProps<RouteConfig>) {
-  return <RouteBody config={config} />;
+export function RouteCompactView({
+  config,
+  instanceId,
+}: CompactViewProps<RouteConfig>) {
+  return <RouteBody config={config} instanceId={instanceId} />;
 }
 
 export default RouteCompactView;
