@@ -58,6 +58,7 @@ import { noteWidget } from "./note";
 import { credentialsWidget } from "./credentials";
 import { circleScheduleWidget } from "./circle-schedule";
 import { tasksWidget } from "./tasks";
+import { routeWidget } from "./route";
 
 /**
  * Every widget definition, in no particular order — the palette sorts them
@@ -110,6 +111,9 @@ const DEFINITIONS: WidgetDefinition[] = [
 
   // ── 작업 (pb_tasks 테이블 — 안드로이드 홈 화면 위젯과 양방향 동기화) ──
   tasksWidget as WidgetDefinition,
+
+  // ── 길찾기 (도보 경로 지도 + 고도 그래프 — TMAP + Open-Meteo) ──
+  routeWidget as WidgetDefinition,
 ];
 
 /** Build the `type → definition` map, asserting unique type keys. */

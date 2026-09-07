@@ -61,3 +61,7 @@ android/*.idsig
 android/*.log
 android/*.done
 .playwright-mcp/
+
+# 오케스트레이션 스크래치 산출물 (_workspace 스크립트가 만드는 지도 PNG·경로 JSON·
+# 임시 검증 계정 자격증명). 스크립트 자체는 재현을 위해 커밋하되 산출물은 제외한다.
+/_workspace/out/

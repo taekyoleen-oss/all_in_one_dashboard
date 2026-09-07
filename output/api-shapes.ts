@@ -811,3 +811,84 @@ export const WidgetTasksSchema = z.object({
   items: z.array(WidgetTaskSchema),
 });
 export type WidgetTasks = z.infer<typeof WidgetTasksSchema>;
+
+/* ===========================================================================
+ *  WALK ROUTE — 길찾기(도보) 위젯  (/api/route/walk)
+ * ===========================================================================
+ *
+ *  TMAP 보행자 경로안내 + Open-Meteo 고도를 서버가 합쳐 하나의 정규화된 shape로
+ *  내려준다. 위젯은 이 shape만 알면 되고, 두 upstream의 원형(GeoJSON
+ *  FeatureCollection / elevation 배열)은 서버 밖으로 나가지 않는다.
+ *
+ *  좌표는 GeoJSON 관례대로 **[경도, 위도]** 순서다.
+ *
+ *  ⚠ 서비스 지역 제한: TMAP 보행자 경로는 전국이 아니다(서울·수도권 시지역·6대
+ *  광역시·제주도 + 일부 시). 제공되지 않는 구간은 `unsupported_area` 에러로
+ *  내려가며, 위젯은 이를 조용한 빈 화면이 아니라 문구로 안내해야 한다.
+ */
+
+/** 한 안내 지점(회전·횡단보도·출발/도착). */
+export const WalkStepSchema = z.object({
+  /** 경로상 순번(0부터). */
+  index: z.number(),
+  lon: z.number(),
+  lat: z.number(),
+  /**
+   * TMAP 회전 코드 — 아이콘 선택 **전용**. 표시 문구는 `description`을 그대로 쓴다
+   * (모르는 코드가 와도 일반 화살표로 폴백하면 되고 안내가 죽지 않는다).
+   * 11 직진 · 12 좌회전 · 13 우회전 · 14 유턴 · 16~19 사선방향 · 125 육교 ·
+   * 126 지하보도 · 127 계단 · 128 경사로 · 200 출발 · 201 도착 · 211~217 횡단보도 · 218 엘리베이터
+   */
+  turnType: z.number(),
+  /** TMAP이 만든 한국어 안내 문구(예: "이태원역 3번출구에서 우회전 후 27m 이동"). */
+  description: z.string(),
+  /** 안내 지점 명칭(없으면 빈 문자열). */
+  name: z.string(),
+  /** SP 출발지 · EP 도착지 · GP 일반 안내점. */
+  pointType: z.string(),
+  /**
+   * 출발지로부터의 **경로상** 누적 거리(m). 서버가 TMAP의 구간 distance를 순서대로
+   * 합산해 정확히 계산한다(투영 추정이 아님) — "230m 앞 좌회전"의 기준.
+   */
+  distanceFromStart: z.number(),
+});
+export type WalkStep = z.infer<typeof WalkStepSchema>;
+
+/** 고도 프로파일의 한 점. */
+export const WalkElevationPointSchema = z.object({
+  /** 출발지로부터의 누적 거리(m) — 그래프 X축. */
+  distance: z.number(),
+  /** 해발 고도(m) — 그래프 Y축. */
+  elevation: z.number(),
+});
+export type WalkElevationPoint = z.infer<typeof WalkElevationPointSchema>;
+
+/** GET /api/route/walk 응답 — 도보 경로 + 고도 프로파일. */
+export const WalkRouteSchema = z.object({
+  /** 경로 폴리라인 [경도, 위도][] — 지도에 그릴 선이자 현재 위치 투영 대상. */
+  path: z.array(z.tuple([z.number(), z.number()])),
+  /** 안내 지점(경로 순서). */
+  steps: z.array(WalkStepSchema),
+  /**
+   * 고도 프로파일(거리 오름차순, 최대 100점). 고도 조회에 실패하면 **빈 배열**이며
+   * 경로 자체는 정상 응답한다 — 고도는 부가 정보라 지도까지 같이 죽이지 않는다.
+   */
+  elevation: z.array(WalkElevationPointSchema),
+  /** 총 거리(m). */
+  totalDistance: z.number(),
+  /** 총 소요 시간(초). */
+  totalTime: z.number(),
+  /** 경로를 감싸는 사각형 — 클라이언트가 컨테이너 크기에 맞춰 지도 중심·줌을 정한다. */
+  bounds: z.object({
+    west: z.number(),
+    south: z.number(),
+    east: z.number(),
+    north: z.number(),
+  }),
+  /**
+   * 고도 데이터 출처 표기(90m 해상도 근사치임을 UI에 밝히기 위함).
+   * 고도가 비면 null.
+   */
+  elevationSource: z.string().nullable(),
+});
+export type WalkRoute = z.infer<typeof WalkRouteSchema>;

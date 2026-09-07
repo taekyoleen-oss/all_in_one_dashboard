@@ -34,6 +34,13 @@ export interface PollState<T> {
   loading: boolean;
   /** A short error code when the last attempt failed AND we have no data. */
   error: string | null;
+  /**
+   * 서버가 에러 본문에 담아 보낸 사용자용 문구(`{ error, message }` 봉투의 message).
+   * 라우트가 이유를 알고 있을 때만 채워진다 — 예: 길찾기의 "이 지역은 도보 경로가
+   * 제공되지 않습니다". 없으면 null이고, 그 경우 호출부가 자기 문구를 쓴다.
+   * (기존 위젯들은 이 필드를 읽지 않으므로 추가돼도 동작이 바뀌지 않는다.)
+   */
+  message: string | null;
   /** epoch ms of the last successful update (for a "갱신: …" line). */
   lastUpdated: number | null;
   /** Force an out-of-band refresh (e.g. a manual 새로고침 button). */
@@ -62,6 +69,7 @@ export function usePoll<S extends z.ZodTypeAny>(
     dataRef.current = data;
   }, [data]);
   const [error, setError] = React.useState<string | null>(null);
+  const [message, setMessage] = React.useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = React.useState<number | null>(null);
   // Bumping this re-runs the effect for a manual refresh.
   const [nonce, setNonce] = React.useState(0);
@@ -81,8 +89,16 @@ export function usePoll<S extends z.ZodTypeAny>(
         const res = await fetch(url, { cache: "no-store" });
         if (cancelled) return;
         if (!res.ok) {
+          // 라우트가 이유를 아는 경우 그 문구를 살려 둔다(에러 봉투 { error, message }).
+          // 본문이 JSON이 아니거나 비어 있어도 조용히 넘어간다 — 어차피 부가 정보다.
+          const body = (await res.json().catch(() => null)) as
+            | { error?: unknown; message?: unknown }
+            | null;
+          if (cancelled) return;
+          setMessage(typeof body?.message === "string" ? body.message : null);
+          const code = typeof body?.error === "string" ? body.error : "request_failed";
           // Keep showing stale data if we have any; only surface an error when empty.
-          setError((prev) => (dataRef.current === null ? "request_failed" : prev));
+          setError((prev) => (dataRef.current === null ? code : prev));
           return;
         }
         const json: unknown = await res.json();
@@ -95,6 +111,7 @@ export function usePoll<S extends z.ZodTypeAny>(
         setData(parsed.data as T);
         setLastUpdated(Date.now());
         setError(null);
+        setMessage(null);
       } catch {
         if (cancelled) return;
         setError((prev) => (dataRef.current === null ? "network_error" : prev));
@@ -129,7 +146,7 @@ export function usePoll<S extends z.ZodTypeAny>(
   // result while an active subscription is in flight.
   const loading = enabled && !!url && data === null && error === null;
 
-  return { data, loading, error, lastUpdated, refresh };
+  return { data, loading, error, message, lastUpdated, refresh };
 }
 
 export default usePoll;
