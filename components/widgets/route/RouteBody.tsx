@@ -25,6 +25,8 @@ import {
   Navigation,
   History,
   Search,
+  Play,
+  Square,
   TriangleAlert,
 } from "lucide-react";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
@@ -120,6 +122,15 @@ export function RouteBody({
   // "5분 전" 표시가 스스로 늙도록 1분마다 갱신(렌더 중 Date.now() 호출 금지 규칙도 지킨다).
   const now = useNow(60_000);
   const usesGps = config.start === null;
+  /**
+   * 실제로 길을 따라 걷는 중인가.
+   *
+   * 경로만 확인하려고 열어 보는 경우가 많은데(집에서 미리 찾아보기 등) 그때
+   * "경로에서 벗어났습니다"가 뜨거나 경로가 저절로 다시 계산되면 방해만 된다.
+   * 그래서 안내는 **명시적으로 시작**해야 켜진다. 전체보기를 닫으면 끝난다
+   * — 걷는 동안만 유효한 상태라 저장하지 않는다.
+   */
+  const [navigating, setNavigating] = React.useState(false);
   /** 열려 있는 패널(null이면 없음). */
   const [panel, setPanel] = React.useState<"start" | "end" | "favorites" | null>(
     null,
@@ -205,7 +216,8 @@ export function RouteBody({
   // 출발지가 '현재 위치'일 때만 결과가 달라지므로 그때만 켠다.
   const auto = useAutoReroute({
     offRoute: Boolean(here && !here.onRoute),
-    enabled: usesGps,
+    // 안내 중일 때만 — 경로를 훑어보는 중에 저절로 다시 계산되면 안 된다.
+    enabled: usesGps && navigating,
     onReroute: () => setSearchKey((n) => n + 1),
   });
 
@@ -422,18 +434,45 @@ export function RouteBody({
       ) : null}
 
       {/* 다음 안내(요구 2) — 전체보기에서 현재 위치를 따라가며 갱신된다. */}
-      {expanded && guide && !needsSearch ? (
-        <NextGuidance
-          step={guide.step}
-          toStep={guide.toStep}
-          toEnd={guide.toEnd}
-          arrived={guide.arrived}
-          offRouteBy={here && !here.onRoute ? here.offset : null}
-          onReroute={() => setSearchKey((n) => n + 1)}
-          canReroute={usesGps}
-          autoPending={auto.pending}
-          onCancelAuto={auto.cancel}
-        />
+      {expanded && !needsSearch ? (
+        navigating ? (
+          <div className="flex shrink-0 flex-col gap-1">
+            {guide ? (
+              <NextGuidance
+                step={guide.step}
+                toStep={guide.toStep}
+                toEnd={guide.toEnd}
+                arrived={guide.arrived}
+                offRouteBy={here && !here.onRoute ? here.offset : null}
+                onReroute={() => setSearchKey((n) => n + 1)}
+                canReroute={usesGps}
+                autoPending={auto.pending}
+                onCancelAuto={auto.cancel}
+              />
+            ) : (
+              <p className="rounded-md border border-border bg-accent/30 px-3 py-2 text-xs text-muted-foreground">
+                현재 위치를 확인하는 중입니다…
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setNavigating(false)}
+              className="self-end inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:py-1.5"
+            >
+              <Square size={10} aria-hidden />
+              안내 종료
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setNavigating(true)}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Play size={14} aria-hidden />
+            안내 시작
+          </button>
+        )
       ) : null}
 
       {/* 지도 — 남는 세로 공간을 전부 쓴다 */}
