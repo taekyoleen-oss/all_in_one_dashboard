@@ -613,6 +613,7 @@ export function RouteBody({
         endPoint={needsSearch ? endPoint : null}
         viaPoints={via.map((p) => [p.lon, p.lat] as LonLat)}
         onPick={picking ? (pt) => void handleMapPick(pt) : undefined}
+        interactive={expanded}
         className={expanded ? "min-h-[260px] flex-1" : "min-h-0 flex-1"}
       />
 
