@@ -36,6 +36,7 @@ export const WALK_REFRESH_MS = 86_400_000;
 export interface SearchedRoute {
   start: RoutePlace;
   end: RoutePlace;
+  via: RoutePlace[];
   avoidStairs: boolean;
 }
 
@@ -47,6 +48,7 @@ export type WalkRouteState = PollState<WalkRoute> & {
 export function useWalkRoute(
   start: RoutePlace | null,
   end: RoutePlace | null,
+  via: RoutePlace[],
   avoidStairs: boolean,
   /** 올리면 지금 값으로 다시 잠그고 새로 탐색한다('탐색'·'다시 계산'·자동 재검색). */
   searchKey = 0,
@@ -59,7 +61,7 @@ export function useWalkRoute(
   // 렌더 중 상태 조정 — props가 바뀔 때 상태를 맞추는 React 공식 패턴이다
   // (effect로 하면 한 프레임 늦게 잡히고 그 사이 옛 경로가 보인다).
   if (start && end && (!latched || latched.key !== searchKey)) {
-    setLatched({ key: searchKey, value: { start, end, avoidStairs } });
+    setLatched({ key: searchKey, value: { start, end, via, avoidStairs } });
   }
   const searched = latched?.key === searchKey ? latched.value : null;
 
@@ -74,6 +76,10 @@ export function useWalkRoute(
       ename: searched.end.label || "도착",
     });
     if (searched.avoidStairs) q.set("avoidStairs", "1");
+    // 경유지는 "lon,lat|lon,lat" — 순서가 곧 들르는 순서다.
+    if (searched.via.length > 0) {
+      q.set("via", searched.via.map((p) => `${p.lon},${p.lat}`).join("|"));
+    }
     return `/api/route/walk?${q}`;
   }, [searched]);
 

@@ -194,6 +194,15 @@ export function project(lon: number, lat: number, zoom: number): { x: number; y:
   };
 }
 
+/** 월드 픽셀 좌표 → WGS84. project()의 역함수. */
+export function unproject(x: number, y: number, zoom: number): LonLat {
+  const scale = TILE * 2 ** zoom;
+  return [
+    (x / scale) * 360 - 180,
+    (180 / Math.PI) * Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / scale))),
+  ];
+}
+
 /** 좌표 → 지도 이미지 안의 픽셀 위치(중심·줌·크기 기준). */
 export function toPixel(
   point: LonLat,
@@ -204,6 +213,21 @@ export function toPixel(
   const c = project(view.center[0], view.center[1], view.zoom);
   const p = project(point[0], point[1], view.zoom);
   return [p.x - c.x + width / 2, p.y - c.y + height / 2];
+}
+
+/**
+ * 지도 이미지 안의 픽셀 위치 → 좌표. toPixel()의 역함수.
+ * 지도를 눌러 지점을 고르는 데 쓴다.
+ */
+export function fromPixel(
+  px: number,
+  py: number,
+  view: MapView,
+  width: number,
+  height: number,
+): LonLat {
+  const c = project(view.center[0], view.center[1], view.zoom);
+  return unproject(c.x + px - width / 2, c.y + py - height / 2, view.zoom);
 }
 
 /** 경로를 감싸는 bbox. 빈 경로는 null. */

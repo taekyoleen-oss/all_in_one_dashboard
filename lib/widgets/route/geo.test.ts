@@ -13,6 +13,8 @@ import {
   projectOntoPath,
   project,
   toPixel,
+  fromPixel,
+  unproject,
   boundsOf,
   fitView,
   formatDistance,
@@ -169,6 +171,42 @@ test("픽셀 변환 — 중심 좌표는 이미지 정중앙", () => {
   const [x, y] = toPixel(view.center, view, 512, 512);
   assert.ok(Math.abs(x - 256) < 1e-6);
   assert.ok(Math.abs(y - 256) < 1e-6);
+});
+
+test("역투영 — project를 정확히 되돌린다", () => {
+  for (const z of [12, 15, 19]) {
+    for (const [lon, lat] of SEOUL) {
+      const p = project(lon, lat, z);
+      const [lon2, lat2] = unproject(p.x, p.y, z);
+      assert.ok(Math.abs(lon2 - lon) < 1e-9, `lon ${lon2} vs ${lon} @z${z}`);
+      assert.ok(Math.abs(lat2 - lat) < 1e-9, `lat ${lat2} vs ${lat} @z${z}`);
+    }
+  }
+});
+
+test("픽셀 역변환 — toPixel을 정확히 되돌린다(지도 클릭 → 좌표)", () => {
+  const view = { center: [126.9924, 37.543] as LonLat, zoom: 16 };
+  for (const pt of SEOUL) {
+    const [x, y] = toPixel(pt, view, 800, 600);
+    const [lon, lat] = fromPixel(x, y, view, 800, 600);
+    assert.ok(Math.abs(lon - pt[0]) < 1e-9, `lon ${lon} vs ${pt[0]}`);
+    assert.ok(Math.abs(lat - pt[1]) < 1e-9, `lat ${lat} vs ${pt[1]}`);
+  }
+});
+
+test("픽셀 역변환 — 정중앙 클릭은 지도 중심", () => {
+  const view = { center: [126.9924, 37.543] as LonLat, zoom: 15 };
+  const [lon, lat] = fromPixel(256, 256, view, 512, 512);
+  assert.ok(Math.abs(lon - 126.9924) < 1e-9);
+  assert.ok(Math.abs(lat - 37.543) < 1e-9);
+});
+
+test("픽셀 역변환 — 오른쪽·아래를 누르면 동쪽·남쪽이다", () => {
+  const view = { center: [126.9924, 37.543] as LonLat, zoom: 15 };
+  const [eastLon] = fromPixel(400, 256, view, 512, 512);
+  const [, southLat] = fromPixel(256, 400, view, 512, 512);
+  assert.ok(eastLon > 126.9924, "오른쪽 = 동쪽");
+  assert.ok(southLat < 37.543, "아래 = 남쪽");
 });
 
 test("bbox — 경로 전체를 감싼다", () => {

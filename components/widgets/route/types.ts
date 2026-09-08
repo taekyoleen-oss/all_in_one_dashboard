@@ -20,6 +20,11 @@ export interface RouteConfig {
   start: RoutePlace | null;
   /** 도착지. null이면 아직 미설정(위젯이 설정 안내를 띄운다). */
   end: RoutePlace | null;
+  /**
+   * 경유지(순서대로 들른다). **최대 5개** — TMAP이 6개부터 400을 준다(실측).
+   * 지도를 눌러 추가하거나 검색으로 고른다.
+   */
+  via?: RoutePlace[];
   /** 계단을 피하는 경로로 탐색(TMAP searchOption 30). */
   avoidStairs: boolean;
 }
@@ -27,5 +32,9 @@ export interface RouteConfig {
 export const DEFAULT_ROUTE_CONFIG: RouteConfig = {
   start: null,
   end: null,
+  via: [],
   avoidStairs: false,
 };
+
+/** 경유지 최대 개수(TMAP 상한). 클라이언트도 같은 값으로 막아 400을 미리 피한다. */
+export const MAX_VIA = 5;

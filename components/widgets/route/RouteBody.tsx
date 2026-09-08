@@ -27,6 +27,9 @@ import {
   Search,
   Play,
   Square,
+  Crosshair,
+  Plus,
+  X,
   TriangleAlert,
 } from "lucide-react";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
@@ -49,7 +52,7 @@ import { RouteMap } from "./RouteMap";
 import { ElevationChart } from "./ElevationChart";
 import { useWalkRoute } from "./useWalkRoute";
 import { useCurrentPosition } from "./useCurrentPosition";
-import type { RouteConfig, RoutePlace } from "./types";
+import { MAX_VIA, type RouteConfig, type RoutePlace } from "./types";
 
 /** 경로에서 이만큼(m) 넘게 떨어지면 현재 위치를 경로 위에 찍지 않는다. */
 const BASE_OFF_ROUTE_M = 50;
@@ -131,6 +134,15 @@ export function RouteBody({
    * — 걷는 동안만 유효한 상태라 저장하지 않는다.
    */
   const [navigating, setNavigating] = React.useState(false);
+  /** 경유지 — config에 없을 수도 있어(구버전 위젯) 항상 배열로 다룬다. */
+  const via = React.useMemo(() => config.via ?? [], [config.via]);
+  /**
+   * 지도를 눌러 지점을 고르는 중인가.
+   * 'off'면 지도는 보기 전용 — 스크롤·드래그 중에 실수로 찍히지 않는다.
+   */
+  const [picking, setPicking] = React.useState<"start" | "end" | "via" | null>(
+    null,
+  );
   /** 열려 있는 패널(null이면 없음). */
   const [panel, setPanel] = React.useState<"start" | "end" | "favorites" | null>(
     null,
@@ -156,7 +168,7 @@ export function RouteBody({
 
   // 출발지 잠금을 풀고 현재 위치에서 다시 계산하기 위한 카운터('경로 다시 계산').
   const [searchKey, setSearchKey] = React.useState(0);
-  const route = useWalkRoute(origin, config.end, config.avoidStairs, searchKey);
+  const route = useWalkRoute(origin, config.end, via, config.avoidStairs, searchKey);
 
   const apply = React.useCallback(
     (next: RouteConfig) => save(instanceId, next),
@@ -205,9 +217,12 @@ export function RouteBody({
   // (출발·도착을 바꿔도 경로를 자동으로 다시 부르지 않는다. useWalkRoute 주석 참고)
   const samePlace = (a: RoutePlace | null, b: RoutePlace | null) =>
     a === b || (!!a && !!b && a.lat === b.lat && a.lon === b.lon);
+  const sameVia = (a: RoutePlace[], b: RoutePlace[]) =>
+    a.length === b.length && a.every((p, i) => samePlace(p, b[i]));
   const needsSearch =
     route.searched === null ||
     !samePlace(route.searched.end, config.end) ||
+    !sameVia(route.searched.via, via) ||
     route.searched.avoidStairs !== config.avoidStairs ||
     // 출발지는 '현재 위치'면 좌표가 계속 바뀌므로 지정 출발지일 때만 비교한다.
     (config.start !== null && !samePlace(route.searched.start, config.start));
@@ -227,6 +242,42 @@ export function RouteBody({
     config.end,
     config.avoidStairs,
   );
+
+  /**
+   * 지도에서 찍은 좌표를 지점으로 만든다.
+   * 이름은 역지오코딩(/api/geocode?lat=&lon=)으로 붙이고, 실패하면 좌표를 쓴다
+   * — 이름을 못 얻었다고 선택 자체를 버리지 않는다.
+   */
+  const placeFromMap = async (point: LonLat): Promise<RoutePlace> => {
+    const [lon, lat] = point;
+    const fallback = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    try {
+      // 응답은 { result: { label, detail } | null } — 좌표가 KR 밖이거나 조회에
+      // 실패하면 result가 null이다.
+      const res = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
+      const json = (await res.json()) as {
+        result?: { label?: unknown } | null;
+      };
+      const label = json.result?.label;
+      return {
+        label: typeof label === "string" && label.trim() ? label.trim() : fallback,
+        lat,
+        lon,
+      };
+    } catch {
+      return { label: fallback, lat, lon };
+    }
+  };
+
+  const handleMapPick = async (point: LonLat) => {
+    const target = picking;
+    if (!target) return;
+    setPicking(null);
+    const place = await placeFromMap(point);
+    if (target === "start") apply({ ...config, start: place });
+    else if (target === "end") apply({ ...config, end: place });
+    else apply({ ...config, via: [...via, place].slice(0, MAX_VIA) });
+  };
 
   /** 피커에서 한 곳을 골랐을 때. */
   const pickPlace = (which: "start" | "end", place: RoutePlace) => {
@@ -424,6 +475,84 @@ export function RouteBody({
         )}
       </div>
 
+      {/* 경유지 — 순서대로 들른다. 칩을 눌러 뺀다. */}
+      {via.length > 0 ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px]">
+          <span className="text-muted-foreground">경유</span>
+          {via.map((p, i) => (
+            <span
+              key={`${p.lat},${p.lon},${i}`}
+              className="inline-flex max-w-[45%] items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 py-0.5 pl-2 pr-1"
+            >
+              <span className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
+                {i + 1}
+              </span>
+              <span className="truncate text-foreground">{p.label}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  apply({ ...config, via: via.filter((_, j) => j !== i) })
+                }
+                aria-label={`경유지 ${p.label} 삭제`}
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-6"
+              >
+                <X size={10} aria-hidden />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {/* 지도에서 지점 고르기 — 누르고 지도를 탭한다. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px]">
+        {picking ? (
+          <>
+            <span className="inline-flex items-center gap-1 rounded-md border border-primary/50 bg-primary/10 px-2 py-1 font-medium text-primary">
+              <Crosshair size={11} aria-hidden />
+              지도를 눌러{" "}
+              {picking === "start" ? "출발지" : picking === "end" ? "도착지" : "경유지"}
+              를 지정하세요
+            </span>
+            <button
+              type="button"
+              onClick={() => setPicking(null)}
+              className="rounded-md border border-border px-2 py-1 text-muted-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              취소
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground">지도에서 지정:</span>
+            {(["start", "end"] as const).map((which) => (
+              <button
+                key={which}
+                type="button"
+                onClick={() => setPicking(which)}
+                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:py-1.5"
+              >
+                <Crosshair size={11} aria-hidden />
+                {which === "start" ? "출발" : "도착"}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPicking("via")}
+              disabled={via.length >= MAX_VIA}
+              title={
+                via.length >= MAX_VIA
+                  ? `경유지는 최대 ${MAX_VIA}개입니다`
+                  : "지도를 눌러 경유지 추가"
+              }
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 pointer-coarse:py-1.5"
+            >
+              <Plus size={11} aria-hidden />
+              경유지{via.length > 0 ? ` (${via.length}/${MAX_VIA})` : ""}
+            </button>
+          </>
+        )}
+      </div>
+
       {/* 마지막 위치로 버티는 중이면 반드시 밝힌다 — 옛 좌표를 현재인 척하지 않는다 */}
       {staleAt !== null ? (
         <p className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-accent/30 px-2 py-1 text-[11px] text-muted-foreground">
@@ -482,6 +611,8 @@ export function RouteBody({
         current={!needsSearch && here?.onRoute ? (here.snapped as LonLat) : null}
         startPoint={needsSearch ? originPoint : null}
         endPoint={needsSearch ? endPoint : null}
+        viaPoints={via.map((p) => [p.lon, p.lat] as LonLat)}
+        onPick={picking ? (pt) => void handleMapPick(pt) : undefined}
         className={expanded ? "min-h-[260px] flex-1" : "min-h-0 flex-1"}
       />
 

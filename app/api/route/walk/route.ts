@@ -30,6 +30,7 @@ import {
   fetchWalkRoute,
   TmapError,
   hasTmapKey,
+  MAX_WAYPOINTS,
   type WalkSearchOption,
 } from "@/lib/api/tmapClient";
 import {
@@ -108,12 +109,33 @@ export async function GET(request: NextRequest) {
   const searchOption: WalkSearchOption =
     searchParams.get("avoidStairs") === "1" ? "30" : "0";
 
+  // 경유지 — "lon,lat|lon,lat" (TMAP은 최대 5개까지 받는다).
+  // 형식이 깨진 항목은 조용히 버린다(경유지 하나 때문에 경로 전체를 잃지 않는다).
+  const via = (searchParams.get("via") ?? "")
+    .split("|")
+    .filter(Boolean)
+    .map((pair) => {
+      const [lon, lat] = pair.split(",").map(Number);
+      return { lon, lat };
+    })
+    .filter(
+      (p) =>
+        Number.isFinite(p.lon) &&
+        Number.isFinite(p.lat) &&
+        p.lat >= -90 &&
+        p.lat <= 90 &&
+        p.lon >= -180 &&
+        p.lon <= 180,
+    )
+    .slice(0, MAX_WAYPOINTS);
+
   let route;
   try {
     route = await fetchWalkRoute(
       { ...start, name: searchParams.get("sname") ?? "출발" },
       { ...end, name: searchParams.get("ename") ?? "도착" },
       searchOption,
+      via,
     );
   } catch (e) {
     const err = e instanceof TmapError ? e : null;

@@ -27,6 +27,9 @@ const ROUTE_URL = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1"
 const STATIC_URL = "https://apis.openapi.sk.com/tmap/staticMap";
 const FETCH_TIMEOUT_MS = 10_000;
 
+/** TMAP 보행자 경로가 받는 경유지 최대 개수(공식 문서). */
+export const MAX_WAYPOINTS = 5;
+
 /** StaticMap이 반환할 수 있는 이미지 한 변의 최대 크기(공식 문서). */
 export const STATIC_MAP_MAX_SIZE = 512;
 
@@ -101,6 +104,8 @@ export async function fetchWalkRoute(
   start: TmapPoint,
   end: TmapPoint,
   searchOption: WalkSearchOption = "0",
+  /** 경유지(최대 5). 순서대로 들른다. */
+  via: ReadonlyArray<{ lon: number; lat: number }> = [],
 ): Promise<TmapWalkRoute> {
   const key = appKey();
   if (!key) throw new TmapError("no_key", "TMAP_APP_KEY가 설정되지 않았습니다.");
@@ -130,6 +135,11 @@ export async function fetchWalkRoute(
         reqCoordType: "WGS84GEO",
         resCoordType: "WGS84GEO",
         searchOption,
+        // 경유지: "X,Y_X,Y" (공식 문서 형식). 없으면 아예 보내지 않는다 —
+        // 빈 문자열을 넘기면 업스트림이 형식 오류로 400을 준다.
+        ...(via.length > 0
+          ? { passList: via.map((p) => `${p.lon},${p.lat}`).join("_") }
+          : {}),
       }),
     });
   } catch {
