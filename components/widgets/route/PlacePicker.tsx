@@ -17,7 +17,15 @@
  */
 
 import * as React from "react";
-import { Clock, LocateFixed, Search, Star, Trash2, X } from "lucide-react";
+import {
+  Clock,
+  Crosshair,
+  LocateFixed,
+  Search,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   favoritePlaces,
   forgetPlace,
@@ -104,14 +112,17 @@ export function PlacePicker({
   allowCurrent,
   onPick,
   onUseCurrent,
+  onPickOnMap,
   onClose,
 }: {
-  /** '출발지' / '도착지'. */
+  /** '출발지' / '도착지' / '경유지'. */
   title: string;
   /** 출발지일 때만 '현재 위치' 선택지를 준다. */
   allowCurrent: boolean;
   onPick: (place: RoutePlace) => void;
   onUseCurrent: () => void;
+  /** 주면 '지도에서 선택'이 나온다 — 누르면 패널을 닫고 지도 선택 모드로 넘어간다. */
+  onPickOnMap?: () => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = React.useState("");
@@ -174,18 +185,33 @@ export function PlacePicker({
         </button>
       </div>
 
-      {allowCurrent ? (
-        <button
-          type="button"
-          onClick={() => {
-            onUseCurrent();
-            onClose();
-          }}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <LocateFixed size={13} aria-hidden className="text-primary" />
-          현재 위치에서 출발
-        </button>
+      {/* 검색 말고 다른 방법들 — 현재 위치, 지도에서 직접 */}
+      {allowCurrent || onPickOnMap ? (
+        <div className="flex shrink-0 flex-wrap gap-1.5">
+          {allowCurrent ? (
+            <button
+              type="button"
+              onClick={() => {
+                onUseCurrent();
+                onClose();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <LocateFixed size={13} aria-hidden className="text-primary" />
+              현재 위치에서 출발
+            </button>
+          ) : null}
+          {onPickOnMap ? (
+            <button
+              type="button"
+              onClick={onPickOnMap}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Crosshair size={13} aria-hidden className="text-primary" />
+              지도에서 선택
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="flex shrink-0 gap-1.5">

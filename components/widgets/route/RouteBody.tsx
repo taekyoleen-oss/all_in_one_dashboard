@@ -144,9 +144,9 @@ export function RouteBody({
     null,
   );
   /** 열려 있는 패널(null이면 없음). */
-  const [panel, setPanel] = React.useState<"start" | "end" | "favorites" | null>(
-    null,
-  );
+  const [panel, setPanel] = React.useState<
+    "start" | "end" | "via" | "favorites" | null
+  >(null);
   /** 즐겨찾기 목록은 패널을 열 때 읽지만, ★ 표시는 항상 최신이어야 한다. */
   const [favorites, setFavorites] = React.useState(loadFavorites);
 
@@ -279,9 +279,13 @@ export function RouteBody({
     else apply({ ...config, via: [...via, place].slice(0, MAX_VIA) });
   };
 
-  /** 피커에서 한 곳을 골랐을 때. */
-  const pickPlace = (which: "start" | "end", place: RoutePlace) => {
-    apply({ ...config, [which]: place });
+  /** 피커에서 한 곳을 골랐을 때. 경유지는 목록 끝에 덧붙인다. */
+  const pickPlace = (which: "start" | "end" | "via", place: RoutePlace) => {
+    if (which === "via") {
+      apply({ ...config, via: [...via, place].slice(0, MAX_VIA) });
+    } else {
+      apply({ ...config, [which]: place });
+    }
     setPanel(null);
   };
 
@@ -301,10 +305,17 @@ export function RouteBody({
       />
     ) : (
       <PlacePicker
-        title={panel === "start" ? "출발지" : "도착지"}
+        title={
+          panel === "start" ? "출발지" : panel === "end" ? "도착지" : "경유지"
+        }
         allowCurrent={panel === "start"}
         onPick={(place) => pickPlace(panel, place)}
         onUseCurrent={() => apply({ ...config, start: null })}
+        onPickOnMap={() => {
+          // 패널을 닫고 지도 선택 모드로 넘긴다 — 같은 지점을 두 방법으로 고른다.
+          setPanel(null);
+          setPicking(panel);
+        }}
         onClose={closePanel}
       />
     );
@@ -503,56 +514,41 @@ export function RouteBody({
         </div>
       ) : null}
 
-      {/* 지도에서 지점 고르기 — 누르고 지도를 탭한다. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px]">
-        {picking ? (
-          <>
-            <span className="inline-flex items-center gap-1 rounded-md border border-primary/50 bg-primary/10 px-2 py-1 font-medium text-primary">
-              <Crosshair size={11} aria-hidden />
-              지도를 눌러{" "}
-              {picking === "start" ? "출발지" : picking === "end" ? "도착지" : "경유지"}
-              를 지정하세요
-            </span>
-            <button
-              type="button"
-              onClick={() => setPicking(null)}
-              className="rounded-md border border-border px-2 py-1 text-muted-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              취소
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="text-muted-foreground">지도에서 지정:</span>
-            {(["start", "end"] as const).map((which) => (
-              <button
-                key={which}
-                type="button"
-                onClick={() => setPicking(which)}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:py-1.5"
-              >
-                <Crosshair size={11} aria-hidden />
-                {which === "start" ? "출발" : "도착"}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPicking("via")}
-              disabled={via.length >= MAX_VIA}
-              title={
-                via.length >= MAX_VIA
-                  ? `경유지는 최대 ${MAX_VIA}개입니다`
-                  : "지도를 눌러 경유지 추가"
-              }
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 pointer-coarse:py-1.5"
-            >
-              <Plus size={11} aria-hidden />
-              경유지{via.length > 0 ? ` (${via.length}/${MAX_VIA})` : ""}
-            </button>
-          </>
-        )}
-      </div>
-
+      {/* 지도 선택 중이면 무엇을 고르는 중인지 밝힌다. */}
+      {picking ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px]">
+          <span className="inline-flex items-center gap-1 rounded-md border border-primary/50 bg-primary/10 px-2 py-1 font-medium text-primary">
+            <Crosshair size={11} aria-hidden />
+            지도를 눌러{" "}
+            {picking === "start" ? "출발지" : picking === "end" ? "도착지" : "경유지"}
+            를 지정하세요
+          </span>
+          <button
+            type="button"
+            onClick={() => setPicking(null)}
+            className="rounded-md border border-border px-2 py-1 text-muted-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            취소
+          </button>
+        </div>
+      ) : (
+        <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px]">
+          <button
+            type="button"
+            onClick={() => setPanel("via")}
+            disabled={via.length >= MAX_VIA}
+            title={
+              via.length >= MAX_VIA
+                ? `경유지는 최대 ${MAX_VIA}개입니다`
+                : "검색·즐겨찾기·지도로 경유지를 추가합니다"
+            }
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 pointer-coarse:py-1.5"
+          >
+            <Plus size={11} aria-hidden />
+            경유지 추가{via.length > 0 ? ` (${via.length}/${MAX_VIA})` : ""}
+          </button>
+        </div>
+      )}
       {/* 마지막 위치로 버티는 중이면 반드시 밝힌다 — 옛 좌표를 현재인 척하지 않는다 */}
       {staleAt !== null ? (
         <p className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-accent/30 px-2 py-1 text-[11px] text-muted-foreground">
