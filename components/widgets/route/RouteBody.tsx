@@ -43,6 +43,12 @@ import {
   type LonLat,
 } from "@/lib/widgets/route/geo";
 import { nextGuidance } from "@/lib/widgets/route/guidance";
+import { elevationDomain } from "@/lib/widgets/route/elevation";
+import {
+  PURPOSES,
+  purposeOf,
+  slopeAdjustedTime,
+} from "@/lib/widgets/route/purpose";
 import { isFavorite, loadFavorites } from "@/lib/widgets/route/favorites";
 import { NextGuidance } from "./NextGuidance";
 import { PlacePicker } from "./PlacePicker";
@@ -143,6 +149,8 @@ export function RouteBody({
   const [picking, setPicking] = React.useState<"start" | "end" | "via" | null>(
     null,
   );
+  /** 이동 목적 — 구버전 위젯은 값이 없으므로 항상 프리셋으로 옮겨 쓴다. */
+  const purpose = purposeOf(config.purpose);
   /** 열려 있는 패널(null이면 없음). */
   const [panel, setPanel] = React.useState<
     "start" | "end" | "via" | "favorites" | null
@@ -168,7 +176,14 @@ export function RouteBody({
 
   // 출발지 잠금을 풀고 현재 위치에서 다시 계산하기 위한 카운터('경로 다시 계산').
   const [searchKey, setSearchKey] = React.useState(0);
-  const route = useWalkRoute(origin, config.end, via, config.avoidStairs, searchKey);
+  const route = useWalkRoute(
+    origin,
+    config.end,
+    via,
+    purpose.key,
+    config.avoidStairs,
+    searchKey,
+  );
 
   const apply = React.useCallback(
     (next: RouteConfig) => save(instanceId, next),
@@ -223,9 +238,26 @@ export function RouteBody({
     route.searched === null ||
     !samePlace(route.searched.end, config.end) ||
     !sameVia(route.searched.via, via) ||
+    route.searched.purpose !== purpose.key ||
     route.searched.avoidStairs !== config.avoidStairs ||
     // 출발지는 '현재 위치'면 좌표가 계속 바뀌므로 지정 출발지일 때만 비교한다.
     (config.start !== null && !samePlace(route.searched.start, config.start));
+
+  /**
+   * 등산일 때만 오르막 몫을 더한 소요시간. 티맵의 시간은 평지 보행 속도라
+   * 산에서는 크게 빗나간다(남산 실측: 티맵 40분 → 보정 74분).
+   * 거의 평지면 보정하지 않는다 — 90m DEM의 잔떨림으로 시간을 부풀리지 않는다.
+   */
+  const climb = React.useMemo(() => {
+    if (!route.data || !purpose.slopeTime) return null;
+    const dom = elevationDomain(route.data.elevation);
+    if (dom.flat || dom.gain <= 0) return null;
+    return {
+      gain: dom.gain,
+      top: Math.round(dom.max),
+      seconds: slopeAdjustedTime(route.data.totalTime, dom.gain),
+    };
+  }, [route.data, purpose.slopeTime]);
 
   // 이탈이 이어지면 스스로 다시 찾는다(자동 재검색 + 취소).
   // 출발지가 '현재 위치'일 때만 결과가 달라지므로 그때만 켠다.
@@ -480,8 +512,21 @@ export function RouteBody({
             탐색
           </button>
         ) : (
-          <span className="ml-auto shrink-0 font-mono tabular-nums text-muted-foreground">
-            {formatDistance(data.totalDistance)} · {formatDuration(data.totalTime)}
+          <span
+            className="ml-auto shrink-0 font-mono tabular-nums text-muted-foreground"
+            title={
+              climb
+                ? `티맵 평지 기준 ${formatDuration(data.totalTime)} + 누적 상승 ${climb.gain}m(최고 ${climb.top}m) 보정`
+                : undefined
+            }
+          >
+            {formatDistance(data.totalDistance)} ·{" "}
+            {formatDuration(climb ? climb.seconds : data.totalTime)}
+            {climb ? (
+              <span className="ml-1 font-sans text-[10px] not-italic text-primary">
+                오르막 반영
+              </span>
+            ) : null}
           </span>
         )}
       </div>
@@ -533,6 +578,39 @@ export function RouteBody({
         </div>
       ) : (
         <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px]">
+          {/* 이동 목적 — 티맵에 등산 모드는 없다. 목적에 실제로 유리한 옵션을
+              고르고(purpose.ts의 실측 근거) 결과를 그 목적에 맞게 읽어 준다. */}
+          <div
+            role="group"
+            aria-label="이동 목적"
+            className="inline-flex shrink-0 overflow-hidden rounded-md border border-border"
+          >
+            {PURPOSES.map((p) => {
+              const on = p.key === purpose.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  title={p.hint}
+                  aria-pressed={on}
+                  onClick={() => apply({ ...config, purpose: p.key })}
+                  className={`border-l border-border px-2 py-1 outline-none transition-colors first:border-l-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring pointer-coarse:py-1.5 ${
+                    on
+                      ? "bg-primary font-medium text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* 목적이 무엇을 바꿨는지 — 경로가 실제로 그려졌을 때만 말한다. */}
+          {!needsSearch && purpose.note ? (
+            <span className="shrink-0 text-muted-foreground" title={purpose.hint}>
+              {purpose.note}
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={() => setPanel("via")}
@@ -542,7 +620,7 @@ export function RouteBody({
                 ? `경유지는 최대 ${MAX_VIA}개입니다`
                 : "검색·즐겨찾기·지도로 경유지를 추가합니다"
             }
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 pointer-coarse:py-1.5"
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-foreground outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 pointer-coarse:py-1.5"
           >
             <Plus size={11} aria-hidden />
             경유지 추가{via.length > 0 ? ` (${via.length}/${MAX_VIA})` : ""}
@@ -616,8 +694,9 @@ export function RouteBody({
       {/* 탐색 전이면 지금 보이는 건 '지점 미리보기'라는 사실을 밝힌다 */}
       {needsSearch ? (
         <p className="shrink-0 rounded-md border border-primary/40 bg-primary/5 px-2 py-1 text-[11px] text-muted-foreground">
-          출발·도착이 바뀌었습니다. <strong className="font-medium text-foreground">탐색</strong>을
-          누르면 경로와 고도를 다시 계산합니다.
+          경로 설정이 바뀌었습니다.{" "}
+          <strong className="font-medium text-foreground">탐색</strong>을 누르면 경로와
+          고도를 다시 계산합니다.
         </p>
       ) : null}
 

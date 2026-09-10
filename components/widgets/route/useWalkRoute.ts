@@ -27,6 +27,7 @@
 import * as React from "react";
 import { WalkRouteSchema, type WalkRoute } from "@/output/api-shapes";
 import { usePoll, type PollState } from "@/components/widgets/shared/usePoll";
+import type { RoutePurpose } from "@/lib/widgets/route/purpose";
 import type { RoutePlace } from "./types";
 
 /** 24시간 — 사실상 '한 번만'. */
@@ -37,6 +38,8 @@ export interface SearchedRoute {
   start: RoutePlace;
   end: RoutePlace;
   via: RoutePlace[];
+  /** 이동 목적 — 서버가 이걸로 티맵 searchOption을 정한다. */
+  purpose: RoutePurpose;
   avoidStairs: boolean;
 }
 
@@ -49,6 +52,7 @@ export function useWalkRoute(
   start: RoutePlace | null,
   end: RoutePlace | null,
   via: RoutePlace[],
+  purpose: RoutePurpose,
   avoidStairs: boolean,
   /** 올리면 지금 값으로 다시 잠그고 새로 탐색한다('탐색'·'다시 계산'·자동 재검색). */
   searchKey = 0,
@@ -61,7 +65,10 @@ export function useWalkRoute(
   // 렌더 중 상태 조정 — props가 바뀔 때 상태를 맞추는 React 공식 패턴이다
   // (effect로 하면 한 프레임 늦게 잡히고 그 사이 옛 경로가 보인다).
   if (start && end && (!latched || latched.key !== searchKey)) {
-    setLatched({ key: searchKey, value: { start, end, via, avoidStairs } });
+    setLatched({
+      key: searchKey,
+      value: { start, end, via, purpose, avoidStairs },
+    });
   }
   const searched = latched?.key === searchKey ? latched.value : null;
 
@@ -75,6 +82,7 @@ export function useWalkRoute(
       sname: searched.start.label || "출발",
       ename: searched.end.label || "도착",
     });
+    q.set("purpose", searched.purpose);
     if (searched.avoidStairs) q.set("avoidStairs", "1");
     // 경유지는 "lon,lat|lon,lat" — 순서가 곧 들르는 순서다.
     if (searched.via.length > 0) {

@@ -8,6 +8,8 @@
  *  실제 갱신은 목적지 변경·수동 새로고침으로 일어난다(계획서 §3 "경로는 한 번만 부른다").
  */
 
+import type { RoutePurpose } from "@/lib/widgets/route/purpose";
+
 /** 출발·도착 지점(LocationPicker의 LocationValue와 같은 모양). */
 export interface RoutePlace {
   label: string;
@@ -25,7 +27,12 @@ export interface RouteConfig {
    * 지도를 눌러 추가하거나 검색으로 고른다.
    */
   via?: RoutePlace[];
-  /** 계단을 피하는 경로로 탐색(TMAP searchOption 30). */
+  /**
+   * 이동 목적. 없으면 일반(구버전 위젯). 등산·강변은 티맵 옵션을 스스로 정하고
+   * 결과를 그 목적에 맞게 읽어 준다 — `lib/widgets/route/purpose.ts` 주석 참고.
+   */
+  purpose?: RoutePurpose;
+  /** 계단을 피하는 경로로 탐색(TMAP searchOption 30). 목적이 일반일 때만 쓰인다. */
   avoidStairs: boolean;
 }
 
@@ -33,6 +40,7 @@ export const DEFAULT_ROUTE_CONFIG: RouteConfig = {
   start: null,
   end: null,
   via: [],
+  purpose: "walk",
   avoidStairs: false,
 };
 

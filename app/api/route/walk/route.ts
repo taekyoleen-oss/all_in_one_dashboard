@@ -38,6 +38,7 @@ import {
   MAX_ELEVATION_POINTS,
   ELEVATION_SOURCE,
 } from "@/lib/api/elevationClient";
+import { searchOptionFor } from "@/lib/widgets/route/purpose";
 import {
   boundsOf,
   resampleDistances,
@@ -105,9 +106,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 계단 회피(searchOption 30)는 위젯 설정에서 온다. 그 외 값은 추천(0)으로 고정.
-  const searchOption: WalkSearchOption =
-    searchParams.get("avoidStairs") === "1" ? "30" : "0";
+  // 이동 목적(일반·등산·강변)이 티맵 옵션을 정한다. 목적이 정하지 않는 경우에만
+  // 위젯의 계단 회피 설정을 따른다 — 근거(실측)는 purpose.ts 주석.
+  // 모르는 목적 값은 purposeOf가 조용히 일반으로 떨어뜨린다.
+  const searchOption: WalkSearchOption = searchOptionFor(
+    searchParams.get("purpose"),
+    searchParams.get("avoidStairs") === "1",
+  );
 
   // 경유지 — "lon,lat|lon,lat" (TMAP은 최대 5개까지 받는다).
   // 형식이 깨진 항목은 조용히 버린다(경유지 하나 때문에 경로 전체를 잃지 않는다).

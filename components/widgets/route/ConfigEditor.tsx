@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * route · ConfigEditor — 출발지·도착지·계단 회피 설정.
+ * route · ConfigEditor — 출발지·도착지·이동 목적·계단 회피 설정.
  *
  *  위치 지정 UI는 공용 `LocationPicker`를 그대로 재사용한다(주소·장소 검색 / 현재
  *  위치 / 지역 / 직접 입력). 출발지는 기본이 '현재 위치'이고, 체크를 풀 때만
@@ -13,6 +13,11 @@
 import * as React from "react";
 import { LocationPicker } from "@/components/widgets/shared/LocationPicker";
 import { rememberPlace } from "@/lib/widgets/route/places";
+import {
+  PURPOSES,
+  purposeOf,
+  stairsFixedBy,
+} from "@/lib/widgets/route/purpose";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import type { RouteConfig, RoutePlace } from "./types";
 
@@ -42,6 +47,9 @@ export function RouteConfigEditor({
   onChange,
 }: ConfigEditorProps<RouteConfig>) {
   const useCurrent = config.start === null;
+  const purpose = purposeOf(config.purpose);
+  // 등산·강변은 목적이 계단 옵션을 이미 정한다 — 체크박스를 살려 두면 거짓말이 된다.
+  const stairsLocked = stairsFixedBy(purpose.key);
 
   return (
     <div className="flex flex-col gap-4">
@@ -87,18 +95,51 @@ export function RouteConfigEditor({
         />
       </Section>
 
+      <Section
+        title="이동 목적"
+        hint="목적에 따라 티맵 경로 옵션과 결과 표시가 함께 바뀝니다."
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {PURPOSES.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => onChange({ ...config, purpose: p.key })}
+              aria-pressed={p.key === purpose.key}
+              className={`rounded-md border px-2.5 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+                p.key === purpose.key
+                  ? "border-primary bg-primary/10 font-medium text-foreground"
+                  : "border-border text-muted-foreground hover:bg-accent/40"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {purpose.hint}
+        </p>
+      </Section>
+
       <Section title="경로 옵션">
-        <label className="flex items-center gap-2 text-sm text-foreground">
+        <label
+          className={`flex items-center gap-2 text-sm ${
+            stairsLocked ? "text-muted-foreground" : "text-foreground"
+          }`}
+        >
           <input
             type="checkbox"
             checked={config.avoidStairs}
+            disabled={stairsLocked}
             onChange={(e) => onChange({ ...config, avoidStairs: e.target.checked })}
-            className="size-4 accent-[var(--primary)]"
+            className="size-4 accent-[var(--primary)] disabled:opacity-50"
           />
           계단 피하기
         </label>
-        <p className="text-xs text-muted-foreground">
-          유모차·휠체어·짐이 있을 때. 대신 경로가 길어질 수 있습니다.
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {stairsLocked
+            ? `'${purpose.label}'이(가) 계단 처리를 이미 정합니다 — 이 설정은 '일반'일 때만 쓰입니다.`
+            : "유모차·휠체어·짐이 있을 때. 대신 경로가 길어질 수 있습니다."}
         </p>
       </Section>
 
