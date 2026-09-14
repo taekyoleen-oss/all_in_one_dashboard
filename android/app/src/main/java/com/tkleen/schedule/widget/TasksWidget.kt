@@ -131,7 +131,7 @@ private fun TasksRoot(
                                 "done" -> "완료한 작업이 없습니다"
                                 else -> "작업이 없습니다 — ＋로 추가하세요"
                             },
-                            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
+                            style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
                         )
                     }
                 } else {
@@ -265,7 +265,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             if (item.done) "완료" else "진행",
             style = TextStyle(
                 color = if (item.done) AgendaTheme.textDim else AgendaTheme.accentProvider,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
@@ -280,7 +280,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
                 .padding(vertical = 4.dp),
             style = TextStyle(
                 color = if (item.done || markedForDelete) AgendaTheme.textDim else AgendaTheme.text,
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None,
             ),
         )
@@ -291,7 +291,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
         Text(
             if (item.dueOn != null) taskDateLabel(item.dueOn) else "",
             // 본문과 같은 크기(요구) — 색만 흐리게 구분.
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
         )
         Spacer(GlanceModifier.width(4.dp))
         // 삭제 예정 표시(요구) — 다음 갱신 때 실제 삭제, ✕ 재탭으로 취소.
@@ -299,7 +299,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             if (markedForDelete) "삭제" else "",
             style = TextStyle(
                 color = AgendaTheme.danger,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
@@ -324,12 +324,12 @@ private fun NotLinked() {
     ) {
         Text(
             "연결된 작업 목록이 없습니다",
-            style = TextStyle(color = AgendaTheme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            style = TextStyle(color = AgendaTheme.text, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         )
         Spacer(GlanceModifier.height(4.dp))
         Text(
             "웹 대시보드에 '작업' 위젯을 추가하고\n속성에서 '모바일 홈 화면에 표시'를 켜세요",
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
         )
     }
 }

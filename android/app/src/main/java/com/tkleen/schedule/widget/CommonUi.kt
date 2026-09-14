@@ -26,12 +26,12 @@ internal fun PairingCta(revoked: Boolean, subject: String) {
     ) {
         Text(
             if (revoked) "연결이 해제되었습니다" else "$subject 위젯을 연결하세요",
-            style = TextStyle(color = AgendaTheme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            style = TextStyle(color = AgendaTheme.text, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         )
         Spacer(GlanceModifier.height(4.dp))
         Text(
             "웹 설정 > 위젯에서 코드를 발급받아 입력",
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
         )
         Spacer(GlanceModifier.height(8.dp))
         Button(text = if (revoked) "다시 연결" else "연결하기", onClick = actionStartActivity<PairingActivity>())

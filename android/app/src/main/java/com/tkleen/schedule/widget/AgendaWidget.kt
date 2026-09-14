@@ -78,7 +78,7 @@ private fun Root(paired: Boolean, unauthorized: Boolean, items: List<AgendaItem>
                 Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "오늘 남은 일정이 없습니다",
-                        style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
+                        style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
                     )
                 }
             } else {
@@ -136,7 +136,7 @@ private fun ItemRow(item: AgendaItem, now: ZonedDateTime) {
         Box(
             GlanceModifier
                 .width(4.dp)
-                .height(34.dp)
+                .height(38.dp)
                 .cornerRadius(2.dp)
                 .background(ColorProvider(if (done) Color(0xFF9AA5B1) else AgendaTheme.tokenColor(item.colorToken))),
         ) {}
@@ -147,7 +147,7 @@ private fun ItemRow(item: AgendaItem, now: ZonedDateTime) {
                 maxLines = 1,
                 style = TextStyle(
                     color = if (done) AgendaTheme.textDim else AgendaTheme.text,
-                    fontSize = 13.sp,
+                    fontSize = 15.sp,
                     textDecoration = if (done) TextDecoration.LineThrough else TextDecoration.None,
                 ),
             )
@@ -160,7 +160,7 @@ private fun ItemRow(item: AgendaItem, now: ZonedDateTime) {
                 if (item.status == "snoozed") append(" · 연기됨")
             }
             if (meta.isNotEmpty()) {
-                Text(meta, maxLines = 1, style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp))
+                Text(meta, maxLines = 1, style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp))
             }
         }
     }
