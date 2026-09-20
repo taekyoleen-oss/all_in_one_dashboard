@@ -15,6 +15,7 @@ import androidx.glance.appwidget.updateAll
 import com.tkleen.schedule.data.WidgetApi
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.widget.AgendaWidget
+import com.tkleen.schedule.widget.MemosWidget
 import com.tkleen.schedule.widget.TasksWidget
 import java.util.concurrent.TimeUnit
 
@@ -66,8 +67,19 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             is WidgetApi.TasksResult.Error -> Unit
         }
 
+        // 메모(memos)도 같은 주기로 — 실패는 캐시 유지(다음 주기 재시도).
+        when (val m = WidgetApi.fetchMemos(token, WidgetStore.memosEtag(ctx))) {
+            is WidgetApi.MemosResult.Ok ->
+                WidgetStore.putMemos(ctx, m.itemsJson, m.etag, System.currentTimeMillis())
+            WidgetApi.MemosResult.NotModified ->
+                WidgetStore.touchMemosSynced(ctx, System.currentTimeMillis())
+            WidgetApi.MemosResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
+            is WidgetApi.MemosResult.Error -> Unit
+        }
+
         AgendaWidget().updateAll(ctx) // 304여도 날짜 경계·갱신 시각 표시를 다시 그린다.
         TasksWidget.refresh(ctx) // 살아있는 세션도 새 데이터로 재구성(틱)
+        MemosWidget.refresh(ctx)
         return result
     }
 
@@ -132,8 +144,8 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
         }
 
         /**
-         * 두 위젯(오늘 일정·작업)이 **모두** 홈 화면에서 사라졌을 때만 주기 작업을
-         * 멈춘다 — 리시버별 onDisabled가 상대 위젯의 동기화를 끊는 비대칭 방지.
+         * 세 위젯(오늘 일정·작업·메모)이 **모두** 홈 화면에서 사라졌을 때만 주기
+         * 작업을 멈춘다 — 리시버별 onDisabled가 남은 위젯의 동기화를 끊는 비대칭 방지.
          */
         fun cancelIfNoWidgets(context: Context) {
             val awm = android.appwidget.AppWidgetManager.getInstance(context)
@@ -143,7 +155,10 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             val tasks = awm.getAppWidgetIds(
                 android.content.ComponentName(context, com.tkleen.schedule.widget.TasksWidgetReceiver::class.java),
             )
-            if (agenda.isEmpty() && tasks.isEmpty()) cancelAll(context)
+            val memos = awm.getAppWidgetIds(
+                android.content.ComponentName(context, com.tkleen.schedule.widget.MemosWidgetReceiver::class.java),
+            )
+            if (agenda.isEmpty() && tasks.isEmpty() && memos.isEmpty()) cancelAll(context)
         }
     }
 }

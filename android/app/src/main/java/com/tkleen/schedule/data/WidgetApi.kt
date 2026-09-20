@@ -167,6 +167,87 @@ object WidgetApi {
         }
     }
 
+    /* ── 메모(memos) ───────────────────────────────────────────────────── */
+
+    sealed class MemosResult {
+        data class Ok(val itemsJson: String, val etag: String?) : MemosResult()
+        object NotModified : MemosResult()
+        object Unauthorized : MemosResult()
+        data class Error(val message: String) : MemosResult()
+    }
+
+    /**
+     * 웹 '메모' 위젯 전체(최근 수정 순). 작업과 달리 '모바일 표시' 지정이 없다 —
+     * 메모는 제목을 늘어놓는 것이 목적이라 한 건만 골라선 목록이 성립하지 않는다.
+     */
+    fun fetchMemos(token: String, etag: String?): MemosResult {
+        return try {
+            val conn = open("$BASE/api/widget/memos", "GET")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (etag != null) conn.setRequestProperty("If-None-Match", etag)
+            when (conn.responseCode) {
+                200 -> {
+                    val body = JSONObject(conn.inputStream.bufferedReader().readText())
+                    MemosResult.Ok(
+                        itemsJson = body.getJSONArray("items").toString(),
+                        etag = conn.getHeaderField("ETag"),
+                    )
+                }
+                304 -> MemosResult.NotModified
+                401 -> MemosResult.Unauthorized
+                else -> MemosResult.Error("HTTP ${conn.responseCode}")
+            }
+        } catch (e: Exception) {
+            MemosResult.Error(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * 새 메모 추가. 메모 한 건 = 웹 메모 위젯 하나라, 서버가 기본 보드 맨 아래에
+     * 위젯을 만들어 준다(폰에는 보드 개념이 없다).
+     */
+    fun addMemo(token: String, title: String, text: String): MutResult {
+        return try {
+            val conn = open("$BASE/api/widget/memos", "POST")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            val body = JSONObject().put("title", title).put("text", text)
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode in 200..299) {
+                MutResult.Ok
+            } else {
+                MutResult.Fail(errorMessage(conn, "메모 추가에 실패했습니다"))
+            }
+        } catch (e: Exception) {
+            MutResult.Fail("네트워크 오류: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+    /**
+     * 메모 수정 — HttpURLConnection이 PATCH를 못 보내므로 서버의 POST 별칭을 쓴다.
+     * 서버가 제목·본문만 **병합**하므로 색·글자 크기·비밀번호 해시는 보존된다
+     * (폰은 그 값들을 모르니 통째로 쓰면 지워진다).
+     * 잠긴 메모는 서버가 423으로 거절하고, 그 문구를 그대로 보여준다.
+     */
+    fun updateMemo(token: String, id: String, title: String, text: String): MutResult {
+        return try {
+            val conn = open("$BASE/api/widget/memos/$id", "POST")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            val body = JSONObject().put("title", title).put("text", text)
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode in 200..299) {
+                MutResult.Ok
+            } else {
+                MutResult.Fail(errorMessage(conn, "저장에 실패했습니다"))
+            }
+        } catch (e: Exception) {
+            MutResult.Fail("네트워크 오류: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
     private fun errorMessage(conn: HttpURLConnection, fallback: String): String {
         return try {
             JSONObject(conn.errorStream?.bufferedReader()?.readText() ?: "")

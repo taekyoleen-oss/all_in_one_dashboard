@@ -17,6 +17,7 @@ import type { CompactViewProps } from "@/lib/widgets/contract";
 import { MEMO_COLORS, MEMO_SIZE_CLASS, type MemoConfig } from "./types";
 import { MemoLockPrompt, useMemoLock } from "./MemoLock";
 import { useMemoText } from "./useMemoText";
+import { useMemoRemoteSync } from "./useMemoRemoteSync";
 import { MemoLinks } from "./MemoLinks";
 
 export function MemoCompactView({
@@ -30,6 +31,9 @@ export function MemoCompactView({
     instanceId,
     config,
   );
+  // 폰(홈 화면 메모 위젯)에서 고친 내용을 창 포커스 복귀 때 따라잡는다.
+  // 타일은 항상 마운트돼 있으므로 여기 한 곳에만 건다(전체보기와 중복 조회 방지).
+  useMemoRemoteSync(instanceId, config);
 
   if (locked) return <MemoLockPrompt tryUnlock={tryUnlock} size="compact" />;
 

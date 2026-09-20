@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.tkleen.schedule.data.model.AgendaItem
+import com.tkleen.schedule.data.model.MemoItem
 import com.tkleen.schedule.data.model.TaskItem
 import com.tkleen.schedule.sync.AgendaSyncWorker
 import java.security.KeyStore
@@ -35,6 +36,9 @@ object WidgetStore {
     private const val K_TASKS_ETAG = "tasks_etag"
     private const val K_TASKS_LINKED = "tasks_linked"
     private const val K_TASKS_SYNCED_AT = "tasks_synced_at"
+    private const val K_MEMOS = "memos_json"
+    private const val K_MEMOS_ETAG = "memos_etag"
+    private const val K_MEMOS_SYNCED_AT = "memos_synced_at"
     private const val K_TASKS_FILTER = "tasks_filter"
     private const val K_TASKS_FILTER_AT = "tasks_filter_at"
 
@@ -171,6 +175,39 @@ object WidgetStore {
     fun mutateTasks(context: Context, transform: (List<TaskItem>) -> List<TaskItem>) {
         val next = TaskItem.listToJson(transform(taskItems(context)))
         prefs(context).edit().putString(K_TASKS, next).remove(K_TASKS_ETAG).apply()
+    }
+
+    /* ── 메모(memos) 캐시 ─────────────────────────────────────────────── */
+
+    fun putMemos(context: Context, itemsJson: String, etag: String?, syncedAt: Long) {
+        prefs(context).edit()
+            .putString(K_MEMOS, itemsJson)
+            .putString(K_MEMOS_ETAG, etag)
+            .putLong(K_MEMOS_SYNCED_AT, syncedAt)
+            .apply()
+    }
+
+    fun touchMemosSynced(context: Context, syncedAt: Long) {
+        prefs(context).edit().putLong(K_MEMOS_SYNCED_AT, syncedAt).apply()
+    }
+
+    fun memosEtag(context: Context): String? = prefs(context).getString(K_MEMOS_ETAG, null)
+
+    fun memosSyncedAt(context: Context): Long = prefs(context).getLong(K_MEMOS_SYNCED_AT, 0L)
+
+    fun memoItems(context: Context): List<MemoItem> {
+        val json = prefs(context).getString(K_MEMOS, null) ?: return emptyList()
+        return try {
+            MemoItem.listFromJson(json)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 낙관적 캐시 변형 — 작업과 같은 이유로 ETag도 함께 지운다(실패 시 서버 진실로 복원). */
+    fun mutateMemos(context: Context, transform: (List<MemoItem>) -> List<MemoItem>) {
+        val next = MemoItem.listToJson(transform(memoItems(context)))
+        prefs(context).edit().putString(K_MEMOS, next).remove(K_MEMOS_ETAG).apply()
     }
 
     /* ── 작업 위젯 필터 ────────────────────────────────────────────────── */

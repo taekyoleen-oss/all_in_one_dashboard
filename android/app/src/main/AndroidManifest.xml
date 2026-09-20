@@ -247,6 +247,30 @@
             android:theme="@android:style/Theme.DeviceDefault.DayNight"
             android:windowSoftInputMode="adjustResize|stateVisible" />
 
+        <!-- 메모 위젯 — 웹 '메모' 위젯들의 제목 목록(누르면 내용 화면) -->
+        <receiver
+            android:name=".widget.MemosWidgetReceiver"
+            android:exported="true"
+            android:label="@string/memos_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/memos_widget_info" />
+        </receiver>
+
+        <!-- 제목 탭(내용 보기·수정) / ＋(새 메모)가 여는 화면 -->
+        <activity
+            android:name=".memo.MemoEditActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=":widgetaction"
+            android:label="@string/memos_add_title"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
 
         <activity android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"

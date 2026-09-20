@@ -812,6 +812,39 @@ export const WidgetTasksSchema = z.object({
 });
 export type WidgetTasks = z.infer<typeof WidgetTasksSchema>;
 
+/* ---------------------------------------------------------------------------
+ *  WIDGET MEMOS — 모바일 홈 화면 '메모' 위젯 브리지 (/api/widget/memos)
+ * ---------------------------------------------------------------------------
+ *
+ *  작업(tasks)과 달리 **전용 테이블이 없다.** 메모 한 건 = 웹 '메모' 위젯 인스턴스
+ *  하나이고 본문은 pb_widgets.config(jsonb)에 산다 — 그래서 목록의 id는 위젯
+ *  인스턴스 id(pb_widgets.id)다. 웹 메모 위젯은 한 글자도 바뀌지 않는다.
+ *
+ *  ⚠ 잠금(pwHash) 메모는 **본문을 내려보내지 않는다** — 화면 잠금을 폰이 우회하게
+ *    두면 잠금이 무의미해진다. 제목만 주고 locked=true로 알린다(제목은 잠겨 있어도
+ *    웹 헤더에 이미 보이므로 새로 드러나는 정보가 아니다).
+ */
+export const WidgetMemoSchema = z.object({
+  /** 위젯 인스턴스 id(pb_widgets.id). */
+  id: z.string(),
+  /** config.title — 비어 있으면 서버가 '제목 없음'으로 채운다. */
+  title: z.string(),
+  /** config.text. 잠긴 메모는 항상 빈 문자열(본문 미전송). */
+  body: z.string(),
+  /** 잠금(비밀번호)이 걸린 메모인가 — true면 body는 비어 있다. */
+  locked: z.boolean(),
+  /** 마지막 수정 시각(ISO) — 최근 수정 순 정렬의 근거. */
+  updatedAt: z.string(),
+});
+export type WidgetMemo = z.infer<typeof WidgetMemoSchema>;
+
+/** GET /api/widget/memos 응답 — 최근 수정 순. 메모 위젯이 없으면 빈 배열. */
+export const WidgetMemosSchema = z.object({
+  items: z.array(WidgetMemoSchema),
+});
+export type WidgetMemos = z.infer<typeof WidgetMemosSchema>;
+
+
 /* ===========================================================================
  *  WALK ROUTE — 길찾기(도보) 위젯  (/api/route/walk)
  * ===========================================================================

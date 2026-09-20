@@ -11,4 +11,9 @@
     <string name="tasks_add_title">작업 추가</string>
     <string name="tasks_preview_line1">☑ 장보기 목록 정리</string>
     <string name="tasks_preview_line2">☐ 보고서 초안 작성</string>
+    <string name="memos_widget_label">메모</string>
+    <string name="memos_widget_description">웹 대시보드의 메모 위젯들을 제목으로 모아 보고, 눌러서 내용을 확인·수정합니다.</string>
+    <string name="memos_add_title">메모</string>
+    <string name="memos_preview_line1">장보기 목록</string>
+    <string name="memos_preview_line2">회의 준비 메모</string>
 </resources>
