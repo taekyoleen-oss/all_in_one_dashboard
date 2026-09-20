@@ -260,6 +260,16 @@
                 android:resource="@xml/notes_widget_info" />
         </receiver>
 
+        <!-- 위젯의 '갱신 시각 ↻' — 투명 포그라운드에서 즉시 동기화만 하고 닫힌다.
+             비포그라운드 프로세스에선 재렌더·작업 실행이 미뤄진다(v14 실측). -->
+        <activity
+            android:name=".widget.SyncNowActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=":widgetaction"
+            android:theme="@style/PbInvisible" />
+
         <!-- 소제목 탭(내용 보기·수정·삭제) / ＋(새 소제목)가 여는 화면 -->
         <activity
             android:name=".notes.NoteEditActivity"

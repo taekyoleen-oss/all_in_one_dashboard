@@ -111,15 +111,16 @@ private fun NotesRoot(
     ) {
         if (!paired || unauthorized) {
             PairingCta(revoked = unauthorized, subject = "노트")
-        } else if (!linked) {
-            NotLinked()
         } else {
-            NotesHeader(syncedAt)
+            // 헤더는 연결 전에도 그린다 — 갱신 시각은 늘 우측 상단에 있어야 한다.
+            NotesHeader(syncedAt, showAdd = linked)
             Spacer(GlanceModifier.height(6.dp))
-            if (items.isEmpty()) {
+            if (!linked) {
+                NotLinked()
+            } else if (items.isEmpty()) {
                 Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "소제목이 없습니다 — ＋로 추가하세요",
+                        "소제목이 없습니다 — ＋ 소제목으로 추가하세요",
                         style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
                     )
                 }
@@ -162,8 +163,14 @@ private fun addIntent(context: Context): Intent =
         data = Uri.parse("pbnote://add")
     }
 
+/**
+ * 헤더 — 왼쪽부터 [노트] [＋ 소제목], 오른쪽 끝에 **갱신 시각**(요구).
+ *
+ * ＋는 글리프 하나만 두면 눈에 띄지 않아 라벨을 붙였다. 연결된 노트가 없으면
+ * 추가해 봐야 서버가 409로 막으므로 그때는 감춘다(showAdd=false).
+ */
 @Composable
-private fun NotesHeader(syncedAt: Long) {
+private fun NotesHeader(syncedAt: Long, showAdd: Boolean) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             "노트",
@@ -173,31 +180,47 @@ private fun NotesHeader(syncedAt: Long) {
                 fontWeight = FontWeight.Bold,
             ),
         )
-        Spacer(GlanceModifier.defaultWeight())
-        if (syncedAt > 0) {
-            val t = java.time.ZonedDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(syncedAt),
-                ZoneId.of("Asia/Seoul"),
-            )
+        if (showAdd) {
+            Spacer(GlanceModifier.width(8.dp))
+            // 위젯은 텍스트 입력이 불가하므로 작은 입력 화면을 연다.
+            // clickable을 padding보다 먼저 — 터치 영역이 패딩까지 포함되도록(v5 교훈).
             Text(
-                t.format(DateTimeFormatter.ofPattern("HH:mm")) + " 갱신",
-                style = TextStyle(color = AgendaTheme.textDim, fontSize = 10.sp),
+                "＋ 소제목",
+                modifier = GlanceModifier
+                    .clickable(actionStartActivity(addIntent(LocalContext.current)))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                style = TextStyle(
+                    color = AgendaTheme.accentProvider,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
             )
         }
-        // ＋ 추가 — 위젯은 텍스트 입력이 불가하므로 작은 입력 화면을 연다.
+        Spacer(GlanceModifier.defaultWeight())
+        // 갱신 시각 — 늘 우측 상단 끝(요구). 누르면 즉시 동기화한다(15분을 기다리지
+        // 않아도 되게). 투명 포그라운드 액티비티를 거치는 이유는 SyncNowActivity 주석.
         Text(
-            "＋",
+            if (syncedAt > 0) {
+                java.time.ZonedDateTime.ofInstant(
+                    java.time.Instant.ofEpochMilli(syncedAt),
+                    ZoneId.of("Asia/Seoul"),
+                ).format(DateTimeFormatter.ofPattern("HH:mm")) + " 갱신"
+            } else {
+                "갱신 전"
+            } + " ↻",
             modifier = GlanceModifier
-                .clickable(actionStartActivity(addIntent(LocalContext.current)))
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            style = TextStyle(
-                color = AgendaTheme.accentProvider,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-            ),
+                .clickable(actionStartActivity(syncIntent(LocalContext.current)))
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp),
         )
     }
 }
+
+/** 즉시 동기화 인텐트(고유 data URI — 다른 탭과 병합되지 않는다). */
+private fun syncIntent(context: Context): Intent =
+    Intent(context, SyncNowActivity::class.java).apply {
+        data = Uri.parse("pbnote://sync")
+    }
 
 @Composable
 private fun NoteRow(item: NoteItem) {

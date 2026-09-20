@@ -12,7 +12,84 @@ import * as React from "react";
 import { Trash2, Share2, Smartphone } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
 import { useSetExclusiveNoteFlag } from "@/lib/widgets/persistence";
+import { createClient } from "@/lib/supabase/client";
 import type { NoteConfig } from "./types";
+
+/** 연결된 휴대폰(디바이스 토큰) — 본인 것만 보인다(pb_widget_devices RLS). */
+interface PairedDevice {
+  label: string;
+  lastSeenAt: string | null;
+}
+
+/**
+ * "정말 연결됐나"를 웹에서 눈으로 확인할 수 있게 하는 조회.
+ * 지정 토글만으로는 폰이 실제로 받아 갔는지 알 수 없어서(폰은 15분 주기로
+ * 가져간다) 마지막 동기화 시각까지 보여 준다.
+ */
+function usePairedDevices(): PairedDevice[] | null {
+  const [rows, setRows] = React.useState<PairedDevice[] | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data } = await createClient()
+        .from("pb_widget_devices")
+        .select("label, last_seen_at")
+        .order("last_seen_at", { ascending: false });
+      if (!alive) return;
+      setRows(
+        (data ?? []).map((d) => ({
+          label: d.label ?? "휴대폰",
+          lastSeenAt: d.last_seen_at,
+        })),
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return rows;
+}
+
+/** "9월 20일 16:30" — 마지막 동기화 표기(값이 이상하면 빈 문자열). */
+function whenLabel(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** 지정이 켜졌을 때만 — 연결된 휴대폰과 마지막 동기화 시각을 보여 준다. */
+function PhoneStatus() {
+  const devices = usePairedDevices();
+  if (devices === null) {
+    return <p className="text-[11px] text-muted-foreground">휴대폰 연결 확인 중…</p>;
+  }
+  if (devices.length === 0) {
+    return (
+      <p className="text-[11px] text-destructive">
+        아직 연결된 휴대폰이 없습니다 — 앱을 설치한 뒤 홈 화면에 &lsquo;노트&rsquo;
+        위젯을 추가하고, <b>설정 &gt; 위젯</b>에서 발급한 코드로 연결하세요.
+      </p>
+    );
+  }
+  const last = whenLabel(devices[0].lastSeenAt);
+  return (
+    <p className="text-[11px] text-muted-foreground">
+      <span className="font-medium text-primary">
+        휴대폰 {devices.length}대 연결됨
+      </span>
+      {last ? ` · 마지막 동기화 ${last}` : ""}
+      <br />
+      홈 화면 위젯은 <b>15분마다</b> 갱신됩니다. 바로 보고 싶으면 위젯{" "}
+      <b>우측 상단의 갱신 시각(↻)</b>을 누르세요.
+    </p>
+  );
+}
 
 export function NoteConfigEditor({
   config,
@@ -88,6 +165,8 @@ export function NoteConfigEditor({
           옮겨갑니다. 폰에서는 이미지·표가 든 소제목의 본문을 고칠 수 없습니다
           (이름 변경·삭제는 됩니다).
         </p>
+        {/* 지정만으로는 폰이 실제로 받아 갔는지 알 수 없다 — 연결 상태를 밝힌다. */}
+        {mobileOn ? <PhoneStatus /> : null}
       </div>
 
       {/* 모바일 공유 받기 — 이 노트를 단일 공유 저장 대상으로 지정 */}
