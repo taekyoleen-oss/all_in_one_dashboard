@@ -7,7 +7,7 @@
  *
  *  GET  : 그 노트의 **소제목 전부**를 표시 순서대로. 지정이 없으면
  *         { instanceId: null, items: [] } — 폰이 "웹에서 켜 주세요"를 안내한다.
- *  POST : { title?, text? } → 그 노트 맨 아래에 소제목 하나를 추가한다.
+ *  POST : { title?, text? } → 그 노트 **맨 위에** 소제목 하나를 추가한다(요구).
  *
  *  ETag/304 지원(15분 폴링 비용 절감 — 아젠다·작업과 같은 리듬).
  */
@@ -15,7 +15,7 @@ import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireDevice } from "@/lib/api/widgetDevice";
 import { sha256Hex } from "@/lib/api/widgetCore";
-import { appendSection, noteItems, type NoteConfigRow } from "@/lib/api/widgetNote";
+import { noteItems, prependSection, type NoteConfigRow } from "@/lib/api/widgetNote";
 import { resolveNoteTarget } from "@/lib/api/widgetNoteTarget";
 import type { WidgetNoteItem } from "@/output/api-shapes";
 
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
   }
 
   const sectionId = crypto.randomUUID();
-  const next = appendSection(target.config, sectionId, cleanTitle, cleanText, Date.now());
+  const next = prependSection(target.config, sectionId, cleanTitle, cleanText, Date.now());
 
   const { data, error } = await admin
     .from("pb_widgets")

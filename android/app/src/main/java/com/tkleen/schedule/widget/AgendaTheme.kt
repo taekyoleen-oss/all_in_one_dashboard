@@ -14,6 +14,12 @@ object AgendaTheme {
     val accentProvider = solidColor(accent)
 
     val bg = ColorProvider(day = Color(0xFFFFFFFF), night = Color(0xFF16191C))
+    /**
+     * 노트 위젯 전용 배경 — 홈 화면에 작업 위젯과 나란히 놓였을 때 한눈에
+     * 구분되도록 살짝 회색을 넣는다(요구). 라이트는 흰색보다 한 톤 어둡게,
+     * 다크는 반대로 한 톤 밝게 해야 차이가 보인다.
+     */
+    val bgNote = ColorProvider(day = Color(0xFFF1F3F5), night = Color(0xFF20252B))
     val text = ColorProvider(day = Color(0xFF1B2845), night = Color(0xFFECEFF4))
     val textDim = ColorProvider(day = Color(0xFF64748B), night = Color(0xFF9AA5B1))
     /** 삭제 예정 등 파괴적 상태 표시. */

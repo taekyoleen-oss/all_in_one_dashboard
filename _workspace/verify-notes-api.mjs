@@ -190,7 +190,7 @@ try {
     });
     const created = await r.json();
     check("추가 → 201", r.status === 201 && created.sectionId, created.title);
-    check("지정 노트(A) 맨 아래에 붙는다", (await cfgOf(noteA.id)).sections.at(-1).title === "3주차");
+    check("지정 노트(A) 맨 위에 붙는다(새로 쓴 것이 위로)", (await cfgOf(noteA.id)).sections[0].title === "3주차");
     check("다른 노트(B)에는 안 생긴다", (await cfgOf(noteB.id)).sections.length === 1);
   }
 

@@ -205,8 +205,8 @@ object WidgetApi {
     }
 
     /**
-     * 새 소제목 추가 — 서버가 대상 노트(공유 받기 노트, 없으면 가장 오래된 노트)
-     * 맨 아래에 붙인다. 폰에는 노트를 고르는 화면이 없으므로 규칙을 서버에 둔다.
+     * 새 소제목 추가 — 서버가 **지정된 노트의 맨 위에** 붙인다(새로 쓴 것이 위로).
+     * 폰에는 노트를 고르는 화면이 없으므로 대상 규칙은 서버에 둔다.
      */
     fun addNoteSection(token: String, title: String, text: String): MutResult {
         return try {

@@ -167,8 +167,12 @@ export function updateSection(
   return withSections(config, copy);
 }
 
-/** 소제목을 맨 아래에 추가한 새 config. */
-export function appendSection(
+/**
+ * 소제목을 **맨 위에** 넣은 새 config(요구: 새로 쓴 것이 목록 맨 위).
+ * 배열 순서가 곧 웹 노트의 표시 순서라, 폰에서 추가한 소제목은 웹에서도 위에 온다.
+ * 웹의 '＋ 소제목'(캐럿 기준 위/아래 삽입)은 별도 경로라 영향받지 않는다.
+ */
+export function prependSection(
   config: NoteConfigRow | null | undefined,
   sectionId: string,
   title: string,
@@ -181,7 +185,7 @@ export function appendSection(
     html: plainTextToHtml(text),
     updatedAt: now,
   };
-  return withSections(config, [...sectionsOf(config), section]);
+  return withSections(config, [section, ...sectionsOf(config)]);
 }
 
 /** 소제목을 지운 새 config. 없는 id면 null. */

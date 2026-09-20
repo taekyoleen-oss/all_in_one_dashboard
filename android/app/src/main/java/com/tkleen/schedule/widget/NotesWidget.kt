@@ -49,7 +49,7 @@ import java.time.format.DateTimeFormatter
  *  노트 속성의 '모바일 홈 화면에 표시'를 켠 것(여럿이면 마지막에 켠 것)이 대상이고,
  *  지정이 없으면 목록 대신 안내를 띄운다(작업 위젯과 같은 규칙).
  *  제목을 누르면 내용 화면(NoteEditActivity)이 열려 읽고 고치고 지울 수 있고,
- *  ＋는 그 노트 맨 아래에 소제목을 하나 만든다.
+ *  ＋는 그 노트 **맨 위에** 소제목을 하나 만든다(새로 쓴 것이 위로).
  *
  *  ⚠ 이미지·표가 있는 소제목은 목록에 🖼로 표시하고(rich), 내용 화면이 본문을
  *    읽기 전용으로 연다 — 평문으로 덮어쓰면 이미지·표가 사라지기 때문이다.
@@ -105,7 +105,7 @@ private fun NotesRoot(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
-            .background(AgendaTheme.bg)
+            .background(AgendaTheme.bgNote) // 작업 위젯과 구분되는 옅은 회색(요구)
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {

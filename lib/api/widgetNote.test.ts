@@ -5,12 +5,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  appendSection,
   deleteSection,
   hasRichBlocks,
   htmlToPlainText,
   noteItems,
   plainTextToHtml,
+  prependSection,
   sectionsOf,
   updateSection,
 } from "./widgetNote.ts";
@@ -167,18 +167,19 @@ test("모르는 섹션 id는 null(404로 옮긴다)", () => {
 
 /* ── 추가·삭제 ───────────────────────────────────────────────────────── */
 
-test("추가는 맨 아래에 붙고 기존 섹션을 보존한다", () => {
-  const next = appendSection(cfg([{ id: "s1", title: "1주차", html: "<p>하나</p>" }]), "s2", "2주차", "둘", NOW);
+test("추가는 맨 위에 붙고 기존 섹션을 보존한다(새로 쓴 것이 위로)", () => {
+  const next = prependSection(cfg([{ id: "s1", title: "1주차", html: "<p>하나</p>" }]), "s2", "2주차", "둘", NOW);
   const rows = sectionsOf(next);
   assert.equal(rows.length, 2);
-  assert.equal(rows[0].id, "s1");
-  assert.equal(rows[1].id, "s2");
-  assert.equal(rows[1].html, "<p>둘</p>");
-  assert.equal(rows[1].updatedAt, NOW);
+  assert.equal(rows[0].id, "s2"); // 새 소제목이 맨 위
+  assert.equal(rows[0].html, "<p>둘</p>");
+  assert.equal(rows[0].updatedAt, NOW);
+  assert.equal(rows[1].id, "s1"); // 기존 것은 그대로 아래에
+  assert.equal(rows[1].html, "<p>하나</p>");
 });
 
 test("섹션이 없던 노트에도 추가할 수 있다", () => {
-  const next = appendSection({ title: "노트", html: "<p>머리말</p>" }, "s1", "첫 소제목", "내용", NOW);
+  const next = prependSection({ title: "노트", html: "<p>머리말</p>" }, "s1", "첫 소제목", "내용", NOW);
   assert.equal(sectionsOf(next).length, 1);
   assert.equal(next.html, "<p>머리말</p>"); // 머리말은 그대로
 });

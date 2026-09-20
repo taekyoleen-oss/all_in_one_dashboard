@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
       .select("id, title, done, due_on, created_at")
       .eq("user_id", device.userId)
       .eq("instance_id", instanceId)
-      .order("created_at", { ascending: true });
+      // 새로 쓴 것이 맨 위로(요구) — 폰 위젯은 위쪽만 보이는 경우가 많다.
+      .order("created_at", { ascending: false });
     if (error) {
       return Response.json(
         { error: "upstream", message: "작업 조회에 실패했습니다." },
