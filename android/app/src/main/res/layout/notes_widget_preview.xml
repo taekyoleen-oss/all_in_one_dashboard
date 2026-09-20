@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 메모 위젯 선택기 미리보기 + Glance 첫 렌더 전 초기 레이아웃(정적). -->
+<!-- 노트 위젯 선택기 미리보기 + Glance 첫 렌더 전 초기 레이아웃(정적). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/memos_widget_label"
+        android:text="@string/notes_widget_label"
         android:textColor="#4A90C2"
         android:textSize="14sp"
         android:textStyle="bold" />
@@ -19,7 +19,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="@string/memos_preview_line1"
+        android:text="@string/notes_preview_line1"
         android:textColor="#1B2845"
         android:textSize="15sp" />
 
@@ -27,7 +27,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="@string/memos_preview_line2"
+        android:text="@string/notes_preview_line2"
         android:textColor="#1B2845"
         android:textSize="15sp" />
 </LinearLayout>

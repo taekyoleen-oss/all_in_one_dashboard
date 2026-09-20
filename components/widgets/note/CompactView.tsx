@@ -28,6 +28,7 @@ import { sanitizeHtml, htmlToText } from "./sanitize";
 import { NOTE_PROSE_CLASS } from "./prose";
 import { createSection } from "./sections";
 import { setPendingNoteSection } from "./focusSection";
+import { useNoteRemoteSync } from "./useNoteRemoteSync";
 import type { NoteConfig } from "./types";
 
 /** uSES mounted 게이트용 no-op 구독(항상 동일 참조). */
@@ -101,6 +102,9 @@ export function NoteCompactView({
 
   const openFocus = useOpenWidgetFocus();
   const save = useSaveWidgetConfig();
+  // 폰(홈 화면 노트 위젯)에서 고친 소제목을 창 포커스 복귀 때 따라잡는다.
+  // 타일은 항상 마운트돼 있으므로 여기 한 곳에만 건다(전체보기와 중복 조회 방지).
+  useNoteRemoteSync(instanceId, config);
   const level: NoteCollapseLevel =
     config.collapse === "more" || config.collapse === "title"
       ? config.collapse

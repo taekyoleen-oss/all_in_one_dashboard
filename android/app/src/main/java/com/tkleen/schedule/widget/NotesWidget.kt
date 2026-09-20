@@ -36,34 +36,31 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.tkleen.schedule.data.WidgetStore
-import com.tkleen.schedule.data.model.MemoItem
-import com.tkleen.schedule.memo.MemoEditActivity
+import com.tkleen.schedule.data.model.NoteItem
+import com.tkleen.schedule.notes.NoteEditActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * 메모 위젯 — 웹 '메모' 위젯들과 양방향 동기화되는 **제목 목록**.
+ * 노트 위젯 — 웹 '노트' 위젯의 **소제목을 제목 목록으로** 보여준다.
  *
- *  네이버 메모처럼 메모를 쌓아 두되, 그와 달리 **화면에는 제목만 나열한다**(요구).
- *  제목을 누르면 내용 화면(MemoEditActivity)이 열려 읽고 고칠 수 있다.
+ *  한 줄 = 노트 안의 소제목 하나다. 노트 하나가 소제목을 여러 개 담으므로 노트
+ *  위젯 한 개만 있어도 목록이 된다. 제목을 누르면 내용 화면(NoteEditActivity)이
+ *  열려 읽고 고치고 지울 수 있고, ＋는 대상 노트 맨 아래에 소제목을 하나 만든다.
  *
- *  메모 한 건 = 웹 '메모' 위젯 인스턴스 하나다 — 작업(pb_tasks)과 달리 전용 표가
- *  없고 본문은 pb_widgets.config에 있다. 그래서 ＋ 추가는 캔버스에 메모 위젯을
- *  하나 더 만드는 일이 된다(서버가 기본 보드 맨 아래에 놓는다).
- *
- *  ⚠ 잠긴 메모(웹에서 비밀번호 설정)는 제목만 오고 본문은 오지 않는다. 목록에
- *    자물쇠로 표시하고, 눌러도 내용 대신 안내만 보여준다.
+ *  ⚠ 이미지·표가 있는 소제목은 자물쇠 대신 **✎ 없이** 표시하고(rich), 내용 화면이
+ *    본문을 읽기 전용으로 연다 — 평문으로 덮어쓰면 이미지·표가 사라지기 때문이다.
  *
  *  구현상의 함정은 작업 위젯에서 이미 다 밟았다 — 그대로 따른다:
  *   ① **refreshTick**: 살아 있는 Glance 세션은 updateAll만으로는 옛 값으로 다시
  *      그린다(v15 실측). 틱을 구독해 컴포지션 안에서 prefs를 다시 읽는다.
  *   ② **항목마다 고유 data URI**: PendingIntent는 filterEquals(extras 무시)로
- *      병합되므로, 같은 클래스+extras만 다른 인텐트는 서로 먹힌다(v10).
+ *      병합되므로, 같은 클래스에 extras만 다른 인텐트는 서로 먹힌다(v10).
  *   ③ **clickable() 먼저, padding() 나중**: 순서가 반대면 터치 영역이 패딩 안쪽으로
  *      좁아져 탭이 빗나간다(v5).
  */
-class MemosWidget : GlanceAppWidget() {
+class NotesWidget : GlanceAppWidget() {
     companion object {
         /** 데이터 버전 틱 — 살아 있는 세션의 stale 렌더 방지(TasksWidget과 동일). */
         internal val refreshTick = MutableStateFlow(0)
@@ -71,7 +68,7 @@ class MemosWidget : GlanceAppWidget() {
         /** 데이터 변경 후 반영 — 산 세션은 틱이, 닫힌 세션은 updateAll이 커버. */
         suspend fun refresh(context: Context) {
             refreshTick.value++
-            MemosWidget().updateAll(context.applicationContext)
+            NotesWidget().updateAll(context.applicationContext)
         }
     }
 
@@ -79,25 +76,25 @@ class MemosWidget : GlanceAppWidget() {
         provideContent {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다.
-            val s = remember(tick) { MemosUi(context) }
-            MemosRoot(s.paired, s.unauthorized, s.items, s.syncedAt)
+            val s = remember(tick) { NotesUi(context) }
+            NotesRoot(s.paired, s.unauthorized, s.items, s.syncedAt)
         }
     }
 }
 
 /** 렌더 한 번에 쓰는 값 묶음 — remember(tick)으로 틱마다 재로드. */
-private class MemosUi(context: Context) {
+private class NotesUi(context: Context) {
     val paired = WidgetStore.isPaired(context)
     val unauthorized = WidgetStore.unauthorized(context)
-    val items = WidgetStore.memoItems(context)
-    val syncedAt = WidgetStore.memosSyncedAt(context)
+    val items = WidgetStore.noteItems(context)
+    val syncedAt = WidgetStore.notesSyncedAt(context)
 }
 
 @Composable
-private fun MemosRoot(
+private fun NotesRoot(
     paired: Boolean,
     unauthorized: Boolean,
-    items: List<MemoItem>,
+    items: List<NoteItem>,
     syncedAt: Long,
 ) {
     Column(
@@ -109,37 +106,37 @@ private fun MemosRoot(
             .padding(12.dp),
     ) {
         if (!paired || unauthorized) {
-            PairingCta(revoked = unauthorized, subject = "메모")
+            PairingCta(revoked = unauthorized, subject = "노트")
         } else {
-            MemosHeader(syncedAt)
+            NotesHeader(syncedAt)
             Spacer(GlanceModifier.height(6.dp))
             if (items.isEmpty()) {
                 Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "메모가 없습니다 — ＋로 추가하세요",
+                        "소제목이 없습니다 — ＋로 추가하세요",
                         style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
                     )
                 }
             } else {
                 LazyColumn(GlanceModifier.fillMaxSize()) {
-                    items(items, itemId = { it.id.hashCode().toLong() }) { MemoRow(it) }
+                    items(items, itemId = { it.key.hashCode().toLong() }) { NoteRow(it) }
                 }
             }
         }
     }
 }
 
-/** 새 메모 화면을 여는 인텐트(고유 data URI — 행 인텐트와 병합되지 않는다). */
+/** 새 소제목 화면을 여는 인텐트(고유 data URI — 행 인텐트와 병합되지 않는다). */
 private fun addIntent(context: Context): Intent =
-    Intent(context, MemoEditActivity::class.java).apply {
-        data = Uri.parse("pbmemo://add")
+    Intent(context, NoteEditActivity::class.java).apply {
+        data = Uri.parse("pbnote://add")
     }
 
 @Composable
-private fun MemosHeader(syncedAt: Long) {
+private fun NotesHeader(syncedAt: Long) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "메모",
+            "노트",
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
                 fontSize = 14.sp,
@@ -173,26 +170,28 @@ private fun MemosHeader(syncedAt: Long) {
 }
 
 @Composable
-private fun MemoRow(item: MemoItem) {
+private fun NoteRow(item: NoteItem) {
     // 항목마다 고유 data URI + extras(값 전달) — PendingIntent 병합 없이 정확히 연다.
-    val openIntent = Intent(LocalContext.current, MemoEditActivity::class.java).apply {
-        data = Uri.parse("pbmemo://open/${item.id}")
-        putExtra("memoId", item.id)
-        putExtra("memoTitle", item.title)
-        putExtra("memoBody", item.body)
-        putExtra("memoLocked", item.locked)
+    val openIntent = Intent(LocalContext.current, NoteEditActivity::class.java).apply {
+        data = Uri.parse("pbnote://open/${item.noteId}/${item.sectionId}")
+        putExtra("noteId", item.noteId)
+        putExtra("sectionId", item.sectionId)
+        putExtra("title", item.title)
+        putExtra("body", item.body)
+        putExtra("rich", item.rich)
+        putExtra("noteTitle", item.noteTitle)
     }
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 잠긴 메모 표시 — 자리를 늘 차지하게 둔다(행 구조가 상태에 따라 바뀌면
-        // 재활용 뷰의 클릭 바인딩이 낡는 런처가 있다 — v6 교훈).
+        // 이미지·표가 든 소제목 표시 — 자리를 늘 차지하게 둔다(행 구조가 상태에
+        // 따라 바뀌면 재활용 뷰의 클릭 바인딩이 낡는 런처가 있다 — v6 교훈).
         Text(
-            if (item.locked) "🔒" else "",
+            if (item.rich) "🖼" else "",
             style = TextStyle(color = AgendaTheme.textDim, fontSize = 12.sp),
         )
-        Spacer(GlanceModifier.width(if (item.locked) 6.dp else 0.dp))
+        Spacer(GlanceModifier.width(if (item.rich) 6.dp else 0.dp))
         Text(
             item.title,
             maxLines = 1,

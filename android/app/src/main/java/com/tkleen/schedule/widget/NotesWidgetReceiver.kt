@@ -7,12 +7,12 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import com.tkleen.schedule.sync.AgendaSyncWorker
 
 /**
- * 메모 위젯 리시버. 동기화는 아젠다·작업과 같은 워커를 공유한다.
+ * 노트 위젯 리시버. 동기화는 아젠다·작업과 같은 워커를 공유한다.
  * 취소는 세 위젯이 모두 사라졌을 때만(cancelIfNoWidgets) — 하나를 지웠다고
  * 나머지의 동기화가 끊기면 안 된다.
  */
-class MemosWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = MemosWidget()
+class NotesWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = NotesWidget()
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)

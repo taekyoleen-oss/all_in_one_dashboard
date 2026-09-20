@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 메모 위젯 메타. 갱신은 WorkManager(아젠다·작업과 공유) → updatePeriodMillis=0.
+<!-- 노트 위젯 메타. 갱신은 WorkManager(아젠다·작업과 공유) → updatePeriodMillis=0.
      configure=PairingActivity — 이미 연결돼 있으면 즉시 완료 처리된다. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
@@ -12,6 +12,6 @@
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"
     android:configure="com.tkleen.schedule.pairing.PairingActivity"
-    android:initialLayout="@layout/memos_widget_preview"
-    android:previewLayout="@layout/memos_widget_preview"
-    android:description="@string/memos_widget_description" />
+    android:initialLayout="@layout/notes_widget_preview"
+    android:previewLayout="@layout/notes_widget_preview"
+    android:description="@string/notes_widget_description" />

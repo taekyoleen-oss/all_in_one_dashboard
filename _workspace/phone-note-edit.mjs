@@ -1,10 +1,11 @@
-// 폰 역할 시뮬레이션 — 디바이스 토큰으로 /api/widget/memos를 호출해 메모를 고친다.
-// 사용: node _workspace/phone-memo-edit.mjs "<새 본문>" [baseUrl]
+// 폰 역할 시뮬레이션 — 디바이스 토큰으로 /api/widget/notes를 호출한다.
+// 사용: node _workspace/phone-note-edit.mjs <edit|add|delete> "<값>" [baseUrl]
 import { readFileSync } from "node:fs";
 import { createHash, randomInt } from "node:crypto";
 
-const NEW_TEXT = process.argv[2] ?? "폰에서 고친 내용";
-const BASE = process.argv[3] ?? "http://localhost:3000";
+const OP = process.argv[2] ?? "edit";
+const VALUE = process.argv[3] ?? "폰에서 고친 내용";
+const BASE = process.argv[4] ?? "http://localhost:3000";
 const env = Object.fromEntries(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8")
     .split(/\r?\n/).filter((l) => l.includes("=") && !l.startsWith("#"))
@@ -33,14 +34,25 @@ const pair = await (await fetch(`${BASE}/api/widget/pair`, {
 })).json();
 const T = { authorization: `Bearer ${pair.token}`, "content-type": "application/json" };
 
-const list = await (await fetch(`${BASE}/api/widget/memos`, { headers: T })).json();
-console.log("폰이 받은 목록:", list.items.map((m) => `${m.title}${m.locked ? " 🔒" : ""}`).join(" | ") || "(없음)");
-const target = list.items[0];
-if (!target) { console.log("메모 없음"); process.exit(1); }
+const list = await (await fetch(`${BASE}/api/widget/notes`, { headers: T })).json();
+console.log("폰이 받은 소제목:", list.items.map((m) => `${m.title}${m.rich ? " 🖼" : ""}`).join(" | ") || "(없음)");
 
-const res = await fetch(`${BASE}/api/widget/memos/${target.id}`, {
-  method: "POST", headers: T, body: JSON.stringify({ title: "폰에서 고친 제목", text: NEW_TEXT }),
-});
-console.log(`수정 ${res.status}:`, JSON.stringify(await res.json()));
+const first = list.items[0];
+if (OP === "add") {
+  const r = await fetch(`${BASE}/api/widget/notes`, {
+    method: "POST", headers: T, body: JSON.stringify({ title: VALUE, text: "폰에서 추가한 내용" }),
+  });
+  console.log(`추가 ${r.status}:`, JSON.stringify(await r.json()));
+} else if (OP === "delete") {
+  const r = await fetch(`${BASE}/api/widget/notes/${first.noteId}/${first.sectionId}`, {
+    method: "DELETE", headers: T,
+  });
+  console.log(`삭제 ${r.status}:`, JSON.stringify(await r.json()));
+} else {
+  const r = await fetch(`${BASE}/api/widget/notes/${first.noteId}/${first.sectionId}`, {
+    method: "POST", headers: T, body: JSON.stringify({ title: VALUE, text: "폰에서 고친 본문" }),
+  });
+  console.log(`수정 ${r.status}:`, JSON.stringify(await r.json()));
+}
 await rest(`pb_widget_devices?id=eq.${pair.deviceId}`, { method: "DELETE" });
 await rest(`pb_widget_pairing_codes?user_id=eq.${id}`, { method: "DELETE" });
