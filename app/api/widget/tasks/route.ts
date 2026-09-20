@@ -10,7 +10,7 @@
 import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireDevice } from "@/lib/api/widgetDevice";
-import { pickTasksInstance, sha256Hex } from "@/lib/api/widgetCore";
+import { pickMobileInstance, sha256Hex } from "@/lib/api/widgetCore";
 import type { WidgetTask } from "@/output/api-shapes";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ async function resolveInstance(admin: Admin, userId: string): Promise<string | n
     .eq("user_id", userId)
     .eq("type", "tasks");
   if (error) throw new Error(error.message);
-  return pickTasksInstance(data ?? []);
+  return pickMobileInstance(data ?? []);
 }
 
 export async function GET(request: NextRequest) {

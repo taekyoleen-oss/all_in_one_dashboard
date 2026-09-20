@@ -10,7 +10,7 @@ import {
   newDeviceToken,
   newPairingCode,
   nextKstMorningIso,
-  pickTasksInstance,
+  pickMobileInstance,
   rateLimited,
   sha256Hex,
 } from "./widgetCore.ts";
@@ -44,16 +44,16 @@ test("rateLimited: 한도 안 false, 초과 true, 창 밖 히트는 소멸", () 
   assert.equal(rateLimited("k", 3, 60_000, t0 + 61_000), false); // 창 밖 → 리셋
 });
 
-test("pickTasksInstance: mobileSync=true 중 mobileSyncAt 최신 1개, 없으면 null", () => {
+test("pickMobileInstance: mobileSync=true 중 mobileSyncAt 최신 1개, 없으면 null", () => {
   // 미지정·잘못된 config는 건너뛴다.
-  assert.equal(pickTasksInstance([]), null);
-  assert.equal(pickTasksInstance([{ id: "a", config: {} }, { id: "b", config: null }]), null);
-  assert.equal(pickTasksInstance([{ id: "a", config: { mobileSync: "true" } }]), null); // 문자열은 무효
+  assert.equal(pickMobileInstance([]), null);
+  assert.equal(pickMobileInstance([{ id: "a", config: {} }, { id: "b", config: null }]), null);
+  assert.equal(pickMobileInstance([{ id: "a", config: { mobileSync: "true" } }]), null); // 문자열은 무효
   // 단일 지정.
-  assert.equal(pickTasksInstance([{ id: "a", config: { mobileSync: true } }]), "a");
+  assert.equal(pickMobileInstance([{ id: "a", config: { mobileSync: true } }]), "a");
   // 여럿이면 마지막으로 켠(mobileSyncAt 큰) 쪽 — 켠 시각 없는 쪽(0 취급)보다 우선.
   assert.equal(
-    pickTasksInstance([
+    pickMobileInstance([
       { id: "old", config: { mobileSync: true, mobileSyncAt: 1_000 } },
       { id: "new", config: { mobileSync: true, mobileSyncAt: 2_000 } },
       { id: "noAt", config: { mobileSync: true } },

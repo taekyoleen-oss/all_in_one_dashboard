@@ -16,7 +16,7 @@
  */
 
 import * as React from "react";
-import { ChevronRight, Paperclip, Plus, Share2 } from "lucide-react";
+import { ChevronRight, Paperclip, Plus, Share2, Smartphone } from "lucide-react";
 import type { CompactViewProps } from "@/lib/widgets/contract";
 import {
   useCollapseNote,
@@ -183,6 +183,14 @@ export function NoteCompactView({
           <Share2
             size={12}
             aria-label="공유 받기 대상"
+            className="shrink-0 text-primary"
+          />
+        ) : null}
+        {/* 폰 홈 화면 노트 위젯이 보고 있는 노트 — 소제목이 그쪽 목록이 된다. */}
+        {config.mobileSync ? (
+          <Smartphone
+            size={12}
+            aria-label="모바일 홈 화면에 표시 중"
             className="shrink-0 text-primary"
           />
         ) : null}

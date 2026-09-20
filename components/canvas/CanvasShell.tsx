@@ -144,7 +144,7 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
     deleteInstance,
     moveInstanceToBoard,
     saveConfig,
-    setShareTargetNote,
+    setExclusiveNoteFlag,
     collapseNote,
     flushNow,
     compactActive,
@@ -475,7 +475,7 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
   return (
     <WidgetPersistenceProvider
       save={saveConfig}
-      setShareTargetNote={setShareTargetNote}
+      setExclusiveNoteFlag={setExclusiveNoteFlag}
       collapseNote={collapseNote}
     >
     <main className="min-h-dvh bg-background">

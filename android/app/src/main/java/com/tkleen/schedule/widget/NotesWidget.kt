@@ -45,12 +45,14 @@ import java.time.format.DateTimeFormatter
 /**
  * 노트 위젯 — 웹 '노트' 위젯의 **소제목을 제목 목록으로** 보여준다.
  *
- *  한 줄 = 노트 안의 소제목 하나다. 노트 하나가 소제목을 여러 개 담으므로 노트
- *  위젯 한 개만 있어도 목록이 된다. 제목을 누르면 내용 화면(NoteEditActivity)이
- *  열려 읽고 고치고 지울 수 있고, ＋는 대상 노트 맨 아래에 소제목을 하나 만든다.
+ *  한 줄 = 노트 안의 소제목 하나다. **웹에서 지정한 노트 위젯 하나**만 본다 —
+ *  노트 속성의 '모바일 홈 화면에 표시'를 켠 것(여럿이면 마지막에 켠 것)이 대상이고,
+ *  지정이 없으면 목록 대신 안내를 띄운다(작업 위젯과 같은 규칙).
+ *  제목을 누르면 내용 화면(NoteEditActivity)이 열려 읽고 고치고 지울 수 있고,
+ *  ＋는 그 노트 맨 아래에 소제목을 하나 만든다.
  *
- *  ⚠ 이미지·표가 있는 소제목은 자물쇠 대신 **✎ 없이** 표시하고(rich), 내용 화면이
- *    본문을 읽기 전용으로 연다 — 평문으로 덮어쓰면 이미지·표가 사라지기 때문이다.
+ *  ⚠ 이미지·표가 있는 소제목은 목록에 🖼로 표시하고(rich), 내용 화면이 본문을
+ *    읽기 전용으로 연다 — 평문으로 덮어쓰면 이미지·표가 사라지기 때문이다.
  *
  *  구현상의 함정은 작업 위젯에서 이미 다 밟았다 — 그대로 따른다:
  *   ① **refreshTick**: 살아 있는 Glance 세션은 updateAll만으로는 옛 값으로 다시
@@ -77,7 +79,7 @@ class NotesWidget : GlanceAppWidget() {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다.
             val s = remember(tick) { NotesUi(context) }
-            NotesRoot(s.paired, s.unauthorized, s.items, s.syncedAt)
+            NotesRoot(s.paired, s.unauthorized, s.linked, s.items, s.syncedAt)
         }
     }
 }
@@ -86,6 +88,7 @@ class NotesWidget : GlanceAppWidget() {
 private class NotesUi(context: Context) {
     val paired = WidgetStore.isPaired(context)
     val unauthorized = WidgetStore.unauthorized(context)
+    val linked = WidgetStore.notesLinked(context)
     val items = WidgetStore.noteItems(context)
     val syncedAt = WidgetStore.notesSyncedAt(context)
 }
@@ -94,6 +97,7 @@ private class NotesUi(context: Context) {
 private fun NotesRoot(
     paired: Boolean,
     unauthorized: Boolean,
+    linked: Boolean,
     items: List<NoteItem>,
     syncedAt: Long,
 ) {
@@ -107,6 +111,8 @@ private fun NotesRoot(
     ) {
         if (!paired || unauthorized) {
             PairingCta(revoked = unauthorized, subject = "노트")
+        } else if (!linked) {
+            NotLinked()
         } else {
             NotesHeader(syncedAt)
             Spacer(GlanceModifier.height(6.dp))
@@ -123,6 +129,30 @@ private fun NotesRoot(
                 }
             }
         }
+    }
+}
+
+/** 아직 어느 노트도 지정되지 않았을 때 — 무엇을 해야 하는지 그대로 알린다. */
+@Composable
+private fun NotLinked() {
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "연결된 노트가 없습니다",
+            style = TextStyle(
+                color = AgendaTheme.text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
+        Spacer(GlanceModifier.height(4.dp))
+        Text(
+            "웹 대시보드의 '노트' 위젯 속성에서\n'모바일 홈 화면에 표시'를 켜세요",
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = 13.sp),
+        )
     }
 }
 

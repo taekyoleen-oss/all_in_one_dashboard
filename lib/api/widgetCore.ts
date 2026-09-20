@@ -49,17 +49,18 @@ export function nextKstMorningIso(now: Date, hour = 9): string {
   return new Date(ms).toISOString();
 }
 
-/* ── 작업(tasks) 대상 인스턴스 해석 ─────────────────────────────────────────
- * '작업' 위젯 config의 mobileSync=true 인스턴스 중 mobileSyncAt(켠 시각)이 가장
- * 최신인 1개가 모바일 홈 화면에 표시된다. 교차 인스턴스 배선 없이 config 플래그만으로
- * 단일 지정을 해석한다(여럿 켜져 있으면 마지막으로 켠 위젯이 이긴다 — UI에 안내). */
-export interface TasksInstanceRow {
+/* ── 모바일 대상 인스턴스 해석 (작업·노트 공용) ─────────────────────────────
+ * 위젯 config의 mobileSync=true 인스턴스 중 mobileSyncAt(켠 시각)이 가장 최신인
+ * 1개가 모바일 홈 화면에 표시된다. 교차 인스턴스 배선 없이 config 플래그만으로
+ * 단일 지정을 해석한다(여럿 켜져 있으면 마지막으로 켠 위젯이 이긴다 — UI에 안내).
+ * 작업(pb_tasks 행)과 노트(config.sections) 둘 다 이 규칙을 쓴다. */
+export interface MobileInstanceRow {
   id: string;
   config: unknown;
 }
 
 /** mobileSync 켜진 인스턴스 중 최신(mobileSyncAt) 1개의 id — 없으면 null. */
-export function pickTasksInstance(rows: TasksInstanceRow[]): string | null {
+export function pickMobileInstance(rows: MobileInstanceRow[]): string | null {
   let bestId: string | null = null;
   let bestAt = -1;
   for (const row of rows) {

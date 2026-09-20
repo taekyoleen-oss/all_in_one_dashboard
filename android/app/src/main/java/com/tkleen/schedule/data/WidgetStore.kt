@@ -39,6 +39,7 @@ object WidgetStore {
     private const val K_NOTES = "notes_json"
     private const val K_NOTES_ETAG = "notes_etag"
     private const val K_NOTES_SYNCED_AT = "notes_synced_at"
+    private const val K_NOTES_LINKED = "notes_linked"
     private const val K_TASKS_FILTER = "tasks_filter"
     private const val K_TASKS_FILTER_AT = "tasks_filter_at"
 
@@ -179,13 +180,24 @@ object WidgetStore {
 
     /* ── 노트(notes) 캐시 ─────────────────────────────────────────────── */
 
-    fun putNotes(context: Context, itemsJson: String, etag: String?, syncedAt: Long) {
+    fun putNotes(
+        context: Context,
+        itemsJson: String,
+        etag: String?,
+        linked: Boolean,
+        syncedAt: Long,
+    ) {
         prefs(context).edit()
             .putString(K_NOTES, itemsJson)
             .putString(K_NOTES_ETAG, etag)
+            .putBoolean(K_NOTES_LINKED, linked)
             .putLong(K_NOTES_SYNCED_AT, syncedAt)
             .apply()
     }
+
+    /** 웹에서 '모바일 홈 화면에 표시'를 켠 노트가 있는지(없으면 안내 표시). */
+    fun notesLinked(context: Context): Boolean =
+        prefs(context).getBoolean(K_NOTES_LINKED, false)
 
     fun touchNotesSynced(context: Context, syncedAt: Long) {
         prefs(context).edit().putLong(K_NOTES_SYNCED_AT, syncedAt).apply()

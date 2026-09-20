@@ -70,7 +70,7 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
         // 노트(notes) 소제목도 같은 주기로 — 실패는 캐시 유지(다음 주기 재시도).
         when (val n = WidgetApi.fetchNotes(token, WidgetStore.notesEtag(ctx))) {
             is WidgetApi.NotesResult.Ok ->
-                WidgetStore.putNotes(ctx, n.itemsJson, n.etag, System.currentTimeMillis())
+                WidgetStore.putNotes(ctx, n.itemsJson, n.etag, n.linked, System.currentTimeMillis())
             WidgetApi.NotesResult.NotModified ->
                 WidgetStore.touchNotesSynced(ctx, System.currentTimeMillis())
             WidgetApi.NotesResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)

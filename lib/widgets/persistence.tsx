@@ -7,21 +7,27 @@
  * `useSaveWidgetConfig()`. saveConfig REPLACES the whole config, so callers pass
  * the full merged object (e.g. `{ ...config, text }`).
  *
- * It ALSO exposes `setShareTargetNote(instanceId, on)` — a CROSS-instance action
- * (note's "공유 받기"): enabling it on one note clears the flag on every other
- * note across all boards, so exactly one note is the mobile-share destination.
+ * It ALSO exposes `setExclusiveNoteFlag(instanceId, flag, on)` — a CROSS-instance
+ * action for the note flags that mean "고른 하나": '공유 받기'(shareTarget)와
+ * '모바일 홈 화면에 표시'(mobileSync). 켜면 다른 모든 노트에서 그 플래그가 꺼져
+ * 항상 정확히 하나만 지정된다.
  */
 
 import * as React from "react";
 import type { NoteCollapseLevel } from "@/components/widgets/note/collapseLayout";
 
 type SaveConfigFn = (instanceId: string, nextConfig: unknown) => void;
-type SetShareTargetFn = (instanceId: string, on: boolean) => void;
+export type ExclusiveNoteFlag = "shareTarget" | "mobileSync";
+type SetExclusiveNoteFlagFn = (
+  instanceId: string,
+  flag: ExclusiveNoteFlag,
+  on: boolean,
+) => void;
 type CollapseNoteFn = (instanceId: string, level: NoteCollapseLevel) => void;
 
 interface WidgetPersistenceValue {
   save: SaveConfigFn;
-  setShareTargetNote: SetShareTargetFn;
+  setExclusiveNoteFlag: SetExclusiveNoteFlagFn;
   collapseNote: CollapseNoteFn;
 }
 
@@ -30,18 +36,18 @@ const WidgetPersistenceContext =
 
 export function WidgetPersistenceProvider({
   save,
-  setShareTargetNote,
+  setExclusiveNoteFlag,
   collapseNote,
   children,
 }: {
   save: SaveConfigFn;
-  setShareTargetNote: SetShareTargetFn;
+  setExclusiveNoteFlag: SetExclusiveNoteFlagFn;
   collapseNote: CollapseNoteFn;
   children: React.ReactNode;
 }) {
   const value = React.useMemo<WidgetPersistenceValue>(
-    () => ({ save, setShareTargetNote, collapseNote }),
-    [save, setShareTargetNote, collapseNote],
+    () => ({ save, setExclusiveNoteFlag, collapseNote }),
+    [save, setExclusiveNoteFlag, collapseNote],
   );
   return (
     <WidgetPersistenceContext.Provider value={value}>
@@ -55,11 +61,14 @@ export function useSaveWidgetConfig(): SaveConfigFn {
   return React.useContext(WidgetPersistenceContext)?.save ?? noopSave;
 }
 
-/** Cross-instance: designate the single "공유 받기" note (clears all others). */
-export function useSetShareTargetNote(): SetShareTargetFn {
+/**
+ * Cross-instance: 노트 단일 지정 플래그를 켠다/끈다(나머지 노트는 전부 꺼진다).
+ * '공유 받기'와 '모바일 홈 화면에 표시' 둘 다 이걸 쓴다.
+ */
+export function useSetExclusiveNoteFlag(): SetExclusiveNoteFlagFn {
   return (
-    React.useContext(WidgetPersistenceContext)?.setShareTargetNote ??
-    noopShareTarget
+    React.useContext(WidgetPersistenceContext)?.setExclusiveNoteFlag ??
+    noopExclusiveNoteFlag
   );
 }
 
@@ -97,7 +106,7 @@ export function useCollapseNote(): CollapseNoteFn {
 }
 
 const noopSave: SaveConfigFn = () => {};
-const noopShareTarget: SetShareTargetFn = () => {};
+const noopExclusiveNoteFlag: SetExclusiveNoteFlagFn = () => {};
 const noopCollapse: CollapseNoteFn = () => {};
 
 /* ---------------------- widget focus (전체보기 열기/닫기) ---------------------- */

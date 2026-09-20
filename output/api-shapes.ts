@@ -842,8 +842,13 @@ export const WidgetNoteItemSchema = z.object({
 });
 export type WidgetNoteItem = z.infer<typeof WidgetNoteItemSchema>;
 
-/** GET /api/widget/notes 응답 — 노트 최근 수정 순, 노트 안에서는 소제목 순서대로. */
+/**
+ * GET /api/widget/notes 응답 — **지정된 노트 위젯 1개**의 소제목들(표시 순서대로).
+ * instanceId=null이면 아직 '모바일 홈 화면에 표시'를 켠 노트가 없다는 뜻이다
+ * (폰이 안내를 띄운다 — 작업 위젯과 같은 계약).
+ */
 export const WidgetNotesSchema = z.object({
+  instanceId: z.string().nullable(),
   items: z.array(WidgetNoteItemSchema),
 });
 export type WidgetNotes = z.infer<typeof WidgetNotesSchema>;

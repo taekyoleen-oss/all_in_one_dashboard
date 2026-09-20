@@ -170,15 +170,16 @@ object WidgetApi {
     /* ── 노트(notes) ───────────────────────────────────────────────────── */
 
     sealed class NotesResult {
-        data class Ok(val itemsJson: String, val etag: String?) : NotesResult()
+        data class Ok(val itemsJson: String, val etag: String?, val linked: Boolean) : NotesResult()
         object NotModified : NotesResult()
         object Unauthorized : NotesResult()
         data class Error(val message: String) : NotesResult()
     }
 
     /**
-     * 웹 '노트' 위젯들 안의 **소제목 전부**(노트 최근 수정 순). 한 줄 = 소제목
-     * 하나이므로 노트 위젯 한 개만 있어도 목록이 된다.
+     * **지정된 노트 위젯 하나**의 소제목 전부(표시 순서대로). 한 줄 = 소제목 하나다.
+     * linked=false면 웹에서 아직 '모바일 홈 화면에 표시'를 켜지 않은 상태 —
+     * 위젯이 안내를 띄운다(작업 위젯과 같은 계약).
      */
     fun fetchNotes(token: String, etag: String?): NotesResult {
         return try {
@@ -191,6 +192,7 @@ object WidgetApi {
                     NotesResult.Ok(
                         itemsJson = body.getJSONArray("items").toString(),
                         etag = conn.getHeaderField("ETag"),
+                        linked = !body.isNull("instanceId"),
                     )
                 }
                 304 -> NotesResult.NotModified

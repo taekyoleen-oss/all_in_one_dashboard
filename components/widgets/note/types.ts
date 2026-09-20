@@ -55,6 +55,15 @@ export interface NoteConfig {
   /** Last edit time (epoch ms), for a "수정: …" line. Optional. */
   updatedAt?: number;
   /**
+   * "모바일 홈 화면에 표시": 켜면 이 노트의 **소제목**이 안드로이드 홈 화면 '노트'
+   * 위젯에 목록으로 나오고, 폰에서 조회·추가·삭제한 것이 이 노트에 반영된다.
+   * 여러 노트에서 켜면 **마지막에 켠 노트**가 대상이다(mobileSyncAt 비교 —
+   * 작업 위젯과 같은 규칙, lib/api/widgetCore.pickMobileInstance).
+   */
+  mobileSync?: boolean;
+  /** '모바일 홈 화면에 표시'를 켠 시각(epoch ms) — 여럿일 때 최신이 이긴다. */
+  mobileSyncAt?: number;
+  /**
    * "공유 받기": when true, this note is the single destination that mobile
    * Web-Share-Target content (/share) appends to. Exactly one note carries this
    * across all boards — enabling it on one note clears it on every other (see

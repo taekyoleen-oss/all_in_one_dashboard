@@ -90,7 +90,18 @@ export interface UsePersistenceResult {
    * flag on `instanceId` and clears it on every other note; on=false just clears
    * `instanceId`. Marks each changed note dirty (debounced flush persists).
    */
-  setShareTargetNote: (instanceId: string, on: boolean) => void;
+  /**
+   * 노트 **단일 지정 플래그**를 켠다/끈다 — 켜면 다른 모든 노트에서 같은 플래그를
+   * 끈다(보드 전체). 두 가지가 이 규칙을 쓴다:
+   *  · shareTarget — 모바일 공유(/share)가 저장할 노트
+   *  · mobileSync  — 폰 홈 화면 '노트' 위젯이 볼 노트
+   * 둘 다 '하나만 고른다'는 뜻이라 같은 배타 로직을 공유한다.
+   */
+  setExclusiveNoteFlag: (
+    instanceId: string,
+    flag: "shareTarget" | "mobileSync",
+    on: boolean,
+  ) => void;
   /**
    * 노트 타일 표시/접기(본문 상단 토글 — 펼침/소제목/제목만). 'more'(소제목)는
    * 목차 fit 높이로, 'title'(제목만)은 한 줄 높이로 축소하고 'normal'(펼침)은
@@ -659,22 +670,33 @@ export function usePersistence(
     [activeId, markWidget],
   );
 
-  const setShareTargetNote = React.useCallback(
-    (instanceId: string, on: boolean) => {
+  const setExclusiveNoteFlag = React.useCallback(
+    (instanceId: string, flag: "shareTarget" | "mobileSync", on: boolean) => {
       const changed: string[] = [];
       setBoards((prev) =>
         prev.map((b) => ({
           ...b,
           instances: b.instances.map((i) => {
             if (i.type !== "note") return i;
-            const cfg = (i.config ?? {}) as { shareTarget?: boolean };
-            const cur = Boolean(cfg.shareTarget);
-            // on=true → exactly this note true, every other note false.
-            // on=false → only this note false; others untouched.
+            const cfg = (i.config ?? {}) as {
+              shareTarget?: boolean;
+              mobileSync?: boolean;
+              mobileSyncAt?: number;
+            };
+            const cur = Boolean(cfg[flag]);
+            // on=true → 이 노트만 true, 나머지 노트는 전부 false.
+            // on=false → 이 노트만 false, 나머지는 건드리지 않는다.
             const next = on ? i.instanceId === instanceId : cur && i.instanceId !== instanceId;
             if (cur === next) return i;
             changed.push(i.instanceId);
-            return { ...i, config: { ...cfg, shareTarget: next } };
+            const nextCfg: Record<string, unknown> = { ...cfg, [flag]: next };
+            // mobileSync는 켠 시각도 남긴다 — 배타 갱신이 어긋나는 경우(다기기
+            // 동시 조작)에도 서버가 마지막에 켠 쪽을 고를 수 있게 하는 안전망.
+            if (flag === "mobileSync") {
+              if (next) nextCfg.mobileSyncAt = Date.now();
+              else delete nextCfg.mobileSyncAt;
+            }
+            return { ...i, config: nextCfg };
           }),
         })),
       );
@@ -890,7 +912,7 @@ export function usePersistence(
     deleteInstance,
     moveInstanceToBoard,
     saveConfig,
-    setShareTargetNote,
+    setExclusiveNoteFlag,
     collapseNote,
     flushNow,
     compactActive,

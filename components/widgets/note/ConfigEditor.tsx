@@ -9,9 +9,9 @@
  */
 
 import * as React from "react";
-import { Trash2, Share2 } from "lucide-react";
+import { Trash2, Share2, Smartphone } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
-import { useSetShareTargetNote } from "@/lib/widgets/persistence";
+import { useSetExclusiveNoteFlag } from "@/lib/widgets/persistence";
 import type { NoteConfig } from "./types";
 
 export function NoteConfigEditor({
@@ -20,19 +20,76 @@ export function NoteConfigEditor({
   instanceId,
 }: ConfigEditorProps<NoteConfig>) {
   const [confirming, setConfirming] = React.useState(false);
-  const setShareTargetNote = useSetShareTargetNote();
+  const setNoteFlag = useSetExclusiveNoteFlag();
   const shareOn = Boolean(config.shareTarget);
+  const mobileOn = Boolean(config.mobileSync);
+
+  // 폰 노트 위젯이 볼 노트 **선택**. 켜면 다른 노트의 지정은 자동으로 풀린다
+  // (공유 받기와 같은 배타 규칙) — 항상 정확히 한 노트만 폰과 연결된다.
+  // 즉시 영속이라 '저장' 없이 닫아도 유지된다.
+  const toggleMobile = () => {
+    const next = !mobileOn;
+    onChange({
+      ...config,
+      mobileSync: next,
+      ...(next ? { mobileSyncAt: Date.now() } : { mobileSyncAt: undefined }),
+    });
+    if (instanceId) setNoteFlag(instanceId, "mobileSync", next);
+  };
 
   const toggleShare = () => {
     const next = !shareOn;
     // Keep the dialog draft consistent (저장 preserves it) AND apply the
     // cross-instance designation immediately (clears every other note).
     onChange({ ...config, shareTarget: next });
-    if (instanceId) setShareTargetNote(instanceId, next);
+    if (instanceId) setNoteFlag(instanceId, "shareTarget", next);
   };
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 폰 홈 화면 노트 위젯이 볼 노트 지정 — 이 노트의 소제목이 그쪽 목록이 된다 */}
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={mobileOn}
+          onClick={toggleMobile}
+          className="flex items-center justify-between gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="flex items-center gap-2">
+            <Smartphone size={15} aria-hidden className="shrink-0 text-primary" />
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">
+                모바일 홈 화면에 표시
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                이 노트의 <b>소제목</b>이 안드로이드 홈 화면 &lsquo;노트&rsquo; 위젯에
+                목록으로 나오고, 폰에서 열람·추가·삭제한 것이 이 노트에 반영됩니다.
+              </span>
+            </span>
+          </span>
+          <span
+            aria-hidden
+            className={[
+              "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+              mobileOn ? "bg-primary" : "bg-muted",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "inline-block size-4 rounded-full bg-background shadow transition-transform",
+                mobileOn ? "translate-x-4" : "translate-x-0.5",
+              ].join(" ")}
+            />
+          </span>
+        </button>
+        <p className="text-[11px] text-muted-foreground">
+          폰과 연결되는 노트는 <b>하나</b>입니다 — 다른 노트에서 켜면 대상이 그쪽으로
+          옮겨갑니다. 폰에서는 이미지·표가 든 소제목의 본문을 고칠 수 없습니다
+          (이름 변경·삭제는 됩니다).
+        </p>
+      </div>
+
       {/* 모바일 공유 받기 — 이 노트를 단일 공유 저장 대상으로 지정 */}
       <div className="flex flex-col gap-2 rounded-md border border-border p-3">
         <button

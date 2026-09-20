@@ -1,6 +1,10 @@
 /**
  * /api/widget/notes/[id]/[sectionId] — 소제목 1건 수정·삭제(Bearer 디바이스 토큰).
  *
+ *  대상은 **지정된 노트 위젯 하나**로 한정한다 — 웹에서 지정을 다른 노트로 옮기면
+ *  폰의 옛 캐시로 들어온 수정·삭제는 409로 막힌다(다음 동기화에서 목록이 새 노트
+ *  것으로 갈린다). 엉뚱한 노트를 고치는 사고보다 한 번 튕기는 편이 낫다.
+ *
  *  PATCH  : { title?, text? } — 있는 필드만. POST는 별칭(안드로이드
  *           HttpURLConnection이 PATCH를 못 보내는 자바 한계 우회).
  *  DELETE : 그 소제목만 제거. 노트 위젯 자체는 남는다 — 메모 모델과 달리
@@ -15,6 +19,7 @@
 import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireDevice } from "@/lib/api/widgetDevice";
+import { resolveNoteTarget } from "@/lib/api/widgetNoteTarget";
 import {
   deleteSection,
   hasRichBlocks,
@@ -29,21 +34,30 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
-/** 그 사용자의 노트 위젯 1행. 없으면 null(타인 id·다른 타입 포함). */
-async function loadNote(
+/**
+ * 요청한 노트가 **지금 모바일에 지정된 그 노트**인지 확인하고 config를 준다.
+ * 지정이 없거나 다른 노트를 가리키면 null → 호출부가 409로 막는다.
+ */
+async function loadTargetNote(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   id: string,
 ): Promise<{ config: NoteConfigRow } | null> {
-  const { data, error } = await admin
-    .from("pb_widgets")
-    .select("id, config")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .eq("type", "note");
-  if (error || !data?.length) return null;
-  return { config: (data[0].config ?? {}) as NoteConfigRow };
+  const target = await resolveNoteTarget(admin, userId).catch(() => null);
+  if (!target || target.id !== id) return null;
+  return { config: target.config };
 }
+
+/** 지정이 어긋났을 때의 응답(폰이 그대로 보여 준다). */
+const notTargeted = () =>
+  Response.json(
+    {
+      error: "no_target",
+      message:
+        "이 노트는 모바일 대상이 아닙니다. 웹에서 '모바일 홈 화면에 표시'를 확인해 주세요.",
+    },
+    { status: 409, headers: NO_STORE },
+  );
 
 export async function PATCH(
   request: NextRequest,
@@ -90,13 +104,8 @@ export async function PATCH(
 
   const { id, sectionId } = await ctx.params;
   const admin = createAdminClient();
-  const note = await loadNote(admin, device.userId, id);
-  if (!note) {
-    return Response.json(
-      { error: "not_found", message: "노트를 찾을 수 없습니다." },
-      { status: 404, headers: NO_STORE },
-    );
-  }
+  const note = await loadTargetNote(admin, device.userId, id);
+  if (!note) return notTargeted();
 
   const current = sectionsOf(note.config).find((s) => s.id === sectionId);
   if (!current) {
@@ -160,13 +169,8 @@ export async function DELETE(
 
   const { id, sectionId } = await ctx.params;
   const admin = createAdminClient();
-  const note = await loadNote(admin, device.userId, id);
-  if (!note) {
-    return Response.json(
-      { error: "not_found", message: "노트를 찾을 수 없습니다." },
-      { status: 404, headers: NO_STORE },
-    );
-  }
+  const note = await loadTargetNote(admin, device.userId, id);
+  if (!note) return notTargeted();
 
   const next = deleteSection(note.config, sectionId);
   if (!next) {

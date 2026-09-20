@@ -12,12 +12,13 @@
  */
 
 import * as React from "react";
-import { ArrowLeft, PanelTopClose } from "lucide-react";
+import { ArrowLeft, PanelTopClose, Smartphone } from "lucide-react";
 import type { ExpandedViewProps } from "@/lib/widgets/contract";
 import {
   useSaveWidgetConfig,
   useCollapseNote,
   useCloseWidgetFocus,
+  useSetExclusiveNoteFlag,
 } from "@/lib/widgets/persistence";
 import { NoteEditor } from "./NoteEditor";
 import {
@@ -30,6 +31,7 @@ export function NoteExpandedView({ config, instanceId }: ExpandedViewProps<NoteC
   const save = useSaveWidgetConfig();
   const collapseNote = useCollapseNote();
   const closeFocus = useCloseWidgetFocus();
+  const setNoteFlag = useSetExclusiveNoteFlag();
   const configRef = React.useRef(config);
   // 최신 config 미러 — 렌더 중 ref 쓰기 대신 커밋 후 동기화(react-hooks/refs).
   React.useEffect(() => {
@@ -49,6 +51,17 @@ export function NoteExpandedView({ config, instanceId }: ExpandedViewProps<NoteC
     sectionId && (config.sections ?? []).some((s) => s.id === sectionId)
       ? sectionId
       : null;
+
+  /**
+   * 폰 홈 화면 '노트' 위젯이 볼 노트로 이 노트를 지정/해제.
+   *
+   * 속성(스타일 편집)에도 같은 토글이 있지만, 노트는 ⋮ '편집'이 이 화면을 열기
+   * 때문에 **실제로 편집하는 자리**에도 둔다 — 지정 스위치가 '스타일 편집' 뒤에만
+   * 있으면 찾기 어렵다. 둘 다 같은 배타 지정을 호출하므로 항상 일치하고,
+   * 켜는 순간 다른 노트의 지정은 풀린다(폰과 연결되는 노트는 하나).
+   */
+  const mobileOn = Boolean(config.mobileSync);
+  const toggleMobile = () => setNoteFlag(instanceId, "mobileSync", !mobileOn);
 
   // '제목만 접기' — 타일을 제목 한 줄로 접고 이 전체보기도 닫는다(한 번에 복귀).
   const collapseToTitle = () => {
@@ -94,6 +107,26 @@ export function NoteExpandedView({ config, instanceId }: ExpandedViewProps<NoteC
           data-pb-no-drag=""
           className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-lg font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
+        {/* 폰 연결 지정 — 켜면 이 노트의 소제목이 휴대폰 홈 화면 목록이 된다. */}
+        <button
+          type="button"
+          onClick={toggleMobile}
+          aria-pressed={mobileOn}
+          title={
+            mobileOn
+              ? "휴대폰 홈 화면 ‘노트’ 위젯이 이 노트를 보고 있습니다. 누르면 연결을 해제합니다."
+              : "이 노트를 휴대폰 홈 화면 ‘노트’ 위젯에 연결합니다 — 소제목이 그쪽 목록이 됩니다."
+          }
+          className={[
+            "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            mobileOn
+              ? "border-primary/50 bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+          ].join(" ")}
+        >
+          <Smartphone size={14} aria-hidden />
+          {mobileOn ? "폰에 연결됨" : "폰에 연결"}
+        </button>
         {/* 제목만 접기: 타일을 제목 한 줄로 접고 전체보기를 닫는다(요구: 전체보기
             에서 바로 제목만). 다시 열 땐 타일의 제목을 클릭. */}
         <button
