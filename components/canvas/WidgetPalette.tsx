@@ -238,12 +238,18 @@ export function WidgetPalette({
     [],
   );
 
-  // Re-clamp the panel into view on viewport resize (so it never strands offscreen).
-  React.useEffect(() => {
+  // Clamp the panel into view WHENEVER it opens (mount or reopen) and on viewport
+  // resize. Resizes while the panel is CLOSED never fire this listener, so a
+  // position saved on a wider window (big monitor, maximized, less zoom) would
+  // otherwise reopen off-screen: the reopen button vanishes and nothing appears
+  // (사용자 신고 재현 — x=2300 on a 1400px viewport). Layout effect = fixed
+  // before paint, so the panel never flashes at the stale spot.
+  React.useLayoutEffect(() => {
     if (collapsed) return;
     function onResize() {
       setPosition((prev) => clampPosition(prev, panelRef.current));
     }
+    onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [collapsed, setPosition]);
@@ -296,6 +302,10 @@ export function WidgetPalette({
             </span>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {/* 한 번 클릭으로는 추가되지 않는다(실수 방지) — 방법을 툴팁에만 두면 모른다. */}
+            <p className="mb-1.5 px-0.5 text-[11px] text-muted-foreground">
+              더블클릭하거나 캔버스로 끌어다 놓아 추가
+            </p>
             <PaletteList registry={registry} onAdd={onAdd} mode="doubleClick" />
           </div>
         </aside>

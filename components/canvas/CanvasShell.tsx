@@ -242,6 +242,17 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
       });
       if (!created) return;
       addInstance(created.instance, created.layoutItem);
+      // 탭/더블클릭 추가는 보드 맨 아래에 붙는다 — 화면 밖이면 추가된 줄 모르고
+      // "작동하지 않는다"로 보인다(사용자 신고). 새 타일로 스크롤해 보여 준다.
+      // rAF 두 번 = 커밋·레이아웃 이후(타일 DOM이 생긴 뒤).
+      const id = created.instance.instanceId;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          document
+            .querySelector(`[data-pb-instance="${id}"]`)
+            ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+        ),
+      );
     },
     [active.layout, addInstance],
   );
