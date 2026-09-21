@@ -16,4 +16,5 @@
     <string name="notes_add_title">노트 소제목</string>
     <string name="notes_preview_line1">1주차 강의 정리</string>
     <string name="notes_preview_line2">장보기 목록</string>
+    <string name="widget_style_title">위젯 표시 설정</string>
 </resources>

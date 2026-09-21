@@ -19,6 +19,7 @@ import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.pairing.PairingActivity
 import com.tkleen.schedule.sync.AgendaSyncWorker
 import com.tkleen.schedule.widget.TasksWidget
+import com.tkleen.schedule.widget.itemColorRow
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import java.time.LocalDate
@@ -182,6 +183,9 @@ class TaskEditActivity : Activity() {
                 if (isEdit) {
                     addView(space(pad / 2))
                     addView(statusGroup)
+                    // 이 작업의 글자색(요구) — 폰 위젯 표시용, 고르는 즉시 반영된다.
+                    addView(space(pad / 2))
+                    addView(itemColorRow(this@TaskEditActivity, "tasks", editId!!), wideParams())
                 }
                 addView(space(pad / 2))
                 // 저장 | 취소 나란히(요구), 삭제는 아래(수정 모드만).
@@ -213,6 +217,11 @@ class TaskEditActivity : Activity() {
         // finish() 직전이라 launch는 취소될 수 있다 — 갱신을 끝내고 넘어간다.
         runBlocking { TasksWidget.refresh(applicationContext) }
     }
+
+    private fun wideParams() = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+    )
 
     private fun dateButtonLabel(): String = dueOn?.let { "일자: $it" } ?: "일자 선택 (선택)"
 

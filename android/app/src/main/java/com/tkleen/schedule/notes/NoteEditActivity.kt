@@ -17,6 +17,7 @@ import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.pairing.PairingActivity
 import com.tkleen.schedule.sync.AgendaSyncWorker
 import com.tkleen.schedule.widget.NotesWidget
+import com.tkleen.schedule.widget.itemColorRow
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -196,6 +197,14 @@ class NoteEditActivity : Activity() {
                     bodyInput,
                     LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f),
                 )
+                if (isEdit) {
+                    // 이 소제목의 글자색(요구) — 폰 위젯 표시용, 고르는 즉시 반영된다.
+                    addView(space(pad / 2))
+                    addView(
+                        itemColorRow(this@NoteEditActivity, "notes", "$noteId:$sectionId"),
+                        wide(),
+                    )
+                }
                 addView(space(pad / 2))
                 addView(
                     LinearLayout(this@NoteEditActivity).apply {

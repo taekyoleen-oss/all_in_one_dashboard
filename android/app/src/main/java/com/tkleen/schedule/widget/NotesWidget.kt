@@ -79,7 +79,7 @@ class NotesWidget : GlanceAppWidget() {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다.
             val s = remember(tick) { NotesUi(context) }
-            NotesRoot(s.paired, s.unauthorized, s.linked, s.items, s.syncedAt)
+            NotesRoot(s)
         }
     }
 }
@@ -91,42 +91,52 @@ private class NotesUi(context: Context) {
     val linked = WidgetStore.notesLinked(context)
     val items = WidgetStore.noteItems(context)
     val syncedAt = WidgetStore.notesSyncedAt(context)
+    /** 표시 설정(이 폰 전용) — 글자 크기·배경색·소제목별 글자색. */
+    val textLevel = WidgetStore.textLevel(context, KIND)
+    val bgIndex = WidgetStore.bgIndex(context, KIND)
+    val colors = WidgetStore.itemColors(context, KIND)
 }
 
+/** 표시 설정 저장 키의 위젯 종류. */
+private const val KIND = "notes"
+
 @Composable
-private fun NotesRoot(
-    paired: Boolean,
-    unauthorized: Boolean,
-    linked: Boolean,
-    items: List<NoteItem>,
-    syncedAt: Long,
-) {
+private fun NotesRoot(s: NotesUi) {
+    val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
-            .background(AgendaTheme.bgNote) // 작업 위젯과 구분되는 옅은 회색(요구)
+            // 폰에서 고른 배경색(요구). 기본은 작업 위젯과 구분되는 옅은 회색.
+            .background(WidgetStyle.background(s.bgIndex, AgendaTheme.bgNote))
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {
-        if (!paired || unauthorized) {
-            PairingCta(revoked = unauthorized, subject = "노트")
+        if (!s.paired || s.unauthorized) {
+            PairingCta(revoked = s.unauthorized, subject = "노트")
         } else {
             // 헤더는 연결 전에도 그린다 — 갱신 시각은 늘 우측 상단에 있어야 한다.
-            NotesHeader(syncedAt, showAdd = linked)
+            NotesHeader(s.syncedAt, showAdd = s.linked)
             Spacer(GlanceModifier.height(6.dp))
-            if (!linked) {
+            if (!s.linked) {
                 NotLinked()
-            } else if (items.isEmpty()) {
+            } else if (s.items.isEmpty()) {
                 Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "소제목이 없습니다 — ＋ 소제목으로 추가하세요",
-                        style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
+                        style = TextStyle(color = AgendaTheme.textDim, fontSize = bodySp),
                     )
                 }
             } else {
                 LazyColumn(GlanceModifier.fillMaxSize()) {
-                    items(items, itemId = { it.key.hashCode().toLong() }) { NoteRow(it) }
+                    // itemId에 글자색을 함께 넣는다 — 색이 바뀌면 다른 항목으로 취급되어
+                    // 완전 재바인딩(재활용 뷰의 낡은 클릭 바인딩 차단, v6 교훈).
+                    items(
+                        s.items,
+                        itemId = { (it.key.hashCode().toLong() shl 3) or (s.colors[it.key] ?: 0).toLong() },
+                    ) {
+                        NoteRow(it, s.textLevel, s.colors[it.key] ?: 0)
+                    }
                 }
             }
         }
@@ -172,8 +182,13 @@ private fun addIntent(context: Context): Intent =
 @Composable
 private fun NotesHeader(syncedAt: Long, showAdd: Boolean) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // 제목 탭 = 표시 설정(글자 크기·배경색) — 헤더에 버튼을 더 늘리지 않으려고
+        // 제목에 ⚙ 글리프만 붙였다.
         Text(
-            "노트",
+            "노트 ⚙",
+            modifier = GlanceModifier
+                .clickable(actionStartActivity(styleIntent(LocalContext.current, "notes")))
+                .padding(end = 2.dp, top = 4.dp, bottom = 4.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
                 fontSize = 14.sp,
@@ -223,7 +238,7 @@ private fun syncIntent(context: Context): Intent =
     }
 
 @Composable
-private fun NoteRow(item: NoteItem) {
+private fun NoteRow(item: NoteItem, textLevel: Int, colorIndex: Int) {
     // 항목마다 고유 data URI + extras(값 전달) — PendingIntent 병합 없이 정확히 연다.
     val openIntent = Intent(LocalContext.current, NoteEditActivity::class.java).apply {
         data = Uri.parse("pbnote://open/${item.noteId}/${item.sectionId}")
@@ -242,7 +257,7 @@ private fun NoteRow(item: NoteItem) {
         // 따라 바뀌면 재활용 뷰의 클릭 바인딩이 낡는 런처가 있다 — v6 교훈).
         Text(
             if (item.rich) "🖼" else "",
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 12.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = WidgetStyle.scaled(textLevel, 12f).sp),
         )
         Spacer(GlanceModifier.width(if (item.rich) 6.dp else 0.dp))
         Text(
@@ -253,14 +268,17 @@ private fun NoteRow(item: NoteItem) {
                 .defaultWeight()
                 .clickable(actionStartActivity(openIntent))
                 .padding(vertical = 4.dp),
-            style = TextStyle(color = AgendaTheme.text, fontSize = 15.sp),
+            style = TextStyle(
+                color = WidgetStyle.itemColor(colorIndex, AgendaTheme.text),
+                fontSize = WidgetStyle.bodySp(textLevel).sp,
+            ),
         )
         Text(
             "›",
             modifier = GlanceModifier
                 .clickable(actionStartActivity(openIntent))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 16.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = WidgetStyle.scaled(textLevel, 16f).sp),
         )
     }
 }

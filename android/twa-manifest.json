@@ -20,8 +20,8 @@
     "path": "./android.keystore",
     "alias": "android"
   },
-  "appVersion": "21",
-  "appVersionCode": 21,
+  "appVersion": "22",
+  "appVersionCode": 22,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://all-in-one-dashboard-eight.vercel.app/manifest.webmanifest",

@@ -78,7 +78,7 @@ class TasksWidget : GlanceAppWidget() {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다(위 주석).
             val s = remember(tick) { TasksUi(context) }
-            TasksRoot(s.paired, s.unauthorized, s.linked, s.items, s.syncedAt, s.filter, s.deleteMarks)
+            TasksRoot(s)
         }
     }
 }
@@ -92,57 +92,70 @@ private class TasksUi(context: Context) {
     val syncedAt = WidgetStore.tasksSyncedAt(context)
     val filter = WidgetStore.tasksFilter(context)
     val deleteMarks = WidgetStore.pendingDeleteIds(context)
+    /** 표시 설정(이 폰 전용) — 글자 크기·배경색·항목별 글자색. */
+    val textLevel = WidgetStore.textLevel(context, KIND)
+    val bgIndex = WidgetStore.bgIndex(context, KIND)
+    val colors = WidgetStore.itemColors(context, KIND)
 }
 
+/** 표시 설정 저장 키의 위젯 종류. */
+private const val KIND = "tasks"
+
 @Composable
-private fun TasksRoot(
-    paired: Boolean,
-    unauthorized: Boolean,
-    linked: Boolean,
-    items: List<TaskItem>,
-    syncedAt: Long,
-    filter: String,
-    deleteMarks: Set<String>,
-) {
+private fun TasksRoot(s: TasksUi) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
-            .background(AgendaTheme.bg)
+            // 배경색은 폰에서 고른 값(요구) — 고르지 않았으면 위젯 기본 배경.
+            .background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg))
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {
         when {
-            !paired || unauthorized -> PairingCta(revoked = unauthorized, subject = "작업")
-            !linked -> NotLinked()
+            !s.paired || s.unauthorized -> PairingCta(revoked = s.unauthorized, subject = "작업")
+            !s.linked -> NotLinked()
             else -> {
-                val visible = when (filter) {
-                    "done" -> items.filter { it.done }
-                    "all" -> items
+                val visible = when (s.filter) {
+                    "done" -> s.items.filter { it.done }
+                    "all" -> s.items
                     // 완료는 진행 필터에서 즉시 제외(요구) — 유예 없이 완료·전체에서만 보인다.
-                    else -> items.filter { !it.done }
+                    else -> s.items.filter { !it.done }
                 }
-                TasksHeader(filter, syncedAt)
+                TasksHeader(s.filter, s.syncedAt)
                 Spacer(GlanceModifier.height(6.dp))
                 if (visible.isEmpty()) {
                     Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            when (filter) {
+                            when (s.filter) {
                                 "done" -> "완료한 작업이 없습니다"
                                 else -> "작업이 없습니다 — ＋로 추가하세요"
                             },
-                            style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
+                            style = TextStyle(
+                                color = AgendaTheme.textDim,
+                                fontSize = WidgetStyle.bodySp(s.textLevel).sp,
+                            ),
                         )
                     }
                 } else {
                     LazyColumn(GlanceModifier.fillMaxSize()) {
-                        // itemId에 마크 상태 비트 포함: 상태가 바뀌면 다른 항목으로 취급되어
-                        // 완전 재바인딩 — 재활용 뷰의 클릭 바인딩이 낡는 문제(재탭 무반응) 차단.
+                        // itemId에 상태 비트(삭제 예정·글자색)를 함께 넣는다: 상태가 바뀌면 다른
+                        // 항목으로 취급되어 완전 재바인딩 — 재활용 뷰의 클릭 바인딩이 낡는
+                        // 문제(재탭 무반응) 차단.
                         items(
                             visible,
-                            itemId = { (it.id.hashCode().toLong() shl 1) + (if (deleteMarks.contains(it.id)) 1L else 0L) },
+                            itemId = {
+                                (it.id.hashCode().toLong() shl 4) or
+                                    (if (s.deleteMarks.contains(it.id)) 8L else 0L) or
+                                    (s.colors[it.id] ?: 0).toLong()
+                            },
                         ) {
-                            TaskRow(it, markedForDelete = deleteMarks.contains(it.id))
+                            TaskRow(
+                                it,
+                                markedForDelete = s.deleteMarks.contains(it.id),
+                                textLevel = s.textLevel,
+                                colorIndex = s.colors[it.id] ?: 0,
+                            )
                         }
                     }
                 }
@@ -178,7 +191,7 @@ private fun FilterButton(label: String, value: String, current: String) {
         label,
         modifier = GlanceModifier
             .clickable(actionStartActivity(intent))
-            .padding(horizontal = 7.dp, vertical = 6.dp),
+            .padding(horizontal = 5.dp, vertical = 6.dp),
         style = TextStyle(
             color = if (on) AgendaTheme.accentProvider else AgendaTheme.textDim,
             fontSize = 12.sp,
@@ -190,15 +203,20 @@ private fun FilterButton(label: String, value: String, current: String) {
 @Composable
 private fun TasksHeader(filter: String, syncedAt: Long) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // 제목 탭 = 표시 설정(글자 크기·배경색). 헤더에 버튼을 하나 더 늘리면 좁은
+        // 위젯에서 필터가 밀려나므로 제목에 ⚙ 글리프만 붙였다.
         Text(
-            "작업",
+            "작업 ⚙",
+            modifier = GlanceModifier
+                .clickable(actionStartActivity(styleIntent(LocalContext.current, "tasks")))
+                .padding(end = 2.dp, top = 4.dp, bottom = 4.dp),
             style = TextStyle(
                 color = AgendaTheme.accentProvider,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
-        Spacer(GlanceModifier.width(6.dp))
+        Spacer(GlanceModifier.width(4.dp))
         // 필터 버튼(진행·완료·전체) — 화면 전환 없이 위젯 목록이 그 필터로 바뀐다.
         FilterButton("진행", "pending", filter)
         FilterButton("완료", "done", filter)
@@ -247,7 +265,13 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
 }
 
 @Composable
-private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
+private fun TaskRow(
+    item: TaskItem,
+    markedForDelete: Boolean,
+    textLevel: Int,
+    colorIndex: Int,
+) {
+    val bodySp = WidgetStyle.bodySp(textLevel).sp
     // 행 탭 = 수정 화면. 항목별 고유 data URI + extras(값 전달)로 병합 없이 정확히 연다.
     val editIntent = Intent(LocalContext.current, TaskEditActivity::class.java).apply {
         data = Uri.parse("pbtask://edit/${item.id}")
@@ -265,7 +289,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             if (item.done) "완료" else "진행",
             style = TextStyle(
                 color = if (item.done) AgendaTheme.textDim else AgendaTheme.accentProvider,
-                fontSize = 12.sp,
+                fontSize = WidgetStyle.scaled(textLevel, 12f).sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
@@ -279,8 +303,10 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
                 .clickable(actionStartActivity(editIntent))
                 .padding(vertical = 4.dp),
             style = TextStyle(
-                color = if (item.done || markedForDelete) AgendaTheme.textDim else AgendaTheme.text,
-                fontSize = 15.sp,
+                // 완료·삭제 예정은 상태 표시가 우선(흐리게) — 그 외에만 고른 글자색.
+                color = if (item.done || markedForDelete) AgendaTheme.textDim
+                else WidgetStyle.itemColor(colorIndex, AgendaTheme.text),
+                fontSize = bodySp,
                 textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None,
             ),
         )
@@ -291,7 +317,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
         Text(
             if (item.dueOn != null) taskDateLabel(item.dueOn) else "",
             // 본문과 같은 크기(요구) — 색만 흐리게 구분.
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 15.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = bodySp),
         )
         Spacer(GlanceModifier.width(4.dp))
         // 삭제 예정 표시(요구) — 다음 갱신 때 실제 삭제, ✕ 재탭으로 취소.
@@ -299,7 +325,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             if (markedForDelete) "삭제" else "",
             style = TextStyle(
                 color = AgendaTheme.danger,
-                fontSize = 12.sp,
+                fontSize = WidgetStyle.scaled(textLevel, 12f).sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
@@ -310,7 +336,7 @@ private fun TaskRow(item: TaskItem, markedForDelete: Boolean) {
             modifier = GlanceModifier
                 .clickable(actionStartActivity(editIntent))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            style = TextStyle(color = AgendaTheme.textDim, fontSize = 16.sp),
+            style = TextStyle(color = AgendaTheme.textDim, fontSize = WidgetStyle.scaled(textLevel, 16f).sp),
         )
     }
 }

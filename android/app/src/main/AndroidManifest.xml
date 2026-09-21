@@ -270,6 +270,17 @@
             android:taskAffinity=":widgetaction"
             android:theme="@style/PbInvisible" />
 
+        <!-- 위젯 제목(작업 ⚙·노트 ⚙) 탭이 여는 표시 설정 화면 — 글자 크기·배경색.
+             값은 이 폰에만 저장된다(웹 대시보드와 동기화하지 않는다). -->
+        <activity
+            android:name=".widget.WidgetStyleActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=":widgetaction"
+            android:label="@string/widget_style_title"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
         <!-- 소제목 탭(내용 보기·수정·삭제) / ＋(새 소제목)가 여는 화면 -->
         <activity
             android:name=".notes.NoteEditActivity"

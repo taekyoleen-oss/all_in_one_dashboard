@@ -8,6 +8,8 @@ import com.tkleen.schedule.data.model.AgendaItem
 import com.tkleen.schedule.data.model.NoteItem
 import com.tkleen.schedule.data.model.TaskItem
 import com.tkleen.schedule.sync.AgendaSyncWorker
+import com.tkleen.schedule.widget.WidgetStyle
+import org.json.JSONObject
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -46,6 +48,11 @@ object WidgetStore {
     /** 비-기본 필터(완료·전체)가 유지되는 시간 — 지나면 진행중으로 자동 복귀(요구). */
     const val FILTER_REVERT_MS: Long = 10 * 60_000L
     private const val K_TASKS_DELETE_MARKS = "tasks_delete_marks"
+
+    /** 표시 설정(요구) — 위젯 종류별 접미사가 붙는다: `style_text_tasks` 등. */
+    private const val K_STYLE_TEXT = "style_text_"
+    private const val K_STYLE_BG = "style_bg_"
+    private const val K_ITEM_COLORS = "item_colors_"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -275,4 +282,55 @@ object WidgetStore {
 
     fun pendingDeleteIds(context: Context): Set<String> =
         prefs(context).getStringSet(K_TASKS_DELETE_MARKS, emptySet()) ?: emptySet()
+
+    /* ── 표시 설정(요구) ───────────────────────────────────────────────────
+     * 글자 크기·배경색은 위젯 종류별로, 글자색은 항목별로. 전부 **이 폰에만**
+     * 남는다(웹과 동기화하지 않는다 — 이유는 WidgetStyle 주석). kind는 "tasks"|"notes". */
+
+    fun textLevel(context: Context, kind: String): Int =
+        prefs(context).getInt(K_STYLE_TEXT + kind, WidgetStyle.DEFAULT_TEXT)
+
+    fun bgIndex(context: Context, kind: String): Int =
+        prefs(context).getInt(K_STYLE_BG + kind, 0)
+
+    fun setTextLevel(context: Context, kind: String, level: Int) {
+        prefs(context).edit().putInt(K_STYLE_TEXT + kind, level).apply()
+    }
+
+    fun setBgIndex(context: Context, kind: String, index: Int) {
+        prefs(context).edit().putInt(K_STYLE_BG + kind, index).apply()
+    }
+
+    /** 항목 id → 색 index. 기본색(0)은 아예 저장하지 않는다(맵이 커지지 않게). */
+    fun itemColors(context: Context, kind: String): Map<String, Int> {
+        val raw = prefs(context).getString(K_ITEM_COLORS + kind, null) ?: return emptyMap()
+        return try {
+            val obj = JSONObject(raw)
+            buildMap {
+                for (key in obj.keys()) put(key, obj.optInt(key, 0))
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun itemColor(context: Context, kind: String, id: String): Int =
+        itemColors(context, kind)[id] ?: 0
+
+    fun setItemColor(context: Context, kind: String, id: String, index: Int) {
+        val next = HashMap(itemColors(context, kind))
+        if (index <= 0) next.remove(id) else next[id] = index
+        // 지워진 항목의 색이 영원히 쌓이지 않게 — 커졌을 때만 살아 있는 id로 정리한다
+        // (갓 추가한 항목이 아직 캐시에 없을 수 있어 매번 정리하지는 않는다).
+        if (next.size > 200) {
+            val live = when (kind) {
+                "notes" -> noteItems(context).map { it.key }.toSet()
+                else -> taskItems(context).map { it.id }.toSet()
+            }
+            next.keys.retainAll { it == id || it in live }
+        }
+        prefs(context).edit()
+            .putString(K_ITEM_COLORS + kind, JSONObject(next as Map<*, *>).toString())
+            .apply()
+    }
 }
