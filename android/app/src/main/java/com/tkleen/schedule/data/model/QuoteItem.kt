@@ -43,6 +43,21 @@ data class QuoteItem(
         /** 국내 종목 코드(6자리 숫자) — 웹 isDomesticSymbol과 같은 판정. */
         private val DOMESTIC = Regex("^[0-9]{6}$")
 
+        /** 낙관적 캐시 갱신용(삭제 즉시 반영) — listFromJson과 왕복 가능. */
+        fun listToJson(items: List<QuoteItem>): String {
+            val arr = JSONArray()
+            for (q in items) {
+                val o = org.json.JSONObject()
+                    .put("symbol", q.symbol).put("name", q.name)
+                    .put("price", q.price).put("change", q.change)
+                    .put("changePct", q.changePct).put("currency", q.currency)
+                    .put("isIndex", q.isIndex)
+                if (q.session != null) o.put("session", q.session)
+                arr.put(o)
+            }
+            return arr.toString()
+        }
+
         fun listFromJson(itemsJson: String): List<QuoteItem> {
             val arr = JSONArray(itemsJson)
             val out = ArrayList<QuoteItem>(arr.length())

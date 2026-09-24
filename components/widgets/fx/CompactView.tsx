@@ -16,6 +16,7 @@ import {
   quickBtnClass,
 } from "@/components/widgets/shared/QuickAdd";
 import { RefreshBar } from "@/components/widgets/shared/RefreshBar";
+import { useConfigRemoteSync } from "@/components/widgets/shared/useConfigRemoteSync";
 import { FxRateRow } from "./FxRateRow";
 import { useFxRates } from "./useFxRates";
 import {
@@ -32,6 +33,8 @@ export function FxCompactView({
     config.base,
     config.quotes,
   );
+  // 폰 위젯에서 더하거나 지운 통화를 창 포커스 복귀 때 따라잡는다.
+  useConfigRemoteSync(instanceId, config, ["quotes"]);
 
   let body: React.ReactNode;
   if (config.quotes.length === 0) {

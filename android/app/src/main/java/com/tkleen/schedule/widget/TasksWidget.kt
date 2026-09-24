@@ -281,7 +281,7 @@ private fun TaskRow(
         if (item.dueOn != null) putExtra("taskDue", item.dueOn)
     }
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 상태 표시 라벨(조작 불가 — 변경은 수정 화면에서).

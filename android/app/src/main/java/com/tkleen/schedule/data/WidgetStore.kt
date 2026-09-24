@@ -270,6 +270,12 @@ object WidgetStore {
         }
     }
 
+    /** 삭제를 즉시 반영(ETag도 지워 다음 동기화가 서버 진실을 다시 받게 — 작업과 동일). */
+    fun mutateStocks(context: Context, transform: (List<QuoteItem>) -> List<QuoteItem>) {
+        val next = QuoteItem.listToJson(transform(quoteItems(context)))
+        prefs(context).edit().putString(K_STOCKS, next).remove(K_STOCKS_ETAG).apply()
+    }
+
     fun putFx(context: Context, itemsJson: String, etag: String?, linked: Boolean, syncedAt: Long) {
         prefs(context).edit()
             .putString(K_FX, itemsJson)
@@ -296,6 +302,11 @@ object WidgetStore {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    fun mutateFx(context: Context, transform: (List<FxItem>) -> List<FxItem>) {
+        val next = FxItem.listToJson(transform(fxItems(context)))
+        prefs(context).edit().putString(K_FX, next).remove(K_FX_ETAG).apply()
     }
 
     /* ── 작업 위젯 필터 ────────────────────────────────────────────────── */

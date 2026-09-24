@@ -13,6 +13,7 @@ import type { CompactViewProps } from "@/lib/widgets/contract";
 import { resolveMeta, searchKrStocks } from "@/lib/api/stock/symbols";
 import { useSaveWidgetConfig } from "@/lib/widgets/persistence";
 import { QuickAdd, quickInputClass } from "@/components/widgets/shared/QuickAdd";
+import { useConfigRemoteSync } from "@/components/widgets/shared/useConfigRemoteSync";
 import { useStockQuotes } from "./useStockQuotes";
 import { QuoteRow } from "./QuoteRow";
 import { RefreshBar } from "./RefreshBar";
@@ -25,6 +26,8 @@ export function StockCompactView({
   const { quotes, history, stale, conn, lastUpdated, refresh } = useStockQuotes(
     config.symbols,
   );
+  // 폰 위젯에서 더하거나 지운 종목을 창 포커스 복귀 때 따라잡는다.
+  useConfigRemoteSync(instanceId, config, ["symbols"]);
 
   return (
     <div className="flex h-full flex-col gap-1">

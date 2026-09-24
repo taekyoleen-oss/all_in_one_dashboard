@@ -30,6 +30,13 @@ object WidgetStyle {
      */
     fun scaled(level: Int, base: Float): Float = base * bodySp(level) / 15f
 
+    /**
+     * 목록 행의 위아래 여백(dp) — 요구: "문단 간격이 좁아 보인다, 조금 더 넓게".
+     * 3dp(행 사이 6dp)가 빽빽해 6dp(행 사이 12dp)로 넓히고, 글자를 키우면 간격도
+     * 같은 비율로 함께 커진다(큰 글씨에 좁은 간격이 더 답답하다).
+     */
+    fun rowPadDp(level: Int): Float = scaled(level, 6f)
+
     /* ── 배경색 ────────────────────────────────────────────────────────── */
 
     /** 0 = 기본(위젯 고유 배경 — 작업=흰색, 노트=옅은 회색). */

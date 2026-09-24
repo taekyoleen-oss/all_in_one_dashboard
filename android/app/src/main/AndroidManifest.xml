@@ -318,6 +318,27 @@
             android:theme="@android:style/Theme.DeviceDefault.DayNight"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- 주식·환율 위젯의 ＋(종목·통화 추가)가 여는 화면 -->
+        <activity
+            android:name=".quotes.QuoteAddActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=":widgetaction"
+            android:label="@string/quotes_add_title"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+
+        <!-- 주식·환율 위젯의 행 탭(2단계 확인 삭제)이 여는 화면 -->
+        <activity
+            android:name=".quotes.QuoteDeleteActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=":widgetaction"
+            android:label="@string/quotes_delete_title"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
 
         <activity android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"

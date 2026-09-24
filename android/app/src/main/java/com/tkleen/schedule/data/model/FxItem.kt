@@ -25,6 +25,18 @@ data class FxItem(
     companion object {
         private val KRW = DecimalFormat("#,##0.00")
 
+        /** 낙관적 캐시 갱신용(삭제 즉시 반영) — listFromJson과 왕복 가능. */
+        fun listToJson(items: List<FxItem>): String {
+            val arr = JSONArray()
+            for (f in items) {
+                val o = org.json.JSONObject()
+                    .put("code", f.code).put("unit", f.unit).put("krw", f.krw)
+                if (f.changePct != null) o.put("changePct", f.changePct)
+                arr.put(o)
+            }
+            return arr.toString()
+        }
+
         fun listFromJson(itemsJson: String): List<FxItem> {
             val arr = JSONArray(itemsJson)
             val out = ArrayList<FxItem>(arr.length())

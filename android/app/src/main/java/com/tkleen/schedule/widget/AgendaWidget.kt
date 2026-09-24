@@ -129,7 +129,7 @@ private fun Header(syncedAt: Long) {
 private fun ItemRow(item: AgendaItem, now: ZonedDateTime) {
     val done = item.status == "done"
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 좌측 인디케이터 바 — 대상 색(없으면 브랜드 강조색).

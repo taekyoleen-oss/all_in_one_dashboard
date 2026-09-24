@@ -70,18 +70,24 @@ try {
   // 환율 위젯 1개(지정 없음)
   const fxA = await addWidget("fx", { base: "KRW", quotes: ["USD", "JPY"] });
 
-  /* ── 디바이스 페어링 ────────────────────────────────────────────────── */
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-  await rest("pb_widget_pairing_codes", {
-    method: "POST",
-    body: JSON.stringify({ code_hash: sha256(code), user_id: userId, expires_at: new Date(Date.now() + 3e5).toISOString() }),
-  });
-  const pair = await (await fetch(`${BASE}/api/widget/pair`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, label: "verify-quote" }),
-  })).json();
-  const T = { authorization: `Bearer ${pair.token}` };
-  check("디바이스 토큰 발급", typeof pair.token === "string");
+  /* ── 디바이스 페어링 ──────────────────────────────────────────────────
+   * 토큰 하나당 **분당 20회** 제한(requireDevice)이 있어 검증처럼 몰아 부르면
+   * 429가 난다 — 실사용(15분 주기 + 가끔 탭)과는 무관하다. 구간마다 기기를
+   * 새로 붙여 각자의 한도를 쓴다(실제로 폰이 여러 대인 상황과 같다). */
+  const newDevice = async (label) => {
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    await rest("pb_widget_pairing_codes", {
+      method: "POST",
+      body: JSON.stringify({ code_hash: sha256(code), user_id: userId, expires_at: new Date(Date.now() + 3e5).toISOString() }),
+    });
+    const pair = await (await fetch(`${BASE}/api/widget/pair`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, label }),
+    })).json();
+    return { authorization: `Bearer ${pair.token}` };
+  };
+  const T = await newDevice("verify-quote");
+  check("디바이스 토큰 발급", typeof T.authorization === "string" && T.authorization.includes("pbw_"));
 
   /* ── 주식 ──────────────────────────────────────────────────────────── */
   const s1res = await fetch(`${BASE}/api/widget/stocks`, { headers: T });
@@ -141,9 +147,67 @@ try {
   const f304 = await fetch(`${BASE}/api/widget/fx`, { headers: { ...T, "if-none-match": fEtag } });
   check("환율도 304", f304.status === 304, `HTTP ${f304.status}`);
 
+  /* ── 검색(폰에는 카탈로그가 없다) ──────────────────────────────────── */
+  const T2 = await newDevice("verify-quote-2"); // 한도 분리
+  const search = async (q) =>
+    (await (await fetch(`${BASE}/api/widget/stocks/search?q=${encodeURIComponent(q)}`, { headers: T2 })).json()).results;
+  const kr = await search("삼성전자");
+  check("국내 종목을 이름으로 찾는다", kr.some((r) => r.symbol === "005930"), kr[0] && `${kr[0].name}/${kr[0].sub}`);
+  const idx = await search("코스피");
+  check("지수도 이름으로 찾는다", idx.some((r) => r.symbol === "^KS11"), idx[0] && `${idx[0].name}/${idx[0].sub}`);
+  const us = await search("apple");
+  check("미국 종목도 찾는다", us.some((r) => r.symbol === "AAPL"), us[0] && `${us[0].name}/${us[0].sub}`);
+  const none = await search("");
+  check("빈 질의는 빈 결과(업스트림 호출 없음)", none.length === 0);
+
+  /* ── 주식 추가·삭제(폰에서) ────────────────────────────────────────── */
+  // 대상은 stockB(지정된 위젯, symbols=["AAPL"]).
+  let D = T2; // 구간마다 바꿔 끼우는 '현재 기기'
+  const post = (path, body) => fetch(`${BASE}${path}`, {
+    method: "POST", headers: { ...D, "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  const del = (path) => fetch(`${BASE}${path}`, { method: "DELETE", headers: D });
+
+  const addRes = await post("/api/widget/stocks", { symbol: "msft" });
+  check("폰에서 종목 추가(소문자도 정규화)", addRes.status === 201, `HTTP ${addRes.status}`);
+  const afterAdd = await (await fetch(`${BASE}/api/widget/stocks`, { headers: D })).json();
+  check("추가한 종목이 목록 맨 뒤에", afterAdd.items.map((i) => i.symbol).join(",") === "AAPL,MSFT",
+    afterAdd.items.map((i) => i.symbol).join(","));
+  const dup = await post("/api/widget/stocks", { symbol: "MSFT" });
+  check("중복 추가는 409", dup.status === 409, `HTTP ${dup.status}`);
+  check("없는 종목은 400", (await post("/api/widget/stocks", { symbol: "ZZZZNOPE" })).status === 400);
+
+  // 폰이 config를 통째로 쓰지 않는다 — 지정 플래그가 살아 있어야 한다.
+  const cfgAfter = (await (await rest(`pb_widgets?id=eq.${stockB.id}&select=config`)).json())[0].config;
+  check("추가가 다른 설정을 지우지 않는다(mobileSync 보존)", cfgAfter.mobileSync === true,
+    JSON.stringify(cfgAfter));
+
+  check("폰에서 종목 삭제", (await del("/api/widget/stocks?symbol=MSFT")).status === 200);
+  const afterDel = await (await fetch(`${BASE}/api/widget/stocks`, { headers: D })).json();
+  check("삭제한 종목이 사라진다", afterDel.items.map((i) => i.symbol).join(",") === "AAPL",
+    afterDel.items.map((i) => i.symbol).join(","));
+  check("이미 삭제된 종목은 404", (await del("/api/widget/stocks?symbol=MSFT")).status === 404);
+
+  /* ── 환율 추가·삭제(폰에서) ────────────────────────────────────────── */
+  D = await newDevice("verify-quote-3"); // 한도 분리
+  check("폰에서 통화 추가", (await post("/api/widget/fx", { code: "eur" })).status === 201);
+  const fxAdd = await (await fetch(`${BASE}/api/widget/fx`, { headers: D })).json();
+  check("추가한 통화가 목록에", fxAdd.items.map((i) => i.code).join(",") === "USD,JPY,EUR",
+    fxAdd.items.map((i) => i.code).join(","));
+  check("중복 통화는 409", (await post("/api/widget/fx", { code: "EUR" })).status === 409);
+  const krwRes = await post("/api/widget/fx", { code: "KRW" });
+  check("원화는 기준 통화라 400", krwRes.status === 400, `HTTP ${krwRes.status}`);
+  check("형식 오류는 400", (await post("/api/widget/fx", { code: "EURO" })).status === 400);
+  check("없는 통화는 400", (await post("/api/widget/fx", { code: "ZZZ" })).status === 400);
+  check("폰에서 통화 삭제", (await del("/api/widget/fx?code=EUR")).status === 200);
+  const fxDel = await (await fetch(`${BASE}/api/widget/fx`, { headers: D })).json();
+  check("삭제한 통화가 사라진다", fxDel.items.map((i) => i.code).join(",") === "USD,JPY",
+    fxDel.items.map((i) => i.code).join(","));
+  check("이미 삭제된 통화는 404", (await del("/api/widget/fx?code=EUR")).status === 404);
+
   /* ── 위젯이 없으면 조용히 빈 응답(에러 아님) ───────────────────────── */
   await rest(`pb_widgets?id=eq.${fxA.id}`, { method: "DELETE" });
-  const f2 = await (await fetch(`${BASE}/api/widget/fx`, { headers: T })).json();
+  const f2 = await (await fetch(`${BASE}/api/widget/fx`, { headers: D })).json();
   check("환율 위젯을 지우면 미연결 + 빈 목록", f2.instanceId === null && f2.items.length === 0,
     `${f2.instanceId} / ${f2.items.length}건`);
 } finally {

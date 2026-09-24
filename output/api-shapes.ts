@@ -918,6 +918,21 @@ export const WidgetFxSchema = z.object({
 });
 export type WidgetFx = z.infer<typeof WidgetFxSchema>;
 
+/** 폰 '주식' 위젯의 종목 검색 결과 한 줄(지수·국내·미국 합본). */
+export const WidgetSymbolHitSchema = z.object({
+  symbol: StockSymbolSchema,
+  name: z.string(),
+  /** 보조 표기 — 지수는 "지수", 국내는 단축코드, 미국은 거래소·ETF 여부. */
+  sub: z.string(),
+});
+export type WidgetSymbolHit = z.infer<typeof WidgetSymbolHitSchema>;
+
+/** GET /api/widget/stocks/search?q= 응답. */
+export const WidgetSymbolSearchSchema = z.object({
+  results: z.array(WidgetSymbolHitSchema),
+});
+export type WidgetSymbolSearch = z.infer<typeof WidgetSymbolSearchSchema>;
+
 
 /* ===========================================================================
  *  WALK ROUTE — 길찾기(도보) 위젯  (/api/route/walk)

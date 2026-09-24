@@ -37,6 +37,8 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.QuoteItem
+import com.tkleen.schedule.quotes.QuoteAddActivity
+import com.tkleen.schedule.quotes.QuoteDeleteActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -44,8 +46,8 @@ import java.time.format.DateTimeFormatter
 /**
  * 주식 위젯 — 웹 '주식' 위젯 하나의 종목 시세를 그대로 보여 준다.
  *
- *  **보기 전용**이다. 종목을 더하고 빼는 일은 웹에서 하고(폰에 종목 검색을 앉히면
- *  같은 UI를 두 번 만들게 된다), 폰은 값을 읽기만 한다 — 그래서 행에 탭 동작이 없다.
+ *  헤더 ＋로 **종목을 추가**하고, 행을 누르면 **삭제** 화면이 열린다(요구). 시세는
+ *  서버가 주는 값을 그리기만 한다 — 폰에서 계산하는 값은 없다.
  *  대상 위젯은 속성의 '모바일 홈 화면에 표시'로 고르고, 주식 위젯이 하나뿐이면
  *  켜지 않아도 그것을 본다(서버 규칙 — lib/api/widgetMobileTarget.ts).
  *
@@ -102,14 +104,14 @@ private fun StocksRoot(s: StocksUi) {
         if (!s.paired || s.unauthorized) {
             PairingCta(revoked = s.unauthorized, subject = "주식")
         } else {
-            QuoteHeader("주식", KIND, s.syncedAt)
+            QuoteHeader("주식", KIND, s.syncedAt, showAdd = s.linked)
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("주식")
             } else if (s.items.isEmpty()) {
                 Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "종목이 없습니다 — 웹에서 추가하세요",
+                        "종목이 없습니다 — ＋ 종목으로 추가하세요",
                         style = TextStyle(color = AgendaTheme.textDim, fontSize = bodySp),
                     )
                 }
@@ -132,8 +134,16 @@ private fun QuoteRow(item: QuoteItem, textLevel: Int) {
         item.changePct < 0 -> AgendaTheme.down
         else -> AgendaTheme.textDim
     }
+    // 행 탭 = 삭제 화면(요구). clickable을 padding보다 먼저 — 터치 영역이 패딩까지
+    // 포함되도록(v5 교훈).
+    val open = deleteIntent(
+        LocalContext.current, KIND, item.symbol, item.name, item.priceText(),
+    )
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .clickable(actionStartActivity(open))
+            .padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -174,7 +184,7 @@ private fun QuoteRow(item: QuoteItem, textLevel: Int) {
  * 두 위젯 다 조작이 없어 헤더가 유일한 진입점이다.
  */
 @Composable
-internal fun QuoteHeader(title: String, kind: String, syncedAt: Long) {
+internal fun QuoteHeader(title: String, kind: String, syncedAt: Long, showAdd: Boolean = true) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             "$title ⚙",
@@ -187,6 +197,22 @@ internal fun QuoteHeader(title: String, kind: String, syncedAt: Long) {
                 fontWeight = FontWeight.Bold,
             ),
         )
+        if (showAdd) {
+            Spacer(GlanceModifier.width(6.dp))
+            // 위젯은 텍스트 입력이 불가하므로 작은 화면을 연다(계획서 §0.3 원칙).
+            // 글리프 하나만 두면 눈에 띄지 않아 라벨을 붙인다(노트 위젯 v20 교훈).
+            Text(
+                if (kind == "fx") "＋ 통화" else "＋ 종목",
+                modifier = GlanceModifier
+                    .clickable(actionStartActivity(addIntent(LocalContext.current, kind)))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                style = TextStyle(
+                    color = AgendaTheme.accentProvider,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+        }
         Spacer(GlanceModifier.defaultWeight())
         Text(
             if (syncedAt > 0) {
@@ -208,6 +234,29 @@ internal fun QuoteHeader(title: String, kind: String, syncedAt: Long) {
             style = TextStyle(color = AgendaTheme.textDim, fontSize = 11.sp),
         )
     }
+}
+
+/** 추가 화면 인텐트 — 종류마다 고유 data URI(PendingIntent 병합 방지, v10). */
+private fun addIntent(context: Context, kind: String): Intent =
+    Intent(context, QuoteAddActivity::class.java).setData(Uri.parse("pbadd://$kind"))
+
+/**
+ * 삭제 화면 인텐트 — **항목마다 고유 data URI**라야 한다. PendingIntent는
+ * filterEquals(extras 무시)로 병합되므로 같은 클래스에 extras만 다르면 서로
+ * 먹힌다(v10에서 목록의 ✕들이 실제로 그랬다).
+ */
+internal fun deleteIntent(
+    context: Context,
+    kind: String,
+    key: String,
+    label: String,
+    detail: String,
+): Intent = Intent(context, QuoteDeleteActivity::class.java).apply {
+    data = Uri.parse("pbdel://$kind/" + Uri.encode(key))
+    putExtra("kind", kind)
+    putExtra("key", key)
+    putExtra("label", label)
+    putExtra("detail", detail)
 }
 
 /** 대상 위젯이 없을 때 — 무엇을 해야 하는지 그대로 알린다. */

@@ -312,6 +312,82 @@ object WidgetApi {
         }
     }
 
+    /* ── 주식·환율 추가·삭제(요구: 폰에서도 관리) ─────────────────────── */
+
+    /** 검색 결과 한 줄 — WidgetSymbolHit와 1:1. */
+    data class SymbolHit(val symbol: String, val name: String, val sub: String)
+
+    /**
+     * 종목 검색(지수·국내·미국 합본). 폰에는 카탈로그가 없어 서버가 합쳐 준다.
+     * 실패는 빈 목록 — 검색창이 죽는 것보다 낫다(서버도 같은 정책).
+     */
+    fun searchSymbols(token: String, query: String): List<SymbolHit> {
+        return try {
+            val q = java.net.URLEncoder.encode(query, "UTF-8")
+            val conn = open("$BASE/api/widget/stocks/search?q=$q", "GET")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (conn.responseCode != 200) return emptyList()
+            val arr = JSONObject(conn.inputStream.bufferedReader().readText())
+                .getJSONArray("results")
+            val out = ArrayList<SymbolHit>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val symbol = o.optString("symbol", "")
+                if (symbol.isEmpty()) continue
+                out.add(SymbolHit(symbol, o.optString("name", symbol), o.optString("sub", "")))
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 지정된 주식 위젯에 종목 추가 — 서버가 시세 확인 후 넣는다. */
+    fun addSymbol(token: String, symbol: String): MutResult =
+        postJson("$BASE/api/widget/stocks", token, JSONObject().put("symbol", symbol), "추가에 실패했습니다")
+
+    /** 지정된 환율 위젯에 통화 추가. */
+    fun addFxCode(token: String, code: String): MutResult =
+        postJson("$BASE/api/widget/fx", token, JSONObject().put("code", code), "추가에 실패했습니다")
+
+    /** 종목 삭제 — 심볼은 `^KS11`처럼 특수문자가 있어 쿼리로 넘긴다(경로 인코딩 회피). */
+    fun deleteSymbol(token: String, symbol: String): MutResult =
+        delete("$BASE/api/widget/stocks?symbol=" + java.net.URLEncoder.encode(symbol, "UTF-8"), token)
+
+    /** 통화 삭제. */
+    fun deleteFxCode(token: String, code: String): MutResult =
+        delete("$BASE/api/widget/fx?code=" + java.net.URLEncoder.encode(code, "UTF-8"), token)
+
+    private fun postJson(
+        url: String,
+        token: String,
+        body: JSONObject,
+        fallback: String,
+    ): MutResult {
+        return try {
+            val conn = open(url, "POST")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode in 200..299) MutResult.Ok
+            else MutResult.Fail(errorMessage(conn, fallback))
+        } catch (e: Exception) {
+            MutResult.Fail("네트워크 오류: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+    private fun delete(url: String, token: String): MutResult {
+        return try {
+            val conn = open(url, "DELETE")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (conn.responseCode in 200..299) MutResult.Ok
+            else MutResult.Fail(errorMessage(conn, "삭제에 실패했습니다"))
+        } catch (e: Exception) {
+            MutResult.Fail("네트워크 오류: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
     private fun errorMessage(conn: HttpURLConnection, fallback: String): String {
         return try {
             JSONObject(conn.errorStream?.bufferedReader()?.readText() ?: "")

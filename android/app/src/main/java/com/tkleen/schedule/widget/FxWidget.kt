@@ -9,6 +9,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalContext
+import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
@@ -37,8 +40,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 /**
  * 환율 위젯 — 웹 '환율' 위젯 하나의 통화를 **원화 기준**으로 보여 준다.
  *
- *  보기 전용이고(통화 추가·삭제는 웹에서), 헤더 구성·대상 선택 규칙은 주식 위젯과
- *  같다(StocksWidget.QuoteHeader / NotLinkedHint 공유).
+ *  헤더 ＋로 **통화를 추가**하고 행을 누르면 **삭제** 화면이 열린다(요구). 헤더 구성·
+ *  대상 선택 규칙은 주식 위젯과 같다(StocksWidget.QuoteHeader / NotLinkedHint 공유).
  *
  *  환산과 전일 대비는 **서버가 끝낸 값**을 그대로 그린다 — 폰에서 다시 계산하면
  *  웹과 숫자가 갈라진다(components/widgets/fx/rows.ts 한 곳에서만 계산).
@@ -89,14 +92,14 @@ private fun FxRoot(s: FxUi) {
         if (!s.paired || s.unauthorized) {
             PairingCta(revoked = s.unauthorized, subject = "환율")
         } else {
-            QuoteHeader("환율", KIND, s.syncedAt)
+            QuoteHeader("환율", KIND, s.syncedAt, showAdd = s.linked)
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("환율")
             } else if (s.items.isEmpty()) {
                 Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "통화가 없습니다 — 웹에서 추가하세요",
+                        "통화가 없습니다 — ＋ 통화로 추가하세요",
                         style = TextStyle(color = AgendaTheme.textDim, fontSize = bodySp),
                     )
                 }
@@ -121,8 +124,15 @@ private fun FxRow(item: FxItem, textLevel: Int) {
         pct < 0 -> AgendaTheme.down
         else -> AgendaTheme.textDim
     }
+    // 행 탭 = 삭제 화면(요구) — 항목마다 고유 data URI로 병합을 막는다(v10).
+    val open = deleteIntent(
+        LocalContext.current, KIND, item.code, item.label(), item.krwText(),
+    )
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .clickable(actionStartActivity(open))
+            .padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
