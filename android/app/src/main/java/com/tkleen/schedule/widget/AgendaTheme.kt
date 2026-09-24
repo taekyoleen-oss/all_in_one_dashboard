@@ -25,6 +25,16 @@ object AgendaTheme {
     /** 삭제 예정 등 파괴적 상태 표시. */
     val danger = ColorProvider(day = Color(0xFFDC2626), night = Color(0xFFF87171))
 
+    /**
+     * 시세 등락 — **한국 관례대로 상승 빨강 · 하락 파랑**(웹의 --positive/--negative와
+     * 같은 방향). 다크에서는 같은 계열을 밝게 올려 배경에 묻히지 않게 한다.
+     */
+    val up = ColorProvider(day = Color(0xFFD12C2C), night = Color(0xFFFF7A7A))
+    val down = ColorProvider(day = Color(0xFF1E5FD6), night = Color(0xFF7AAEFF))
+
+    /** 시간외 표식(PRE·시간외·AFTER) — 값이 정규장 밖에서 나왔다는 주의 표시. */
+    val warn = ColorProvider(day = Color(0xFFB45309), night = Color(0xFFFBBF24))
+
     /** 대상 색(pb_circle_targets.color, hex 문자열) — 파싱 실패·미지정은 강조색. */
     fun tokenColor(token: String?): Color {
         if (token.isNullOrBlank()) return accent

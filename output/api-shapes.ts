@@ -75,6 +75,14 @@ export const StockQuoteSchema = z.object({
   currency: z.string().optional(),
   /** True for an index (코스피/다우/…) vs. an individual stock. Drives UI affordances. */
   isIndex: z.boolean().optional(),
+  /**
+   * 정규장 **밖의** 체결로 만들어진 시세일 때만 붙는 표식(요구: "pre 등을 표시").
+   *  - "pre"  : 정규장 개장 **전** 체결(미국 프리마켓).
+   *  - "post" : 정규장 마감 **후** 체결 — 미국 애프터마켓, 국내 시간외 단일가.
+   * 없으면 정규장 시세다. price·change·changePct는 표식과 무관하게 항상
+   * **전일 종가 대비**라 시간외 등락이 그대로 반영된다.
+   */
+  session: z.enum(["pre", "post"]).optional(),
 });
 export type StockQuote = z.infer<typeof StockQuoteSchema>;
 
@@ -852,6 +860,63 @@ export const WidgetNotesSchema = z.object({
   items: z.array(WidgetNoteItemSchema),
 });
 export type WidgetNotes = z.infer<typeof WidgetNotesSchema>;
+
+/* ---------------------------------------------------------------------------
+ *  WIDGET STOCKS / FX — 모바일 홈 화면 '주식'·'환율' 위젯 브리지
+ *  (/api/widget/stocks · /api/widget/fx)
+ * ---------------------------------------------------------------------------
+ *
+ *  작업·노트와 달리 **읽기 전용**이다(폰에서 고칠 것이 없다). 대상은 같은 규칙으로
+ *  고른다 — 위젯 속성의 '모바일 홈 화면에 표시'(config.mobileSync)를 켠 인스턴스,
+ *  지정이 없고 그 종류의 위젯이 **딱 하나뿐이면 그것**(lib/api/widgetCore.ts의
+ *  pickMobileInstanceOrOnly). 폰이 계산하지 않도록 서버가 표시할 값까지 만들어 준다.
+ */
+export const WidgetStockQuoteSchema = z.object({
+  symbol: StockSymbolSchema,
+  name: z.string(),
+  price: z.number(),
+  change: z.number(),
+  changePct: z.number(),
+  currency: z.string(),
+  isIndex: z.boolean(),
+  /** 시간외 표식 — StockQuote.session과 같은 값(없으면 정규장). */
+  session: z.enum(["pre", "post"]).optional(),
+});
+export type WidgetStockQuote = z.infer<typeof WidgetStockQuoteSchema>;
+
+/** GET /api/widget/stocks 응답 — instanceId=null이면 대상 위젯 미지정. */
+export const WidgetStocksSchema = z.object({
+  instanceId: z.string().nullable(),
+  items: z.array(WidgetStockQuoteSchema),
+  /** 근사치(키리스 폴백) 여부 — 폰이 배지로 알린다. */
+  stale: z.boolean(),
+  ts: z.number().int(),
+});
+export type WidgetStocks = z.infer<typeof WidgetStocksSchema>;
+
+/** 환율 한 줄 — "100 JPY = 943.21원" 형태로 바로 그릴 수 있는 값. */
+export const WidgetFxItemSchema = z.object({
+  /** 외화 코드(USD·JPY…). */
+  code: z.string(),
+  /** 표시 단위(엔은 100, 나머지는 1) — 한국에서 보는 관례. */
+  unit: z.number(),
+  /** `unit` 단위당 원화 값. */
+  krw: z.number(),
+  /** 전일 대비 퍼센트(원화 값 기준, 부호 있음) — 없을 수 있다. */
+  changePct: z.number().optional(),
+});
+export type WidgetFxItem = z.infer<typeof WidgetFxItemSchema>;
+
+/** GET /api/widget/fx 응답 — instanceId=null이면 대상 위젯 미지정. */
+export const WidgetFxSchema = z.object({
+  instanceId: z.string().nullable(),
+  items: z.array(WidgetFxItemSchema),
+  /** 고시 기준일(ISO yyyy-mm-dd) — 없을 수 있다. */
+  date: z.string().nullable(),
+  stale: z.boolean(),
+  ts: z.number().int(),
+});
+export type WidgetFx = z.infer<typeof WidgetFxSchema>;
 
 
 /* ===========================================================================

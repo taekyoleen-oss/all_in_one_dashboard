@@ -27,6 +27,9 @@ import com.tkleen.schedule.data.WidgetStore
  */
 class WidgetStyleActivity : Activity() {
 
+    /** 표시 설정을 쓰는 위젯 종류(저장 키 접미사이기도 하다). */
+    private val KINDS = setOf("tasks", "notes", "stocks", "fx")
+
     private lateinit var kind: String
     private var night = false
 
@@ -34,14 +37,24 @@ class WidgetStyleActivity : Activity() {
         super.onCreate(savedInstanceState)
         actionBar?.hide() // edge-to-edge에서 제목 바가 내용 위로 겹친다(기존 화면과 동일)
 
-        kind = intent?.data?.host?.takeIf { it == "tasks" || it == "notes" } ?: "tasks"
+        kind = intent?.data?.host?.takeIf { it in KINDS } ?: "tasks"
         night = isNightMode()
 
         val pad = (16 * resources.displayMetrics.density).toInt()
-        val subject = if (kind == "notes") "노트" else "작업"
+        val subject = when (kind) {
+            "notes" -> "노트"
+            "stocks" -> "주식"
+            "fx" -> "환율"
+            else -> "작업"
+        }
 
         val preview = TextView(this).apply {
-            text = if (kind == "notes") "1주차 강의 정리" else "장보기 목록 정리"
+            text = when (kind) {
+                "notes" -> "1주차 강의 정리"
+                "stocks" -> "삼성전자          77,800  +1.24%"
+                "fx" -> "USD                1,378.20원"
+                else -> "장보기 목록 정리"
+            }
             setPadding(pad, pad, pad, pad)
         }
         val previewSub = TextView(this).apply {
@@ -138,12 +151,14 @@ class WidgetStyleActivity : Activity() {
                         addView(previewSub)
                         addView(preview, wide())
                         addView(space(pad))
-                        addView(
-                            TextView(this@WidgetStyleActivity).apply {
-                                text = "작업·소제목 하나하나의 글자색은 그 항목을 눌러 여는 화면에서 고릅니다."
-                                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                            },
-                        )
+                        if (kind == "tasks" || kind == "notes") {
+                            addView(
+                                TextView(this@WidgetStyleActivity).apply {
+                                    text = "작업·소제목 하나하나의 글자색은 그 항목을 눌러 여는 화면에서 고릅니다."
+                                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                                },
+                            )
+                        }
                         addView(space(pad))
                         addView(
                             Button(this@WidgetStyleActivity).apply {

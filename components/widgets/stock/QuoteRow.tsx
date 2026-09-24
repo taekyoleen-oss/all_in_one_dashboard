@@ -19,6 +19,7 @@ import {
   formatChange,
   formatPct,
   quoteInfoUrl,
+  sessionLabel,
 } from "./format";
 import { useFlash } from "./useFlash";
 import { Sparkline } from "./Sparkline";
@@ -95,6 +96,15 @@ export function QuoteRow({
           {quote?.isIndex ? (
             <span className="ml-1 align-middle text-[10px] text-muted-foreground">
               지수
+            </span>
+          ) : null}
+          {/* 정규장 밖 체결로 만들어진 값임을 알린다 — 등락은 그대로 전일 종가 대비. */}
+          {quote?.session ? (
+            <span
+              title="정규장 시간 외 체결가 (등락은 전일 종가 대비)"
+              className="ml-1 rounded bg-amber-500/15 px-1 py-px align-middle text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+            >
+              {sessionLabel(quote.session, symbol)}
             </span>
           ) : null}
         </span>

@@ -8,6 +8,7 @@
  */
 
 import type { StockQuote } from "@/output/api-shapes";
+import { isDomesticSymbol } from "@/lib/api/stock/symbols";
 
 export type Direction = "up" | "down" | "flat";
 
@@ -109,4 +110,17 @@ export function formatUpdatedTime(ts: number | null): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+/**
+ * 시간외 표식 라벨 — 정규장 밖 체결일 때만 붙는다(요구: "pre 등을 표시").
+ *  국내는 '시간외 단일가'가 익숙한 이름이라 그대로 쓰고, 미국은 PRE/AFTER로 쓴다.
+ */
+export function sessionLabel(
+  session: "pre" | "post" | undefined,
+  symbol: string,
+): string | null {
+  if (!session) return null;
+  if (session === "pre") return "PRE";
+  return isDomesticSymbol(symbol) ? "시간외" : "AFTER";
 }

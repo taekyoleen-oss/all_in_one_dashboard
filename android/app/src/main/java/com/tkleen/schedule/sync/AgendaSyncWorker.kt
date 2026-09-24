@@ -15,7 +15,9 @@ import androidx.glance.appwidget.updateAll
 import com.tkleen.schedule.data.WidgetApi
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.widget.AgendaWidget
+import com.tkleen.schedule.widget.FxWidget
 import com.tkleen.schedule.widget.NotesWidget
+import com.tkleen.schedule.widget.StocksWidget
 import com.tkleen.schedule.widget.TasksWidget
 import java.util.concurrent.TimeUnit
 
@@ -77,9 +79,30 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             is WidgetApi.NotesResult.Error -> Unit
         }
 
+        // 주식·환율(읽기 전용)도 같은 주기로 — 실패는 캐시 유지(다음 주기 재시도).
+        when (val q = WidgetApi.fetchStocks(token, WidgetStore.stocksEtag(ctx))) {
+            is WidgetApi.ListResult.Ok ->
+                WidgetStore.putStocks(ctx, q.itemsJson, q.etag, q.linked, System.currentTimeMillis())
+            WidgetApi.ListResult.NotModified ->
+                WidgetStore.touchStocksSynced(ctx, System.currentTimeMillis())
+            WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
+            is WidgetApi.ListResult.Error -> Unit
+        }
+
+        when (val f = WidgetApi.fetchFx(token, WidgetStore.fxEtag(ctx))) {
+            is WidgetApi.ListResult.Ok ->
+                WidgetStore.putFx(ctx, f.itemsJson, f.etag, f.linked, System.currentTimeMillis())
+            WidgetApi.ListResult.NotModified ->
+                WidgetStore.touchFxSynced(ctx, System.currentTimeMillis())
+            WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
+            is WidgetApi.ListResult.Error -> Unit
+        }
+
         AgendaWidget().updateAll(ctx) // 304여도 날짜 경계·갱신 시각 표시를 다시 그린다.
         TasksWidget.refresh(ctx) // 살아있는 세션도 새 데이터로 재구성(틱)
         NotesWidget.refresh(ctx)
+        StocksWidget.refresh(ctx)
+        FxWidget.refresh(ctx)
         return result
     }
 
@@ -144,21 +167,19 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
         }
 
         /**
-         * 세 위젯(오늘 일정·작업·노트)이 **모두** 홈 화면에서 사라졌을 때만 주기
-         * 작업을 멈춘다 — 리시버별 onDisabled가 남은 위젯의 동기화를 끊는 비대칭 방지.
+         * 다섯 위젯(오늘 일정·작업·노트·주식·환율)이 **모두** 홈 화면에서 사라졌을 때만
+         * 주기 작업을 멈춘다 — 리시버별 onDisabled가 남은 위젯의 동기화를 끊는 비대칭 방지.
          */
         fun cancelIfNoWidgets(context: Context) {
             val awm = android.appwidget.AppWidgetManager.getInstance(context)
-            val agenda = awm.getAppWidgetIds(
-                android.content.ComponentName(context, com.tkleen.schedule.widget.AgendaWidgetReceiver::class.java),
-            )
-            val tasks = awm.getAppWidgetIds(
-                android.content.ComponentName(context, com.tkleen.schedule.widget.TasksWidgetReceiver::class.java),
-            )
-            val notes = awm.getAppWidgetIds(
-                android.content.ComponentName(context, com.tkleen.schedule.widget.NotesWidgetReceiver::class.java),
-            )
-            if (agenda.isEmpty() && tasks.isEmpty() && notes.isEmpty()) cancelAll(context)
+            fun count(cls: Class<*>) =
+                awm.getAppWidgetIds(android.content.ComponentName(context, cls)).size
+            val total = count(com.tkleen.schedule.widget.AgendaWidgetReceiver::class.java) +
+                count(com.tkleen.schedule.widget.TasksWidgetReceiver::class.java) +
+                count(com.tkleen.schedule.widget.NotesWidgetReceiver::class.java) +
+                count(com.tkleen.schedule.widget.StocksWidgetReceiver::class.java) +
+                count(com.tkleen.schedule.widget.FxWidgetReceiver::class.java)
+            if (total == 0) cancelAll(context)
         }
     }
 }

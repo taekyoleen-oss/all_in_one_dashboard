@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 주식 위젯 메타. 갱신은 WorkManager(아젠다와 공유) → updatePeriodMillis=0.
+     configure=PairingActivity — 이미 연결돼 있으면 즉시 완료 처리된다. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:maxResizeWidth="500dp"
+    android:maxResizeHeight="450dp"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:configure="com.tkleen.schedule.pairing.PairingActivity"
+    android:initialLayout="@layout/stocks_widget_preview"
+    android:previewLayout="@layout/stocks_widget_preview"
+    android:description="@string/stocks_widget_description" />

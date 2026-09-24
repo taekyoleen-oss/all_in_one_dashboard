@@ -78,7 +78,12 @@ internal fun refreshWidget(activity: Activity, kind: String) {
     Thread {
         try {
             runBlocking {
-                if (kind == "notes") NotesWidget.refresh(app) else TasksWidget.refresh(app)
+                when (kind) {
+                    "notes" -> NotesWidget.refresh(app)
+                    "stocks" -> StocksWidget.refresh(app)
+                    "fx" -> FxWidget.refresh(app)
+                    else -> TasksWidget.refresh(app)
+                }
             }
         } catch (e: Exception) {
             // 재렌더 실패해도 설정은 저장됐다 — 다음 렌더가 반영한다.

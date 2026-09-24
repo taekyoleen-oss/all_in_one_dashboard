@@ -38,6 +38,12 @@ interface YahooChartMeta {
   /** 종목명 — 미국 종목·ETF는 로컬 카탈로그가 없어 이 값을 표시에 쓴다. */
   shortName?: string;
   longName?: string;
+  /** 오늘의 프리/정규/애프터 구간(epoch 초) — 시간외 체결이 pre인지 post인지 가른다. */
+  currentTradingPeriod?: {
+    pre?: { start?: number; end?: number };
+    regular?: { start?: number; end?: number };
+    post?: { start?: number; end?: number };
+  };
 }
 
 /** A normalized slice of one Yahoo chart response (meta + the close time series). */
@@ -176,6 +182,8 @@ async function fetchOne(symbol: StockSymbol): Promise<StockQuote | null> {
   // 시간외 거래가 없고 분봉 series가 비어 있으므로 건너뛴다(정규장 종가 = 최종값).
   // includePrePost 분봉의 마지막 체결 close가 정규장 시각 이후면 그 값으로 갱신 →
   // 등락은 전일종가 대비로 계산되어 시간외 상승/하락이 자연히 반영된다.
+  // 시간외로 갱신됐을 때만 붙는 표식(요구) — 정규장 개장 전 체결이면 pre, 마감 후면 post.
+  let session: "pre" | "post" | undefined;
   if (!meta.isIndex) {
     const ext = await fetchChart(yahoo, "2m", "1d", true);
     if (ext) {
@@ -183,6 +191,12 @@ async function fetchOne(symbol: StockSymbol): Promise<StockQuote | null> {
       if (last && last.ts > tsSec) {
         price = last.price;
         tsSec = last.ts;
+        // 정규장 시작 전 체결 = 프리마켓. 구간 정보가 없으면 '마감 후'로 본다
+        // (조건상 마지막 정규장 체결보다 뒤이므로 post가 안전한 기본값).
+        const regularStart =
+          (ext.meta.currentTradingPeriod ?? m.currentTradingPeriod)?.regular?.start;
+        session =
+          typeof regularStart === "number" && last.ts < regularStart ? "pre" : "post";
       }
     }
   }
@@ -207,6 +221,7 @@ async function fetchOne(symbol: StockSymbol): Promise<StockQuote | null> {
     ts: Math.round(tsSec * 1000),
     currency: m.currency ?? meta.currency,
     isIndex: meta.isIndex,
+    session,
   };
 }
 

@@ -13,6 +13,10 @@ export interface FxConfig {
   base: string;
   /** ISO-4217 quote currencies, in display order (e.g. ["KRW","EUR"]). */
   quotes: string[];
+  /** 이 인스턴스의 환율을 안드로이드 홈 화면 '환율' 위젯에 표시할지. */
+  mobileSync?: boolean;
+  /** 켠 시각(ms) — 여러 인스턴스가 켜져 있으면 서버가 최신을 채택. */
+  mobileSyncAt?: number;
 }
 
 // KRW-oriented by default: show how many 원 per 1 USD / 100 JPY / 1 EUR / 1 CNY

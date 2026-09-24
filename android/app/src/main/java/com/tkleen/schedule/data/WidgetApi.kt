@@ -268,6 +268,50 @@ object WidgetApi {
         }
     }
 
+    /* ── 주식·환율 (읽기 전용) ─────────────────────────────────────────── */
+
+    /**
+     * 목록만 받는 읽기 전용 위젯 두 종의 공통 결과. linked=false면 웹에서 대상
+     * 위젯을 아직 고르지 않은 상태(그 종류 위젯이 하나뿐이면 서버가 자동으로 고른다).
+     */
+    sealed class ListResult {
+        data class Ok(val itemsJson: String, val etag: String?, val linked: Boolean) : ListResult()
+        object NotModified : ListResult()
+        object Unauthorized : ListResult()
+        data class Error(val message: String) : ListResult()
+    }
+
+    /** 지정된 '주식' 위젯의 종목 시세(웹에 저장된 순서 그대로). */
+    fun fetchStocks(token: String, etag: String?): ListResult =
+        fetchList("$BASE/api/widget/stocks", token, etag)
+
+    /** 지정된 '환율' 위젯의 원화 환산 시세. */
+    fun fetchFx(token: String, etag: String?): ListResult =
+        fetchList("$BASE/api/widget/fx", token, etag)
+
+    private fun fetchList(url: String, token: String, etag: String?): ListResult {
+        return try {
+            val conn = open(url, "GET")
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (etag != null) conn.setRequestProperty("If-None-Match", etag)
+            when (conn.responseCode) {
+                200 -> {
+                    val body = JSONObject(conn.inputStream.bufferedReader().readText())
+                    ListResult.Ok(
+                        itemsJson = body.getJSONArray("items").toString(),
+                        etag = conn.getHeaderField("ETag"),
+                        linked = !body.isNull("instanceId"),
+                    )
+                }
+                304 -> ListResult.NotModified
+                401 -> ListResult.Unauthorized
+                else -> ListResult.Error("HTTP ${conn.responseCode}")
+            }
+        } catch (e: Exception) {
+            ListResult.Error(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
     private fun errorMessage(conn: HttpURLConnection, fallback: String): String {
         return try {
             JSONObject(conn.errorStream?.bufferedReader()?.readText() ?: "")

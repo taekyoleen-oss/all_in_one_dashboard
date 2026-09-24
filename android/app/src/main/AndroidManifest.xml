@@ -260,6 +260,32 @@
                 android:resource="@xml/notes_widget_info" />
         </receiver>
 
+        <!-- 주식 위젯 — 웹 '주식' 위젯의 종목 시세(보기 전용, 시간외 표식 포함) -->
+        <receiver
+            android:name=".widget.StocksWidgetReceiver"
+            android:exported="true"
+            android:label="@string/stocks_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/stocks_widget_info" />
+        </receiver>
+
+        <!-- 환율 위젯 — 웹 '환율' 위젯의 통화를 원화 기준으로(보기 전용) -->
+        <receiver
+            android:name=".widget.FxWidgetReceiver"
+            android:exported="true"
+            android:label="@string/fx_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/fx_widget_info" />
+        </receiver>
+
         <!-- 위젯의 '갱신 시각 ↻' — 투명 포그라운드에서 즉시 동기화만 하고 닫힌다.
              비포그라운드 프로세스에선 재렌더·작업 실행이 미뤄진다(v14 실측). -->
         <activity

@@ -75,6 +75,19 @@ export function pickMobileInstance(rows: MobileInstanceRow[]): string | null {
   return bestId;
 }
 
+/**
+ * 지정이 없을 때 **그 종류의 위젯이 딱 하나뿐이면** 그것을 대상으로 본다.
+ *
+ *  읽기 전용 위젯(주식·환율)에만 쓴다 — 고를 여지가 없는 상황에서 "웹에서 켜세요"를
+ *  띄우는 것은 사용자에게 시키는 일만 늘린다(요구: "현재는 기존 위젯에 연결"). 둘
+ *  이상이면 어느 쪽인지 알 수 없으므로 null로 두고 사용자가 고르게 한다.
+ *  작업·노트처럼 **폰에서 쓰는** 위젯은 엉뚱한 곳에 글이 들어가면 안 되므로 이
+ *  폴백을 쓰지 않는다(명시 지정 규칙 유지).
+ */
+export function pickMobileInstanceOrOnly(rows: MobileInstanceRow[]): string | null {
+  return pickMobileInstance(rows) ?? (rows.length === 1 ? rows[0].id : null);
+}
+
 /* ── 요청 제한 ──────────────────────────────────────────────────────────────
  * ponytail: 인스턴스 메모리 슬라이딩 윈도우 — Vercel 다중 인스턴스 간 비공유라
  * 소프트 한도다(디바이스 몇 대 규모엔 충분). 전역 강제가 필요해지면 DB 카운터로. */

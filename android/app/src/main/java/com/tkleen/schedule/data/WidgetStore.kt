@@ -5,6 +5,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.tkleen.schedule.data.model.AgendaItem
+import com.tkleen.schedule.data.model.FxItem
+import com.tkleen.schedule.data.model.QuoteItem
 import com.tkleen.schedule.data.model.NoteItem
 import com.tkleen.schedule.data.model.TaskItem
 import com.tkleen.schedule.sync.AgendaSyncWorker
@@ -42,6 +44,14 @@ object WidgetStore {
     private const val K_NOTES_ETAG = "notes_etag"
     private const val K_NOTES_SYNCED_AT = "notes_synced_at"
     private const val K_NOTES_LINKED = "notes_linked"
+    private const val K_STOCKS = "stocks_json"
+    private const val K_STOCKS_ETAG = "stocks_etag"
+    private const val K_STOCKS_LINKED = "stocks_linked"
+    private const val K_STOCKS_SYNCED_AT = "stocks_synced_at"
+    private const val K_FX = "fx_json"
+    private const val K_FX_ETAG = "fx_etag"
+    private const val K_FX_LINKED = "fx_linked"
+    private const val K_FX_SYNCED_AT = "fx_synced_at"
     private const val K_TASKS_FILTER = "tasks_filter"
     private const val K_TASKS_FILTER_AT = "tasks_filter_at"
 
@@ -228,6 +238,66 @@ object WidgetStore {
         val next = NoteItem.listToJson(transform(noteItems(context)))
         prefs(context).edit().putString(K_NOTES, next).remove(K_NOTES_ETAG).apply()
     }
+    /* ── 주식·환율 캐시 (읽기 전용 위젯) ──────────────────────────────────
+     * 폰에서 고치는 값이 없으므로 낙관적 변형(mutate…)이 없다 — 서버가 진실이고
+     * 위젯은 마지막으로 받은 값을 그린다(동기화 실패 시 캐시 유지). */
+
+    fun putStocks(context: Context, itemsJson: String, etag: String?, linked: Boolean, syncedAt: Long) {
+        prefs(context).edit()
+            .putString(K_STOCKS, itemsJson)
+            .putString(K_STOCKS_ETAG, etag)
+            .putBoolean(K_STOCKS_LINKED, linked)
+            .putLong(K_STOCKS_SYNCED_AT, syncedAt)
+            .apply()
+    }
+
+    fun touchStocksSynced(context: Context, syncedAt: Long) {
+        prefs(context).edit().putLong(K_STOCKS_SYNCED_AT, syncedAt).apply()
+    }
+
+    fun stocksEtag(context: Context): String? = prefs(context).getString(K_STOCKS_ETAG, null)
+
+    fun stocksLinked(context: Context): Boolean = prefs(context).getBoolean(K_STOCKS_LINKED, false)
+
+    fun stocksSyncedAt(context: Context): Long = prefs(context).getLong(K_STOCKS_SYNCED_AT, 0L)
+
+    fun quoteItems(context: Context): List<QuoteItem> {
+        val json = prefs(context).getString(K_STOCKS, null) ?: return emptyList()
+        return try {
+            QuoteItem.listFromJson(json)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun putFx(context: Context, itemsJson: String, etag: String?, linked: Boolean, syncedAt: Long) {
+        prefs(context).edit()
+            .putString(K_FX, itemsJson)
+            .putString(K_FX_ETAG, etag)
+            .putBoolean(K_FX_LINKED, linked)
+            .putLong(K_FX_SYNCED_AT, syncedAt)
+            .apply()
+    }
+
+    fun touchFxSynced(context: Context, syncedAt: Long) {
+        prefs(context).edit().putLong(K_FX_SYNCED_AT, syncedAt).apply()
+    }
+
+    fun fxEtag(context: Context): String? = prefs(context).getString(K_FX_ETAG, null)
+
+    fun fxLinked(context: Context): Boolean = prefs(context).getBoolean(K_FX_LINKED, false)
+
+    fun fxSyncedAt(context: Context): Long = prefs(context).getLong(K_FX_SYNCED_AT, 0L)
+
+    fun fxItems(context: Context): List<FxItem> {
+        val json = prefs(context).getString(K_FX, null) ?: return emptyList()
+        return try {
+            FxItem.listFromJson(json)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     /* ── 작업 위젯 필터 ────────────────────────────────────────────────── */
 
     /**

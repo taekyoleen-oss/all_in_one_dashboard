@@ -11,6 +11,7 @@ import {
   newPairingCode,
   nextKstMorningIso,
   pickMobileInstance,
+  pickMobileInstanceOrOnly,
   rateLimited,
   sha256Hex,
 } from "./widgetCore.ts";
@@ -69,4 +70,23 @@ test("페어링 코드는 6자리 숫자, 토큰은 pbw_ 접두 + 충분한 길�
   // sha256은 64자 hex + 결정적(같은 입력 = 같은 해시) — 토큰 대조의 기반.
   assert.match(sha256Hex(tok), /^[0-9a-f]{64}$/);
   assert.equal(sha256Hex("123456"), sha256Hex("123456"));
+});
+
+test("지정이 없으면 — 하나뿐일 때만 그것을 대상으로(주식·환율 읽기 전용 폴백)", () => {
+  // 하나뿐 = 고를 여지가 없다 → 그 위젯(요구: 현재는 기존 위젯에 연결).
+  assert.equal(pickMobileInstanceOrOnly([{ id: "only", config: {} }]), "only");
+  // 둘 이상인데 지정이 없으면 어느 쪽인지 알 수 없다 → 사용자가 고르게 null.
+  assert.equal(
+    pickMobileInstanceOrOnly([{ id: "a", config: {} }, { id: "b", config: {} }]),
+    null,
+  );
+  // 지정이 있으면 개수와 무관하게 지정이 이긴다.
+  assert.equal(
+    pickMobileInstanceOrOnly([
+      { id: "a", config: {} },
+      { id: "b", config: { mobileSync: true, mobileSyncAt: 5 } },
+    ]),
+    "b",
+  );
+  assert.equal(pickMobileInstanceOrOnly([]), null);
 });

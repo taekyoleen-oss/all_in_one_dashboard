@@ -13,7 +13,8 @@
 import { FxRatesSchema, type FxRates } from "@/output/api-shapes";
 import { usePoll } from "@/components/widgets/shared/usePoll";
 import { fxDirectionFromPct, type FxDirection } from "./format";
-import { fxUnit, foreignCurrencies, type FxConfig } from "./types";
+import { fxRows } from "./rows";
+import { foreignCurrencies, type FxConfig } from "./types";
 
 /** Poll cadence for FX. 네이버 고시환율은 장중 수시 갱신되므로 3분 주기면 충분하다. */
 export const FX_REFRESH_MS = 180_000;
@@ -58,34 +59,18 @@ export function useFxRates(base: string, quotes: string[]): FxRatesState {
 
   const data = poll.data as FxRates | null;
 
-  // Derive rows directly from the payload (pure) — direction/% come from the
-  // server's 전일 대비 changePct (no client poll-to-poll state needed).
-  const rows: FxRow[] = [];
-  if (data) {
-    for (const c of foreign) {
-      const rate = data.rates[c]; // c per 1 KRW
-      if (typeof rate !== "number" || rate === 0) continue;
-      const unit = fxUnit(c);
-      const krw = unit / rate; // KRW per `unit` of c
-      // changePct[c] is for c-per-KRW; the KRW value moves the OPPOSITE way → negate.
-      const sp = data.changePct?.[c];
-      const cp = typeof sp === "number" ? -sp : undefined;
-      // Day-over-day KRW amount: prevKrw = krw / (1 + cp/100); Δ = krw − prevKrw.
-      let changeAbs: number | undefined;
-      if (typeof cp === "number" && Number.isFinite(cp)) {
-        const denom = 1 + cp / 100;
-        if (denom !== 0) changeAbs = krw - krw / denom;
-      }
-      rows.push({
-        quote: c,
-        unit,
-        krw,
-        direction: fxDirectionFromPct(cp),
-        changePct: cp,
-        changeAbs,
-      });
-    }
-  }
+  // 원화 환산·전일대비는 폰 브리지(/api/widget/fx)와 **같은 함수**로 계산한다
+  // (두 곳에서 따로 뒤집으면 웹·폰 숫자가 갈라진다 — rows.ts 머리말).
+  const rows: FxRow[] = data
+    ? fxRows(foreign, data.rates, data.changePct).map((r) => ({
+        quote: r.code,
+        unit: r.unit,
+        krw: r.krw,
+        direction: fxDirectionFromPct(r.changePct),
+        changePct: r.changePct,
+        changeAbs: r.changeAbs,
+      }))
+    : [];
 
   return {
     base: "KRW",

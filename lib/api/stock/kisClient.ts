@@ -263,6 +263,9 @@ async function fetchStock(
   // 실패면 정규장 값을 그대로 둔다(시간외 조회 오류가 정규장 시세를 떨어뜨리지 않도록 격리).
   // 등락은 KIS 시간외 필드(=기준가 대비, 상한가 등에서 0이 됨)가 아니라 '전일 종가' 대비로
   // 직접 계산 → 정규장 등락이 0으로 덮이는 버그(상한가 종목 "—" 표시)를 막는다.
+  // 시간외 단일가로 갈아끼웠을 때만 'post' 표식을 남긴다(요구: 시간외임을 화면에 표시).
+  // KIS의 이 엔드포인트는 장후 시간외 단일가(16:00~18:00)라 pre는 나오지 않는다.
+  let session: "pre" | "post" | undefined;
   if (inOvertimeWindowKst(Date.now()) && prevClose > 0) {
     try {
       const ot = await fetchOvertime(code, token);
@@ -270,6 +273,7 @@ async function fetchStock(
         outPrice = ot.price;
         outChange = ot.price - prevClose;
         outPct = ((ot.price - prevClose) / prevClose) * 100;
+        session = "post";
       }
     } catch {
       /* keep regular quote */
@@ -285,6 +289,7 @@ async function fetchStock(
     ts: Date.now(),
     currency: "KRW",
     isIndex: false,
+    session,
   };
 }
 

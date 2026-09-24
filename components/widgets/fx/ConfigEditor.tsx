@@ -16,6 +16,7 @@
 import * as React from "react";
 import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
 import type { ConfigEditorProps } from "@/lib/widgets/contract";
+import { MobileSyncToggle } from "@/components/widgets/shared/MobileSyncToggle";
 import { COMMON_CURRENCIES, type FxConfig } from "./types";
 
 const CODE_RE = /^[A-Za-z]{3}$/;
@@ -25,7 +26,7 @@ function currencyLabel(code: string): string {
   return COMMON_CURRENCIES.find((c) => c.code === code)?.label ?? code;
 }
 
-export function FxConfigEditor({ config, onChange }: ConfigEditorProps<FxConfig>) {
+export function FxConfigEditor({ config, onChange, instanceId }: ConfigEditorProps<FxConfig>) {
   const [quoteInput, setQuoteInput] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
 
@@ -72,6 +73,25 @@ export function FxConfigEditor({ config, onChange }: ConfigEditorProps<FxConfig>
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 0) 폰 위젯 연동 — 이 인스턴스를 홈 화면 '환율' 위젯에 띄운다. */}
+      <MobileSyncToggle
+        config={config}
+        onChange={onChange}
+        instanceId={instanceId}
+        description={
+          <>
+            이 위젯의 통화들이 안드로이드 홈 화면 &lsquo;환율&rsquo; 위젯에 원화 기준으로
+            표시됩니다(보기 전용 — 통화 추가·삭제는 여기서).
+          </>
+        }
+        footnote={
+          <>
+            여러 &lsquo;환율&rsquo; 위젯에서 켜면 <b>마지막으로 켠 위젯</b>이 폰에
+            표시됩니다. 환율 위젯이 하나뿐이면 켜지 않아도 그 위젯이 표시됩니다.
+          </>
+        }
+      />
+
       {/* 1) Base currency */}
       <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
         <legend className="px-1 text-xs font-medium text-muted-foreground">
