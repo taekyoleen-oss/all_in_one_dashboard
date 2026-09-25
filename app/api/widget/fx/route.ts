@@ -58,10 +58,13 @@ export async function GET(request: NextRequest) {
   let items: WidgetFxItem[] = [];
   let date: string | null = null;
   let stale = true;
+  // 환율을 못 받았는데 items가 비면 폰이 '통화 없음'으로 오해한다 → 표식으로 구분.
+  let unavailable = false;
 
   if (codes.length > 0) {
     // base=KRW로 받아 rates[C] = 1원당 C → fxRows가 원화 값으로 뒤집는다.
     const rates = await fetchRates("KRW", codes);
+    unavailable = !rates;
     if (rates) {
       date = rates.date ?? null;
       stale = rates.stale;
@@ -78,6 +81,7 @@ export async function GET(request: NextRequest) {
     items,
     date,
     stale,
+    ...(unavailable ? { unavailable: true } : {}),
     ts: Date.now(),
   };
   const etag = `"${sha256Hex(JSON.stringify({ ...body, ts: 0 })).slice(0, 32)}"`;

@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionStartActivity
@@ -74,12 +75,15 @@ class NotesWidget : GlanceAppWidget() {
         }
     }
 
+    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다.
             val s = remember(tick) { NotesUi(context) }
-            NotesRoot(s)
+            NotesRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
         }
     }
 }
@@ -101,7 +105,7 @@ private class NotesUi(context: Context) {
 private const val KIND = "notes"
 
 @Composable
-private fun NotesRoot(s: NotesUi) {
+private fun NotesRoot(s: NotesUi, titleOnly: Boolean) {
     val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
@@ -116,7 +120,8 @@ private fun NotesRoot(s: NotesUi) {
             PairingCta(revoked = s.unauthorized, subject = "노트")
         } else {
             // 헤더는 연결 전에도 그린다 — 갱신 시각은 늘 우측 상단에 있어야 한다.
-            NotesHeader(s.syncedAt, showAdd = s.linked)
+            NotesHeader(s.syncedAt, showAdd = s.linked && !titleOnly)
+            if (titleOnly) return@Column // 제목만 모드 — 목록은 '더보기' 팝업에서
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinked()
@@ -212,6 +217,18 @@ private fun NotesHeader(syncedAt: Long, showAdd: Boolean) {
             )
         }
         Spacer(GlanceModifier.defaultWeight())
+        // 더보기 — 소제목이 많아 위젯에 다 안 들어갈 때 팝업으로 전부 본다(요구).
+        Text(
+            "더보기",
+            modifier = GlanceModifier
+                .clickable(actionStartActivity(listIntent(LocalContext.current, "notes")))
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            style = TextStyle(
+                color = AgendaTheme.accentProvider,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
         // 갱신 시각 — 늘 우측 상단 끝(요구). 누르면 즉시 동기화한다(15분을 기다리지
         // 않아도 되게). 투명 포그라운드 액티비티를 거치는 이유는 SyncNowActivity 주석.
         Text(

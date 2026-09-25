@@ -243,8 +243,14 @@ object WidgetStore {
      * 위젯은 마지막으로 받은 값을 그린다(동기화 실패 시 캐시 유지). */
 
     fun putStocks(context: Context, itemsJson: String, etag: String?, linked: Boolean, syncedAt: Long) {
+        // 못 받은 종목은 직전 값을 유지해 깜빡임을 없앤다(QuoteItem.keepKnown).
+        val merged = try {
+            QuoteItem.listToJson(QuoteItem.keepKnown(quoteItems(context), QuoteItem.listFromJson(itemsJson)))
+        } catch (e: Exception) {
+            itemsJson
+        }
         prefs(context).edit()
-            .putString(K_STOCKS, itemsJson)
+            .putString(K_STOCKS, merged)
             .putString(K_STOCKS_ETAG, etag)
             .putBoolean(K_STOCKS_LINKED, linked)
             .putLong(K_STOCKS_SYNCED_AT, syncedAt)
@@ -276,7 +282,25 @@ object WidgetStore {
         prefs(context).edit().putString(K_STOCKS, next).remove(K_STOCKS_ETAG).apply()
     }
 
-    fun putFx(context: Context, itemsJson: String, etag: String?, linked: Boolean, syncedAt: Long) {
+    /**
+     * 환율 조회가 통째로 실패하면(unavailable) **캐시를 덮어쓰지 않는다** — 빈 목록을
+     * 저장하면 위젯이 "통화가 없습니다"로 바뀌어 사용자를 오해시킨다.
+     */
+    fun putFx(
+        context: Context,
+        itemsJson: String,
+        etag: String?,
+        linked: Boolean,
+        syncedAt: Long,
+        unavailable: Boolean = false,
+    ) {
+        if (unavailable) {
+            prefs(context).edit()
+                .putBoolean(K_FX_LINKED, linked)
+                .putLong(K_FX_SYNCED_AT, syncedAt)
+                .apply()
+            return
+        }
         prefs(context).edit()
             .putString(K_FX, itemsJson)
             .putString(K_FX_ETAG, etag)

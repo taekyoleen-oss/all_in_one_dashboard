@@ -28,6 +28,7 @@ import { requireDevice } from "@/lib/api/widgetDevice";
 import { sha256Hex } from "@/lib/api/widgetCore";
 import { resolveMobileTarget } from "@/lib/api/widgetMobileTarget";
 import { getProvider } from "@/lib/api/stock/provider";
+import { resolveMeta } from "@/lib/api/stock/symbols";
 import type { Json } from "@/output/types/database";
 import type { StockSymbol, WidgetStockQuote, WidgetStocks } from "@/output/api-shapes";
 
@@ -72,9 +73,24 @@ export async function GET(request: NextRequest) {
     const { quotes } = await provider.getQuotes(symbols);
     // 위젯에 저장된 순서를 그대로 지킨다(provider는 순서를 보장하지 않는다).
     const bySymbol = new Map(quotes.map((q) => [q.symbol, q]));
-    items = symbols.flatMap((symbol) => {
+    // ⚠ 실패한 종목도 **행을 유지한다**. 예전엔 조용히 빼 버려서 업스트림이 한 번
+    // 흔들릴 때마다 폰 목록에서 종목이 사라졌다 다시 나타났다(사용자 신고).
+    // 대신 unavailable 표식을 달고, 폰이 직전 값을 그대로 보여 준다.
+    items = symbols.map((symbol) => {
       const q = bySymbol.get(symbol);
-      if (!q) return []; // 조회 실패 종목은 조용히 빠진다(한 종목이 전체를 망치지 않게)
+      if (!q) {
+        const meta = resolveMeta(symbol);
+        return {
+          symbol,
+          name: meta.name,
+          price: 0,
+          change: 0,
+          changePct: 0,
+          currency: meta.currency,
+          isIndex: meta.isIndex ?? false,
+          unavailable: true,
+        } satisfies WidgetStockQuote;
+      }
       const item: WidgetStockQuote = {
         symbol: q.symbol,
         name: q.name,
@@ -85,7 +101,7 @@ export async function GET(request: NextRequest) {
         isIndex: q.isIndex ?? false,
       };
       if (q.session) item.session = q.session;
-      return [item];
+      return item;
     });
   }
 

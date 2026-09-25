@@ -18,7 +18,7 @@
  */
 
 import * as React from "react";
-import { Maximize2, Pencil } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Maximize2, Pencil } from "lucide-react";
 
 /* ----------------------------- Error Boundary ----------------------------- */
 
@@ -115,6 +115,19 @@ export interface WidgetFrameProps {
    * the overlay and keeps the app (useBackStack).
    */
   onExpand?: () => void;
+  /**
+   * 제목만 남기고 접기/펴기(요구). 눌리면 타일 높이가 제목 한 줄로 줄고, 아래
+   * 위젯이 그만큼 올라온다(접기 계산은 collapseLayout.ts — 노트가 쓰던 경로를
+   * 모든 위젯이 공유한다).
+   */
+  onToggleCollapse?: () => void;
+  /** 지금 제목만 보이는 상태인가(아이콘 방향·라벨을 뒤집는다). */
+  collapsed?: boolean;
+  /**
+   * '더보기' — 화면을 가리지 않는 팝업으로 내용을 아래로 길게 펼친다(요구).
+   * 전체보기(onExpand)와 달리 뒤 캔버스가 그대로 보인다.
+   */
+  onMore?: () => void;
 }
 
 export function WidgetFrame({
@@ -128,6 +141,9 @@ export function WidgetFrame({
   onTitleChange,
   editSignal,
   onExpand,
+  onToggleCollapse,
+  collapsed = false,
+  onMore,
 }: WidgetFrameProps) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(title);
@@ -231,6 +247,35 @@ export function WidgetFrame({
             ) : null}
           </div>
         )}
+        {/* 더보기 — 화면을 가리지 않는 팝업(WidgetPopover). 접힌 상태에서 내용을
+            보는 기본 경로라 '전체'보다 앞에 둔다. */}
+        {onMore ? (
+          <button
+            type="button"
+            data-pb-no-drag=""
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onMore}
+            aria-label="더보기 (팝업으로 크게)"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronsUpDown size={12} aria-hidden />
+            더보기
+          </button>
+        ) : null}
+        {/* 제목만 접기/펴기 — 타일을 제목 한 줄로 줄였다 되돌린다. */}
+        {onToggleCollapse ? (
+          <button
+            type="button"
+            data-pb-no-drag=""
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "펼치기" : "제목만 남기고 접기"}
+            title={collapsed ? "펼치기" : "제목만 남기고 접기"}
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+          </button>
+        ) : null}
         {/* 전체 — open this widget full-screen (FocusOverlay). data-pb-no-drag so
             tapping it never starts a grid drag. */}
         {onExpand ? (

@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionStartActivity
@@ -67,11 +68,15 @@ class StocksWidget : GlanceAppWidget() {
         }
     }
 
+    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             val s = remember(tick) { StocksUi(context) }
-            StocksRoot(s)
+            // 위젯을 낮게 줄여 두면 '제목만' 모드가 된다(요구) — 내용은 더보기 팝업에서.
+            StocksRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
         }
     }
 }
@@ -90,8 +95,14 @@ private class StocksUi(context: Context) {
 /** 표시 설정 저장 키의 위젯 종류. */
 private const val KIND = "stocks"
 
+/**
+ * 이 높이보다 낮게 줄인 위젯은 **제목 줄만** 그린다(요구: 기본 크기를 제목만).
+ * 헤더(≈34dp) + 위아래 패딩(24dp)에 한 줄이 겨우 들어가는 지점 언저리.
+ */
+internal val TITLE_ONLY_MAX_H = 108.dp
+
 @Composable
-private fun StocksRoot(s: StocksUi) {
+private fun StocksRoot(s: StocksUi, titleOnly: Boolean) {
     val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
@@ -104,7 +115,9 @@ private fun StocksRoot(s: StocksUi) {
         if (!s.paired || s.unauthorized) {
             PairingCta(revoked = s.unauthorized, subject = "주식")
         } else {
-            QuoteHeader("주식", KIND, s.syncedAt, showAdd = s.linked)
+            QuoteHeader("주식", KIND, s.syncedAt, showAdd = s.linked && !titleOnly)
+            // 제목만 모드: 여기서 끝낸다(목록은 헤더의 '더보기' 팝업이 보여 준다).
+            if (titleOnly) return@Column
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("주식")
@@ -202,7 +215,7 @@ internal fun QuoteHeader(title: String, kind: String, syncedAt: Long, showAdd: B
             // 위젯은 텍스트 입력이 불가하므로 작은 화면을 연다(계획서 §0.3 원칙).
             // 글리프 하나만 두면 눈에 띄지 않아 라벨을 붙인다(노트 위젯 v20 교훈).
             Text(
-                if (kind == "fx") "＋ 통화" else "＋ 종목",
+                "＋",
                 modifier = GlanceModifier
                     .clickable(actionStartActivity(addIntent(LocalContext.current, kind)))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -214,12 +227,24 @@ internal fun QuoteHeader(title: String, kind: String, syncedAt: Long, showAdd: B
             )
         }
         Spacer(GlanceModifier.defaultWeight())
+        // 더보기 — 위젯 칸에 다 안 들어가는 목록 전체를 팝업으로(요구).
+        Text(
+            "더보기",
+            modifier = GlanceModifier
+                .clickable(actionStartActivity(listIntent(LocalContext.current, kind)))
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            style = TextStyle(
+                color = AgendaTheme.accentProvider,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
         Text(
             if (syncedAt > 0) {
                 java.time.ZonedDateTime.ofInstant(
                     java.time.Instant.ofEpochMilli(syncedAt),
                     ZoneId.of("Asia/Seoul"),
-                ).format(DateTimeFormatter.ofPattern("HH:mm")) + " 갱신"
+                ).format(DateTimeFormatter.ofPattern("HH:mm"))
             } else {
                 "갱신 전"
             } + " ↻",

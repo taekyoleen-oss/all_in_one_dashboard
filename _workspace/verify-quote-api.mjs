@@ -188,6 +188,29 @@ try {
     afterDel.items.map((i) => i.symbol).join(","));
   check("이미 삭제된 종목은 404", (await del("/api/widget/stocks?symbol=MSFT")).status === 404);
 
+  /* ── 조회 실패해도 행은 남는다(깜빡임 신고 수정) ─────────────────── */
+  // 서버가 시세를 못 받는 심볼을 config에 직접 심는다(POST는 이런 값을 막으므로).
+  await rest(`pb_widgets?id=eq.${stockB.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      config: { symbols: ["AAPL", "ZZZZNOPE"], mobileSync: true, mobileSyncAt: Date.now() },
+    }),
+  });
+  const flaky = await (await fetch(`${BASE}/api/widget/stocks`, { headers: D })).json();
+  check(
+    "시세를 못 받아도 행이 사라지지 않는다",
+    flaky.items.map((i) => i.symbol).join(",") === "AAPL,ZZZZNOPE",
+    flaky.items.map((i) => i.symbol).join(","),
+  );
+  const bad = flaky.items.find((i) => i.symbol === "ZZZZNOPE");
+  check("못 받은 행엔 unavailable 표식", bad?.unavailable === true, JSON.stringify(bad));
+  check("정상 행엔 표식이 없다", flaky.items[0]?.unavailable === undefined);
+  // 원상 복구(뒤 검증이 AAPL 하나를 전제로 한다)
+  await rest(`pb_widgets?id=eq.${stockB.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ config: { symbols: ["AAPL"], mobileSync: true, mobileSyncAt: Date.now() } }),
+  });
+
   /* ── 환율 추가·삭제(폰에서) ────────────────────────────────────────── */
   D = await newDevice("verify-quote-3"); // 한도 분리
   check("폰에서 통화 추가", (await post("/api/widget/fx", { code: "eur" })).status === 201);

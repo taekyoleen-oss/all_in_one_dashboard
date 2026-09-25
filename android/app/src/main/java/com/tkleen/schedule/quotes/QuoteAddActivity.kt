@@ -15,7 +15,6 @@ import android.widget.Toast
 import com.tkleen.schedule.data.WidgetApi
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.pairing.PairingActivity
-import com.tkleen.schedule.sync.AgendaSyncWorker
 
 /**
  * 종목·통화 추가 화면 — 주식/환율 위젯 헤더의 ＋가 연다(요구: 폰에서도 추가).
@@ -171,11 +170,12 @@ class QuoteAddActivity : Activity() {
                 kind == "fx" -> WidgetApi.addFxCode(token, key)
                 else -> WidgetApi.addSymbol(token, key)
             }
+            // 새 항목의 시세·이름은 서버가 만든다 → **이 스레드에서 바로 재조회**한다.
+            // WorkManager에 맡기면 홈 화면에 나와도 한참 뒤에야 나타난다(사용자 신고).
+            if (result is WidgetApi.MutResult.Ok) pullNow(this, kind)
             runOnUiThread {
                 when (result) {
                     is WidgetApi.MutResult.Ok -> {
-                        // 새 항목의 시세·이름은 서버가 만든다 → 재조회가 정답.
-                        AgendaSyncWorker.syncNow(this)
                         Toast.makeText(this, "$label 추가됨", Toast.LENGTH_SHORT).show()
                         finish()
                     }

@@ -21,6 +21,7 @@
     <string name="stocks_widget_description">웹 대시보드 주식 위젯의 종목 시세를 보여 줍니다(시간외 포함).</string>
     <string name="stocks_preview_line1">삼성전자          77,800  +1.24%</string>
     <string name="stocks_preview_line2">코스피            2,712.45  -0.31%</string>
+    <string name="widget_more_title">더보기</string>
     <string name="quotes_add_title">추가</string>
     <string name="quotes_delete_title">삭제</string>
     <string name="fx_widget_label">환율</string>

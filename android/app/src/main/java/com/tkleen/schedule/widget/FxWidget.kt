@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
@@ -56,11 +57,14 @@ class FxWidget : GlanceAppWidget() {
         }
     }
 
+    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             val s = remember(tick) { FxUi(context) }
-            FxRoot(s)
+            FxRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
         }
     }
 }
@@ -79,7 +83,7 @@ private class FxUi(context: Context) {
 private const val KIND = "fx"
 
 @Composable
-private fun FxRoot(s: FxUi) {
+private fun FxRoot(s: FxUi, titleOnly: Boolean) {
     val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
@@ -92,7 +96,8 @@ private fun FxRoot(s: FxUi) {
         if (!s.paired || s.unauthorized) {
             PairingCta(revoked = s.unauthorized, subject = "환율")
         } else {
-            QuoteHeader("환율", KIND, s.syncedAt, showAdd = s.linked)
+            QuoteHeader("환율", KIND, s.syncedAt, showAdd = s.linked && !titleOnly)
+            if (titleOnly) return@Column // 제목만 모드 — 목록은 '더보기' 팝업에서
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("환율")

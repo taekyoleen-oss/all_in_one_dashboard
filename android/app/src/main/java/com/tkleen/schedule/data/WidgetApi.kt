@@ -275,7 +275,13 @@ object WidgetApi {
      * 위젯을 아직 고르지 않은 상태(그 종류 위젯이 하나뿐이면 서버가 자동으로 고른다).
      */
     sealed class ListResult {
-        data class Ok(val itemsJson: String, val etag: String?, val linked: Boolean) : ListResult()
+        data class Ok(
+            val itemsJson: String,
+            val etag: String?,
+            val linked: Boolean,
+            /** 환율 전용 — 조회 자체가 실패(빈 목록을 '통화 없음'으로 오해하지 않게). */
+            val unavailable: Boolean = false,
+        ) : ListResult()
         object NotModified : ListResult()
         object Unauthorized : ListResult()
         data class Error(val message: String) : ListResult()
@@ -301,6 +307,7 @@ object WidgetApi {
                         itemsJson = body.getJSONArray("items").toString(),
                         etag = conn.getHeaderField("ETag"),
                         linked = !body.isNull("instanceId"),
+                        unavailable = body.optBoolean("unavailable", false),
                     )
                 }
                 304 -> ListResult.NotModified

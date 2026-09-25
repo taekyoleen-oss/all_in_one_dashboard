@@ -707,7 +707,6 @@ export function usePersistence(
 
   const collapseNote = React.useCallback(
     (instanceId: string, level: "normal" | "more" | "title") => {
-      const minH = widgetRegistry["note"]?.minSize.h ?? 3;
       // 노트 외에 위치가 바뀐(아래로/위로 따라 이동한) 위젯 id를 모아 dirty 마킹한다.
       const moved: string[] = [];
       setBoards((prev) =>
@@ -716,6 +715,8 @@ export function usePersistence(
           const inst = b.instances.find((i) => i.instanceId === instanceId);
           if (!inst) return b;
           const cfg = (inst.config ?? {}) as NoteCollapseConfig;
+          // 접기는 모든 위젯이 쓴다(제목만 접기) — 최소 높이는 그 종류의 minSize.
+          const minH = widgetRegistry[inst.type]?.minSize.h ?? 2;
           // 순수 함수가 노트 h 변경 + 아래 위젯 이동을 모두 계산(collapseLayout.ts).
           const res = computeNoteCollapse(
             b.layout,

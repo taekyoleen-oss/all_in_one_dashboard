@@ -881,6 +881,12 @@ export const WidgetStockQuoteSchema = z.object({
   isIndex: z.boolean(),
   /** 시간외 표식 — StockQuote.session과 같은 값(없으면 정규장). */
   session: z.enum(["pre", "post"]).optional(),
+  /**
+   * 이번 조회에서 시세를 못 받은 행(업스트림 일시 실패·한도 등).
+   * **행 자체는 빠지지 않는다** — 빼면 폰 목록에서 종목이 사라졌다 다시 나타난다
+   * (사용자 신고). 폰은 이 표식을 보고 직전에 받은 값을 그대로 유지한다.
+   */
+  unavailable: z.boolean().optional(),
 });
 export type WidgetStockQuote = z.infer<typeof WidgetStockQuoteSchema>;
 
@@ -914,6 +920,12 @@ export const WidgetFxSchema = z.object({
   /** 고시 기준일(ISO yyyy-mm-dd) — 없을 수 있다. */
   date: z.string().nullable(),
   stale: z.boolean(),
+  /**
+   * 환율 조회 자체가 실패했다(items가 비어 있어도 '통화 없음'이 아니라는 뜻).
+   * 환율은 한 번에 다 받거나 못 받으므로 주식과 달리 **목록 단위** 표식이다.
+   * 폰은 이때 캐시를 덮어쓰지 않는다.
+   */
+  unavailable: z.boolean().optional(),
   ts: z.number().int(),
 });
 export type WidgetFx = z.infer<typeof WidgetFxSchema>;

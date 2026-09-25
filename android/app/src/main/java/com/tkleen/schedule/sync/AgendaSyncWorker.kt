@@ -91,7 +91,7 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
 
         when (val f = WidgetApi.fetchFx(token, WidgetStore.fxEtag(ctx))) {
             is WidgetApi.ListResult.Ok ->
-                WidgetStore.putFx(ctx, f.itemsJson, f.etag, f.linked, System.currentTimeMillis())
+                WidgetStore.putFx(ctx, f.itemsJson, f.etag, f.linked, System.currentTimeMillis(), f.unavailable)
             WidgetApi.ListResult.NotModified ->
                 WidgetStore.touchFxSynced(ctx, System.currentTimeMillis())
             WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)

@@ -40,6 +40,7 @@ import {
 import { BoardTabs } from "@/components/canvas/BoardTabs";
 import { Toolbar } from "@/components/canvas/Toolbar";
 import { FocusOverlay } from "@/components/canvas/FocusOverlay";
+import { WidgetPopover } from "@/components/canvas/WidgetPopover";
 import { ConfigDialog } from "@/components/canvas/ConfigDialog";
 import {
   WidgetPipPortal,
@@ -185,6 +186,8 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
 
   // Overlay ids edited/focused: track WHICH instance each overlay targets.
   const [focusId, setFocusId] = React.useState<string | null>(null);
+  // 제목 줄 '더보기'로 여는 팝업(화면을 가리지 않는 패널 — WidgetPopover).
+  const [popoverId, setPopoverId] = React.useState<string | null>(null);
   const [editId, setEditId] = React.useState<string | null>(null);
   // 항상-위 고정(Document PiP): 고정된 인스턴스 id + 열린 PiP 창.
   const [pip, setPip] = React.useState<{
@@ -305,6 +308,15 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
     (instanceId: string) => {
       setFocusId(instanceId);
       openOverlay(`focus:${instanceId}`);
+    },
+    [openOverlay],
+  );
+
+  /** '더보기' — 전체보기와 달리 화면을 가리지 않는 팝업으로 연다(요구). */
+  const openMore = React.useCallback(
+    (instanceId: string) => {
+      setPopoverId(instanceId);
+      openOverlay(`popover:${instanceId}`);
     },
     [openOverlay],
   );
@@ -475,6 +487,11 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
   /* ----- overlay target resolution (focus/edit close when stack pops) ----- */
   const focusOpen = focusId != null && isOpen(`focus:${focusId}`);
   const editOpen = editId != null && isOpen(`edit:${editId}`);
+  const popoverOpen = popoverId != null && isOpen(`popover:${popoverId}`);
+  const popoverInstance =
+    popoverId != null
+      ? (active.instances.find((i) => i.instanceId === popoverId) ?? null)
+      : null;
   const focusInstance =
     focusId != null
       ? (active.instances.find((i) => i.instanceId === focusId) ?? null)
@@ -584,6 +601,7 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
               onDropWidget={addByDrop}
               renderActions={renderActions}
               onFocusInstance={openFocus}
+              onMoreInstance={openMore}
               onTransferInstance={transferInstanceToBoard}
               storageKey={activeId}
               compactNonce={compactNonce}
@@ -617,6 +635,24 @@ function CanvasBody({ userEmail, userId, isOwner, initialBoards }: CanvasShellPr
           onEdit={focusId != null ? () => openEdit(focusId) : undefined}
           onPip={focusId != null ? () => void openPip(focusId) : undefined}
           escDisabled={editOpen}
+        />
+      </NoteCollapseOverrideProvider>
+      {/* 더보기 팝업 — 스크림이 없어 뒤 캔버스가 그대로 보인다(요구: 화면 전체를
+          가리지 않기). 전체보기로 승격하려면 팝업 헤더의 '전체'. */}
+      <NoteCollapseOverrideProvider collapseNote={collapseViaGrid}>
+        <WidgetPopover
+          registry={widgetRegistry}
+          instance={popoverInstance}
+          open={popoverOpen}
+          onClose={closeTop}
+          onExpand={
+            popoverId != null
+              ? () => {
+                  closeTop();
+                  openFocus(popoverId);
+                }
+              : undefined
+          }
         />
       </NoteCollapseOverrideProvider>
       <ConfigDialog

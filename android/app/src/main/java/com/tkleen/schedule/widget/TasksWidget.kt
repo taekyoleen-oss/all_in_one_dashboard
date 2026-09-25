@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
@@ -73,12 +74,15 @@ class TasksWidget : GlanceAppWidget() {
         }
     }
 
+    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
+    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다(위 주석).
             val s = remember(tick) { TasksUi(context) }
-            TasksRoot(s)
+            TasksRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
         }
     }
 }
@@ -102,7 +106,7 @@ private class TasksUi(context: Context) {
 private const val KIND = "tasks"
 
 @Composable
-private fun TasksRoot(s: TasksUi) {
+private fun TasksRoot(s: TasksUi, titleOnly: Boolean) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -122,7 +126,10 @@ private fun TasksRoot(s: TasksUi) {
                     // 완료는 진행 필터에서 즉시 제외(요구) — 유예 없이 완료·전체에서만 보인다.
                     else -> s.items.filter { !it.done }
                 }
-                TasksHeader(s.filter, s.syncedAt)
+                // 제목만 모드에선 필터를 감춘다 — 목록이 없으니 고를 이유가 없고,
+                // 그 자리에 '목록'(전체 보기 화면)이 남아 더보기 역할을 한다.
+                TasksHeader(s.filter, s.syncedAt, showFilters = !titleOnly)
+                if (titleOnly) return@Column
                 Spacer(GlanceModifier.height(6.dp))
                 if (visible.isEmpty()) {
                     Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -201,7 +208,7 @@ private fun FilterButton(label: String, value: String, current: String) {
 }
 
 @Composable
-private fun TasksHeader(filter: String, syncedAt: Long) {
+private fun TasksHeader(filter: String, syncedAt: Long, showFilters: Boolean = true) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         // 제목 탭 = 표시 설정(글자 크기·배경색). 헤더에 버튼을 하나 더 늘리면 좁은
         // 위젯에서 필터가 밀려나므로 제목에 ⚙ 글리프만 붙였다.
@@ -218,9 +225,11 @@ private fun TasksHeader(filter: String, syncedAt: Long) {
         )
         Spacer(GlanceModifier.width(4.dp))
         // 필터 버튼(진행·완료·전체) — 화면 전환 없이 위젯 목록이 그 필터로 바뀐다.
-        FilterButton("진행", "pending", filter)
-        FilterButton("완료", "done", filter)
-        FilterButton("전체", "all", filter)
+        if (showFilters) {
+            FilterButton("진행", "pending", filter)
+            FilterButton("완료", "done", filter)
+            FilterButton("전체", "all", filter)
+        }
         Spacer(GlanceModifier.defaultWeight())
         if (syncedAt > 0) {
             val t = java.time.ZonedDateTime.ofInstant(

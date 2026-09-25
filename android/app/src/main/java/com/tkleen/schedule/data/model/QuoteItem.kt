@@ -18,13 +18,15 @@ data class QuoteItem(
     val currency: String,
     val isIndex: Boolean,
     val session: String?, // "pre" | "post" | null(정규장)
+    /** 이번 응답에서 시세를 못 받은 행(직전 값도 없으면 "—"로 그린다). */
+    val unavailable: Boolean = false,
 ) {
     /** 원화는 소수점 없이, 그 외 통화는 두 자리까지(달러·지수 소수 보존). */
     fun priceText(): String =
-        (if (currency == "KRW") KRW else DEC).format(price)
+        if (unavailable) "—" else (if (currency == "KRW") KRW else DEC).format(price)
 
     /** "+1.23%" / "-0.40%" — 부호를 항상 붙여 방향이 글자로도 드러나게. */
-    fun pctText(): String = String.format("%+.2f%%", changePct)
+    fun pctText(): String = if (unavailable) "" else String.format("%+.2f%%", changePct)
 
     /**
      * 시간외 표식(요구: "pre 등을 표시"). 국내는 '시간외 단일가'가 익숙한 이름이라
@@ -53,9 +55,26 @@ data class QuoteItem(
                     .put("changePct", q.changePct).put("currency", q.currency)
                     .put("isIndex", q.isIndex)
                 if (q.session != null) o.put("session", q.session)
+                if (q.unavailable) o.put("unavailable", true)
                 arr.put(o)
             }
             return arr.toString()
+        }
+
+        /**
+         * 이번에 못 받은 행(unavailable)을 **직전 값으로 채운다** — 업스트림이 한 번
+         * 흔들릴 때마다 가격이 "—"로 깜빡이지 않게. 직전 값도 없으면 그대로 둔다.
+         * 순서·구성은 서버(=웹 위젯의 종목 순서)가 정한 incoming을 따른다.
+         */
+        fun keepKnown(previous: List<QuoteItem>, incoming: List<QuoteItem>): List<QuoteItem> {
+            if (incoming.none { it.unavailable } || previous.isEmpty()) return incoming
+            val prev = previous.associateBy { it.symbol }
+            return incoming.map { item ->
+                if (!item.unavailable) return@map item
+                val old = prev[item.symbol]
+                if (old == null || old.unavailable) item
+                else old.copy(name = item.name) // 이름은 최신 것(개명 반영), 숫자는 직전 값
+            }
         }
 
         fun listFromJson(itemsJson: String): List<QuoteItem> {
@@ -77,6 +96,7 @@ data class QuoteItem(
                         session = o.optString("session").takeIf {
                             it.isNotEmpty() && !o.isNull("session")
                         },
+                        unavailable = o.optBoolean("unavailable", false),
                     ),
                 )
             }
