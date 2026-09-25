@@ -86,6 +86,12 @@ private class StocksUi(context: Context) {
     val syncedAt = WidgetStore.stocksSyncedAt(context)
     /** 숨기기/보이기(요구) — 제목만 그릴지. */
     val hidden = WidgetStore.hidden(context, KIND)
+    /** 접혔을 때 배경 투명(옵션) — 주식은 기본 켜짐. */
+    val clear = WidgetStore.collapsedClear(context, KIND)
+    /** 접혔을 때 크게 띄울 종목(요구) — 지금 목록에 있는 것만, 목록 순서 그대로. */
+    val summary = WidgetStore.summarySymbols(context, items)
+        .let { picked -> items.filter { it.symbol in picked } }
+        .take(6)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
 }
@@ -100,7 +106,9 @@ private fun StocksRoot(s: StocksUi) {
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
-            .background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg))
+            // 접혔고 '투명' 옵션이면 배경을 아예 칠하지 않는다 — 홈 화면 배경 위에
+            // 요약만 떠 있게(요구). 펼치면 원래 배경으로 돌아온다.
+            .let { if (s.hidden && s.clear) it else it.background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg)) }
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {
@@ -108,8 +116,17 @@ private fun StocksRoot(s: StocksUi) {
             PairingCta(revoked = s.unauthorized, subject = "주식")
         } else {
             QuoteHeader("주식", KIND, s.syncedAt, showAdd = s.linked && !s.hidden, hidden = s.hidden)
-            // 숨김 상태: 여기서 끝낸다 — 공간은 그대로 두고 제목 줄만 남는다(요구).
-            if (s.hidden) return@Column
+            // 숨김 상태: 목록 대신 **요약**을 크게 그리고 끝낸다(요구). 접어 둔 공간이
+            // 비지 않도록 — 고른 종목이 없으면 제목 줄만 남는다.
+            if (s.hidden) {
+                if (s.summary.isNotEmpty()) {
+                    Spacer(GlanceModifier.height(6.dp))
+                    Column(GlanceModifier.fillMaxWidth()) {
+                        for (q in s.summary) SummaryRow(q, s.textLevel)
+                    }
+                }
+                return@Column
+            }
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("주식")
@@ -128,6 +145,48 @@ private fun StocksRoot(s: StocksUi) {
                 }
             }
         }
+    }
+}
+
+/**
+ * 접었을 때의 **요약 행**(요구) — 코스피·코스닥·다우·S&P500·필라델피아 반도체처럼
+ * 고른 종목을 평소 목록보다 **크게**, 상승은 빨강·하락은 파랑(한국 관례)으로 그린다.
+ * 평소 행과 눈으로 구분되는 것이 목적이라 이름과 등락률만 키우고, 값은 작게 곁들인다.
+ *
+ * 탭 동작을 주지 않는다 — 접힌 상태에서 행을 눌러 삭제 화면이 열리면 놀란다.
+ */
+@Composable
+private fun SummaryRow(item: QuoteItem, textLevel: Int) {
+    val bigSp = WidgetStyle.scaled(textLevel, 22f).sp
+    val dir = when {
+        item.changePct > 0 -> AgendaTheme.up
+        item.changePct < 0 -> AgendaTheme.down
+        else -> AgendaTheme.textDim
+    }
+    Row(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            item.name,
+            maxLines = 1,
+            modifier = GlanceModifier.defaultWeight(),
+            style = TextStyle(color = AgendaTheme.text, fontSize = bigSp, fontWeight = FontWeight.Bold),
+        )
+        Text(
+            item.priceText(),
+            style = TextStyle(
+                color = AgendaTheme.textDim,
+                fontSize = WidgetStyle.scaled(textLevel, 13f).sp,
+            ),
+        )
+        Spacer(GlanceModifier.width(6.dp))
+        Text(
+            item.pctText(),
+            style = TextStyle(color = dir, fontSize = bigSp, fontWeight = FontWeight.Bold),
+        )
     }
 }
 

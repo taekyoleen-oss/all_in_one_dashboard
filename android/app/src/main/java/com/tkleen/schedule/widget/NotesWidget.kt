@@ -94,6 +94,8 @@ private class NotesUi(context: Context) {
     /** 표시 설정(이 폰 전용) — 글자 크기·배경색·소제목별 글자색. */
     /** 숨기기/보이기(요구) — 제목만 그릴지. */
     val hidden = WidgetStore.hidden(context, KIND)
+    /** 접혔을 때 배경 투명(옵션) — 작업·노트는 기본 꺼짐. */
+    val clear = WidgetStore.collapsedClear(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
@@ -110,7 +112,7 @@ private fun NotesRoot(s: NotesUi) {
             .fillMaxSize()
             .appWidgetBackground()
             // 폰에서 고른 배경색(요구). 기본은 작업 위젯과 구분되는 옅은 회색.
-            .background(WidgetStyle.background(s.bgIndex, AgendaTheme.bgNote))
+            .let { if (s.hidden && s.clear) it else it.background(WidgetStyle.background(s.bgIndex, AgendaTheme.bgNote)) }
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {

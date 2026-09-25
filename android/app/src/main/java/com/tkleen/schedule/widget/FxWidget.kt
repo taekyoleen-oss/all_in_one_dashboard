@@ -73,6 +73,8 @@ private class FxUi(context: Context) {
     val syncedAt = WidgetStore.fxSyncedAt(context)
     /** 숨기기/보이기(요구) — 제목만 그릴지. */
     val hidden = WidgetStore.hidden(context, KIND)
+    /** 접혔을 때 배경 투명(옵션) — 환율은 기본 켜짐(요구: "투명하게 하여 접어"). */
+    val clear = WidgetStore.collapsedClear(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
 }
@@ -87,7 +89,8 @@ private fun FxRoot(s: FxUi) {
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
-            .background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg))
+            // 접히면 배경을 칠하지 않는다(요구) — 제목 줄만 홈 화면 위에 남는다.
+            .let { if (s.hidden && s.clear) it else it.background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg)) }
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {

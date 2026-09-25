@@ -95,6 +95,8 @@ private class TasksUi(context: Context) {
     /** 표시 설정(이 폰 전용) — 글자 크기·배경색·항목별 글자색. */
     /** 숨기기/보이기(요구) — 제목만 그릴지. */
     val hidden = WidgetStore.hidden(context, KIND)
+    /** 접혔을 때 배경 투명(옵션) — 작업·노트는 기본 꺼짐. */
+    val clear = WidgetStore.collapsedClear(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
@@ -110,7 +112,7 @@ private fun TasksRoot(s: TasksUi) {
             .fillMaxSize()
             .appWidgetBackground()
             // 배경색은 폰에서 고른 값(요구) — 고르지 않았으면 위젯 기본 배경.
-            .background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg))
+            .let { if (s.hidden && s.clear) it else it.background(WidgetStyle.background(s.bgIndex, AgendaTheme.bg)) }
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {

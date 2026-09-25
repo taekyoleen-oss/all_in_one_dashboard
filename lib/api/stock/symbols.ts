@@ -39,6 +39,8 @@ export const INDEX_CATALOG: SymbolMeta[] = [
   { symbol: "^DJI", name: "다우", isIndex: true, currency: "USD" },
   { symbol: "^GSPC", name: "S&P 500", isIndex: true, currency: "USD" },
   { symbol: "^IXIC", name: "나스닥", isIndex: true, currency: "USD" },
+  // 필라델피아 반도체(SOX) — 요구로 추가. Yahoo `^SOX`로 시세 확인(실측 12,492.54 USD).
+  { symbol: "^SOX", name: "필라델피아 반도체", isIndex: true, currency: "USD" },
 ];
 
 /** Helper: a KRW individual-stock catalog entry. KOSDAQ symbols carry ".KQ" so

@@ -1,6 +1,6 @@
 // 실브라우저 검증용 임시 승인 계정 만들기/지우기.
-//   node _workspace/test-account.mjs create   → 이메일·비밀번호 출력
-//   node _workspace/test-account.mjs drop <email>
+//   node _workspace/account-tool.mjs create   → 이메일·비밀번호 출력
+//   node _workspace/account-tool.mjs drop <email>
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 const env = Object.fromEntries(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8")

@@ -65,6 +65,10 @@ object WidgetStore {
     private const val K_ITEM_COLORS = "item_colors_"
     /** 숨기기/보이기(요구) — 접으면 위젯이 공간은 그대로 두고 제목 줄만 그린다. */
     private const val K_HIDDEN = "hidden_"
+    /** 접었을 때 배경을 투명하게(옵션) — 홈 화면 배경이 그대로 비친다. */
+    private const val K_CLEAR = "collapsed_clear_"
+    /** 접힌 주식 위젯에 **크게** 띄울 종목(요구의 요약). 미지정이면 지수 전부. */
+    private const val K_SUMMARY = "summary_symbols"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -400,6 +404,32 @@ object WidgetStore {
 
     fun setHidden(context: Context, kind: String, value: Boolean) {
         prefs(context).edit().putBoolean(K_HIDDEN + kind, value).apply()
+    }
+
+    /**
+     * 접었을 때 배경을 투명하게 둘지(옵션). 주식·환율은 **기본 켜짐** — 요구가
+     * "환율 위젯은 투명하게 하여 접어" 이고, 접힌 주식은 요약만 떠 있어야 한다.
+     */
+    fun collapsedClear(context: Context, kind: String): Boolean =
+        prefs(context).getBoolean(K_CLEAR + kind, kind == "stocks" || kind == "fx")
+
+    fun setCollapsedClear(context: Context, kind: String, value: Boolean) {
+        prefs(context).edit().putBoolean(K_CLEAR + kind, value).apply()
+    }
+
+    /**
+     * 접힌 주식 위젯의 요약 대상(요구) — **지금 위젯에 있는 종목 중에서** 고른다.
+     * 고른 적이 없으면 **지수 전부**(코스피·코스닥·다우·S&P500·필라델피아 반도체)가
+     * 기본이다. 고른 뒤 종목이 지워지면 여기 남아 있어도 items에 없어 안 그려진다.
+     */
+    fun summarySymbols(context: Context, items: List<QuoteItem>): Set<String> {
+        val saved = prefs(context).getStringSet(K_SUMMARY, null)
+            ?: return items.filter { it.isIndex }.map { it.symbol }.toSet()
+        return HashSet(saved) // prefs가 준 Set은 변형 금지 — 복사본을 넘긴다
+    }
+
+    fun setSummarySymbols(context: Context, symbols: Set<String>) {
+        prefs(context).edit().putStringSet(K_SUMMARY, HashSet(symbols)).apply()
     }
 
     fun textLevel(context: Context, kind: String): Int =

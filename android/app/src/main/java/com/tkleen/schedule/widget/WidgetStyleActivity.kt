@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -121,6 +122,50 @@ class WidgetStyleActivity : Activity() {
         paintBg()
         applyPreview()
 
+        /* 접기 옵션 — 접었을 때 배경을 칠하지 않는다(홈 화면이 그대로 비친다). */
+        val clearBox = CheckBox(this).apply {
+            text = "접었을 때 배경을 투명하게"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            isChecked = WidgetStore.collapsedClear(this@WidgetStyleActivity, kind)
+            setOnCheckedChangeListener { _, on ->
+                WidgetStore.setCollapsedClear(this@WidgetStyleActivity, kind, on)
+                refreshWidget(this@WidgetStyleActivity, kind)
+            }
+        }
+
+        /*
+         * 주식만 — 접었을 때 **크게** 띄울 종목(요구). 후보는 **지금 위젯에 있는
+         * 종목**뿐이다(없는 것을 고르게 하면 영영 안 나온다). 고르는 즉시 저장한다.
+         */
+        val summaryBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        if (kind == "stocks") {
+            val quotes = WidgetStore.quoteItems(this)
+            val picked = HashSet(WidgetStore.summarySymbols(this, quotes))
+            if (quotes.isEmpty()) {
+                summaryBox.addView(
+                    TextView(this).apply {
+                        text = "종목이 없습니다 — 위젯의 ＋로 먼저 추가하세요"
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                    },
+                )
+            } else {
+                for (q in quotes) {
+                    summaryBox.addView(
+                        CheckBox(this).apply {
+                            text = q.name
+                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                            isChecked = q.symbol in picked
+                            setOnCheckedChangeListener { _, on ->
+                                if (on) picked.add(q.symbol) else picked.remove(q.symbol)
+                                WidgetStore.setSummarySymbols(this@WidgetStyleActivity, picked)
+                                refreshWidget(this@WidgetStyleActivity, kind)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
         setContentView(
             ScrollView(this).apply {
                 addView(
@@ -147,6 +192,18 @@ class WidgetStyleActivity : Activity() {
                         addView(space(pad))
                         addView(sectionLabel("배경색"))
                         addView(bgRow, wide())
+                        addView(space(pad))
+                        addView(sectionLabel("접었을 때"))
+                        addView(clearBox, wide())
+                        if (kind == "stocks") {
+                            addView(
+                                TextView(this@WidgetStyleActivity).apply {
+                                    text = "접으면 아래 종목을 크게 요약해 보여 줍니다 (상승 빨강 · 하락 파랑)"
+                                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                                },
+                            )
+                            addView(summaryBox, wide())
+                        }
                         addView(space(pad))
                         addView(previewSub)
                         addView(preview, wide())

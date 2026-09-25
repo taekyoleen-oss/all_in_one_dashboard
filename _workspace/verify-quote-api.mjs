@@ -188,6 +188,19 @@ try {
     afterDel.items.map((i) => i.symbol).join(","));
   check("이미 삭제된 종목은 404", (await del("/api/widget/stocks?symbol=MSFT")).status === 404);
 
+  /* ── 필라델피아 반도체(^SOX) — 접힘 요약의 기본 대상(요구) ───────── */
+  D = await newDevice("verify-quote-sox"); // 한도 분리(토큰당 분당 20회)
+  const soxHits = await search("반도체");
+  check("필라델피아 반도체를 이름으로 찾는다", soxHits.some((r) => r.symbol === "^SOX"),
+    soxHits.map((r) => r.symbol).join(","));
+  check("^SOX 추가", (await post("/api/widget/stocks", { symbol: "^SOX" })).status === 201);
+  const soxRow = (await (await fetch(`${BASE}/api/widget/stocks`, { headers: D })).json())
+    .items.find((i) => i.symbol === "^SOX");
+  check("^SOX에 시세가 붙고 지수로 표시된다",
+    Boolean(soxRow) && soxRow.isIndex && !soxRow.unavailable && soxRow.price > 1000,
+    soxRow && `${soxRow.name} ${soxRow.price} ${soxRow.currency} ${soxRow.changePct}%`);
+  check("^SOX 삭제", (await del(`/api/widget/stocks?symbol=${encodeURIComponent("^SOX")}`)).status === 200);
+
   /* ── 조회 실패해도 행은 남는다(깜빡임 신고 수정) ─────────────────── */
   // 서버가 시세를 못 받는 심볼을 config에 직접 심는다(POST는 이런 값을 막으므로).
   await rest(`pb_widgets?id=eq.${stockB.id}`, {
