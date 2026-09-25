@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
-import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
@@ -57,14 +56,11 @@ class FxWidget : GlanceAppWidget() {
         }
     }
 
-    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
-    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
-
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             val s = remember(tick) { FxUi(context) }
-            FxRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
+            FxRoot(s)
         }
     }
 }
@@ -75,6 +71,8 @@ private class FxUi(context: Context) {
     val linked = WidgetStore.fxLinked(context)
     val items = WidgetStore.fxItems(context)
     val syncedAt = WidgetStore.fxSyncedAt(context)
+    /** 숨기기/보이기(요구) — 제목만 그릴지. */
+    val hidden = WidgetStore.hidden(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
 }
@@ -83,7 +81,7 @@ private class FxUi(context: Context) {
 private const val KIND = "fx"
 
 @Composable
-private fun FxRoot(s: FxUi, titleOnly: Boolean) {
+private fun FxRoot(s: FxUi) {
     val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
@@ -96,8 +94,8 @@ private fun FxRoot(s: FxUi, titleOnly: Boolean) {
         if (!s.paired || s.unauthorized) {
             PairingCta(revoked = s.unauthorized, subject = "환율")
         } else {
-            QuoteHeader("환율", KIND, s.syncedAt, showAdd = s.linked && !titleOnly)
-            if (titleOnly) return@Column // 제목만 모드 — 목록은 '더보기' 팝업에서
+            QuoteHeader("환율", KIND, s.syncedAt, showAdd = s.linked && !s.hidden, hidden = s.hidden)
+            if (s.hidden) return@Column // 숨김 — 공간은 그대로, 제목 줄만(요구)
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("환율")

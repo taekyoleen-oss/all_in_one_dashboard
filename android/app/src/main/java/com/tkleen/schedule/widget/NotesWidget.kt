@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
-import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionStartActivity
@@ -75,15 +74,12 @@ class NotesWidget : GlanceAppWidget() {
         }
     }
 
-    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
-    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
-
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다.
             val s = remember(tick) { NotesUi(context) }
-            NotesRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
+            NotesRoot(s)
         }
     }
 }
@@ -96,6 +92,8 @@ private class NotesUi(context: Context) {
     val items = WidgetStore.noteItems(context)
     val syncedAt = WidgetStore.notesSyncedAt(context)
     /** 표시 설정(이 폰 전용) — 글자 크기·배경색·소제목별 글자색. */
+    /** 숨기기/보이기(요구) — 제목만 그릴지. */
+    val hidden = WidgetStore.hidden(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
@@ -105,7 +103,7 @@ private class NotesUi(context: Context) {
 private const val KIND = "notes"
 
 @Composable
-private fun NotesRoot(s: NotesUi, titleOnly: Boolean) {
+private fun NotesRoot(s: NotesUi) {
     val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
@@ -120,8 +118,8 @@ private fun NotesRoot(s: NotesUi, titleOnly: Boolean) {
             PairingCta(revoked = s.unauthorized, subject = "노트")
         } else {
             // 헤더는 연결 전에도 그린다 — 갱신 시각은 늘 우측 상단에 있어야 한다.
-            NotesHeader(s.syncedAt, showAdd = s.linked && !titleOnly)
-            if (titleOnly) return@Column // 제목만 모드 — 목록은 '더보기' 팝업에서
+            NotesHeader(s.syncedAt, showAdd = s.linked && !s.hidden, hidden = s.hidden)
+            if (s.hidden) return@Column // 숨김 — 공간은 그대로, 제목 줄만(요구)
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinked()
@@ -185,7 +183,7 @@ private fun addIntent(context: Context): Intent =
  * 추가해 봐야 서버가 409로 막으므로 그때는 감춘다(showAdd=false).
  */
 @Composable
-private fun NotesHeader(syncedAt: Long, showAdd: Boolean) {
+private fun NotesHeader(syncedAt: Long, showAdd: Boolean, hidden: Boolean = false) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         // 제목 탭 = 표시 설정(글자 크기·배경색) — 헤더에 버튼을 더 늘리지 않으려고
         // 제목에 ⚙ 글리프만 붙였다.
@@ -200,6 +198,8 @@ private fun NotesHeader(syncedAt: Long, showAdd: Boolean) {
                 fontWeight = FontWeight.Bold,
             ),
         )
+        Spacer(GlanceModifier.width(4.dp))
+        HideToggle("notes", hidden)
         if (showAdd) {
             Spacer(GlanceModifier.width(8.dp))
             // 위젯은 텍스트 입력이 불가하므로 작은 입력 화면을 연다.
@@ -217,18 +217,6 @@ private fun NotesHeader(syncedAt: Long, showAdd: Boolean) {
             )
         }
         Spacer(GlanceModifier.defaultWeight())
-        // 더보기 — 소제목이 많아 위젯에 다 안 들어갈 때 팝업으로 전부 본다(요구).
-        Text(
-            "더보기",
-            modifier = GlanceModifier
-                .clickable(actionStartActivity(listIntent(LocalContext.current, "notes")))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            style = TextStyle(
-                color = AgendaTheme.accentProvider,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-        )
         // 갱신 시각 — 늘 우측 상단 끝(요구). 누르면 즉시 동기화한다(15분을 기다리지
         // 않아도 되게). 투명 포그라운드 액티비티를 거치는 이유는 SyncNowActivity 주석.
         Text(

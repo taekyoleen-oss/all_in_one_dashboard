@@ -318,16 +318,15 @@
             android:theme="@android:style/Theme.DeviceDefault.DayNight"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- 위젯 제목 줄 '더보기' — 목록 전체를 보는 팝업(대화상자 테마라 화면을
-             다 가리지 않는다: 요구). 바깥을 누르면 닫힌다. -->
+        <!-- 위젯 헤더의 '숨기기/보이기' — 보이는 UI 없이 접힘만 토글하고 닫힌다
+             (투명·터치 통과: v15의 입력 삼킴 방지 그대로). -->
         <activity
-            android:name=".widget.WidgetListActivity"
+            android:name=".widget.ToggleHiddenActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:taskAffinity=":widgetaction"
-            android:label="@string/widget_more_title"
-            android:theme="@android:style/Theme.DeviceDefault.Dialog" />
+            android:theme="@style/PbInvisible" />
 
         <!-- 주식·환율 위젯의 ＋(종목·통화 추가)가 여는 화면 -->
         <activity

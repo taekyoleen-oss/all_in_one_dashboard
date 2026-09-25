@@ -63,6 +63,8 @@ object WidgetStore {
     private const val K_STYLE_TEXT = "style_text_"
     private const val K_STYLE_BG = "style_bg_"
     private const val K_ITEM_COLORS = "item_colors_"
+    /** 숨기기/보이기(요구) — 접으면 위젯이 공간은 그대로 두고 제목 줄만 그린다. */
+    private const val K_HIDDEN = "hidden_"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -391,6 +393,14 @@ object WidgetStore {
     /* ── 표시 설정(요구) ───────────────────────────────────────────────────
      * 글자 크기·배경색은 위젯 종류별로, 글자색은 항목별로. 전부 **이 폰에만**
      * 남는다(웹과 동기화하지 않는다 — 이유는 WidgetStyle 주석). kind는 "tasks"|"notes". */
+
+    /** 이 위젯이 '제목만' 상태인가(숨기기). 기본은 보이기. */
+    fun hidden(context: Context, kind: String): Boolean =
+        prefs(context).getBoolean(K_HIDDEN + kind, false)
+
+    fun setHidden(context: Context, kind: String, value: Boolean) {
+        prefs(context).edit().putBoolean(K_HIDDEN + kind, value).apply()
+    }
 
     fun textLevel(context: Context, kind: String): Int =
         prefs(context).getInt(K_STYLE_TEXT + kind, WidgetStyle.DEFAULT_TEXT)

@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
-import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionStartActivity
@@ -47,7 +46,8 @@ import java.time.format.DateTimeFormatter
 /**
  * 주식 위젯 — 웹 '주식' 위젯 하나의 종목 시세를 그대로 보여 준다.
  *
- *  헤더 ＋로 **종목을 추가**하고, 행을 누르면 **삭제** 화면이 열린다(요구). 시세는
+ *  헤더 ＋로 **종목을 추가**하고, 행을 누르면 **삭제** 화면이 열린다(요구).
+ *  헤더의 **숨기기/보이기**로 내용을 접었다 폈다 한다(공간은 그대로). 시세는
  *  서버가 주는 값을 그리기만 한다 — 폰에서 계산하는 값은 없다.
  *  대상 위젯은 속성의 '모바일 홈 화면에 표시'로 고르고, 주식 위젯이 하나뿐이면
  *  켜지 않아도 그것을 본다(서버 규칙 — lib/api/widgetMobileTarget.ts).
@@ -68,15 +68,11 @@ class StocksWidget : GlanceAppWidget() {
         }
     }
 
-    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
-    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
-
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             val s = remember(tick) { StocksUi(context) }
-            // 위젯을 낮게 줄여 두면 '제목만' 모드가 된다(요구) — 내용은 더보기 팝업에서.
-            StocksRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
+            StocksRoot(s)
         }
     }
 }
@@ -88,6 +84,8 @@ private class StocksUi(context: Context) {
     val linked = WidgetStore.stocksLinked(context)
     val items = WidgetStore.quoteItems(context)
     val syncedAt = WidgetStore.stocksSyncedAt(context)
+    /** 숨기기/보이기(요구) — 제목만 그릴지. */
+    val hidden = WidgetStore.hidden(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
 }
@@ -95,14 +93,8 @@ private class StocksUi(context: Context) {
 /** 표시 설정 저장 키의 위젯 종류. */
 private const val KIND = "stocks"
 
-/**
- * 이 높이보다 낮게 줄인 위젯은 **제목 줄만** 그린다(요구: 기본 크기를 제목만).
- * 헤더(≈34dp) + 위아래 패딩(24dp)에 한 줄이 겨우 들어가는 지점 언저리.
- */
-internal val TITLE_ONLY_MAX_H = 108.dp
-
 @Composable
-private fun StocksRoot(s: StocksUi, titleOnly: Boolean) {
+private fun StocksRoot(s: StocksUi) {
     val bodySp = WidgetStyle.bodySp(s.textLevel).sp
     Column(
         modifier = GlanceModifier
@@ -115,9 +107,9 @@ private fun StocksRoot(s: StocksUi, titleOnly: Boolean) {
         if (!s.paired || s.unauthorized) {
             PairingCta(revoked = s.unauthorized, subject = "주식")
         } else {
-            QuoteHeader("주식", KIND, s.syncedAt, showAdd = s.linked && !titleOnly)
-            // 제목만 모드: 여기서 끝낸다(목록은 헤더의 '더보기' 팝업이 보여 준다).
-            if (titleOnly) return@Column
+            QuoteHeader("주식", KIND, s.syncedAt, showAdd = s.linked && !s.hidden, hidden = s.hidden)
+            // 숨김 상태: 여기서 끝낸다 — 공간은 그대로 두고 제목 줄만 남는다(요구).
+            if (s.hidden) return@Column
             Spacer(GlanceModifier.height(6.dp))
             if (!s.linked) {
                 NotLinkedHint("주식")
@@ -197,7 +189,13 @@ private fun QuoteRow(item: QuoteItem, textLevel: Int) {
  * 두 위젯 다 조작이 없어 헤더가 유일한 진입점이다.
  */
 @Composable
-internal fun QuoteHeader(title: String, kind: String, syncedAt: Long, showAdd: Boolean = true) {
+internal fun QuoteHeader(
+    title: String,
+    kind: String,
+    syncedAt: Long,
+    showAdd: Boolean = true,
+    hidden: Boolean = false,
+) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             "$title ⚙",
@@ -210,6 +208,8 @@ internal fun QuoteHeader(title: String, kind: String, syncedAt: Long, showAdd: B
                 fontWeight = FontWeight.Bold,
             ),
         )
+        Spacer(GlanceModifier.width(4.dp))
+        HideToggle(kind, hidden)
         if (showAdd) {
             Spacer(GlanceModifier.width(6.dp))
             // 위젯은 텍스트 입력이 불가하므로 작은 화면을 연다(계획서 §0.3 원칙).
@@ -227,18 +227,6 @@ internal fun QuoteHeader(title: String, kind: String, syncedAt: Long, showAdd: B
             )
         }
         Spacer(GlanceModifier.defaultWeight())
-        // 더보기 — 위젯 칸에 다 안 들어가는 목록 전체를 팝업으로(요구).
-        Text(
-            "더보기",
-            modifier = GlanceModifier
-                .clickable(actionStartActivity(listIntent(LocalContext.current, kind)))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            style = TextStyle(
-                color = AgendaTheme.accentProvider,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-        )
         Text(
             if (syncedAt > 0) {
                 java.time.ZonedDateTime.ofInstant(
@@ -282,6 +270,26 @@ internal fun deleteIntent(
     putExtra("key", key)
     putExtra("label", label)
     putExtra("detail", detail)
+}
+
+/**
+ * **숨기기 / 보이기**(요구) — 누르면 내용이 접혀 제목 줄만 남고, 다시 누르면
+ * 원래대로 돌아온다. 위젯이 차지한 홈 화면 공간은 그대로다(요구 문장 그대로).
+ * 네 위젯이 함께 쓴다.
+ */
+@Composable
+internal fun HideToggle(kind: String, hidden: Boolean) {
+    Text(
+        if (hidden) "보이기" else "숨기기",
+        modifier = GlanceModifier
+            .clickable(actionStartActivity(toggleHiddenIntent(LocalContext.current, kind)))
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        style = TextStyle(
+            color = AgendaTheme.accentProvider,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        ),
+    )
 }
 
 /** 대상 위젯이 없을 때 — 무엇을 해야 하는지 그대로 알린다. */

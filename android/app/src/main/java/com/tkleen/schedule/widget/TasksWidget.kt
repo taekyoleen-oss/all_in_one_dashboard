@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
-import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
@@ -74,15 +73,12 @@ class TasksWidget : GlanceAppWidget() {
         }
     }
 
-    /** 실제 위젯 크기를 알아야 '제목만' 모드를 판단한다(LocalSize). */
-    override val sizeMode = androidx.glance.appwidget.SizeMode.Exact
-
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val tick by refreshTick.collectAsState()
             // 캡처 금지 — 틱이 바뀔 때마다 컴포지션 안에서 새로 읽는다(위 주석).
             val s = remember(tick) { TasksUi(context) }
-            TasksRoot(s, titleOnly = LocalSize.current.height < TITLE_ONLY_MAX_H)
+            TasksRoot(s)
         }
     }
 }
@@ -97,6 +93,8 @@ private class TasksUi(context: Context) {
     val filter = WidgetStore.tasksFilter(context)
     val deleteMarks = WidgetStore.pendingDeleteIds(context)
     /** 표시 설정(이 폰 전용) — 글자 크기·배경색·항목별 글자색. */
+    /** 숨기기/보이기(요구) — 제목만 그릴지. */
+    val hidden = WidgetStore.hidden(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
@@ -106,7 +104,7 @@ private class TasksUi(context: Context) {
 private const val KIND = "tasks"
 
 @Composable
-private fun TasksRoot(s: TasksUi, titleOnly: Boolean) {
+private fun TasksRoot(s: TasksUi) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -126,10 +124,9 @@ private fun TasksRoot(s: TasksUi, titleOnly: Boolean) {
                     // 완료는 진행 필터에서 즉시 제외(요구) — 유예 없이 완료·전체에서만 보인다.
                     else -> s.items.filter { !it.done }
                 }
-                // 제목만 모드에선 필터를 감춘다 — 목록이 없으니 고를 이유가 없고,
-                // 그 자리에 '목록'(전체 보기 화면)이 남아 더보기 역할을 한다.
-                TasksHeader(s.filter, s.syncedAt, showFilters = !titleOnly)
-                if (titleOnly) return@Column
+                // 숨긴 상태에선 필터를 감춘다 — 목록이 없으니 고를 이유가 없다.
+                TasksHeader(s.filter, s.syncedAt, showFilters = !s.hidden, hidden = s.hidden)
+                if (s.hidden) return@Column
                 Spacer(GlanceModifier.height(6.dp))
                 if (visible.isEmpty()) {
                     Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -208,7 +205,12 @@ private fun FilterButton(label: String, value: String, current: String) {
 }
 
 @Composable
-private fun TasksHeader(filter: String, syncedAt: Long, showFilters: Boolean = true) {
+private fun TasksHeader(
+    filter: String,
+    syncedAt: Long,
+    showFilters: Boolean = true,
+    hidden: Boolean = false,
+) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         // 제목 탭 = 표시 설정(글자 크기·배경색). 헤더에 버튼을 하나 더 늘리면 좁은
         // 위젯에서 필터가 밀려나므로 제목에 ⚙ 글리프만 붙였다.
@@ -224,6 +226,20 @@ private fun TasksHeader(filter: String, syncedAt: Long, showFilters: Boolean = t
             ),
         )
         Spacer(GlanceModifier.width(4.dp))
+        // 숨기기/보이기 — 이 헤더는 필터·목록·＋로 이미 빽빽해서, **보이는 상태**에선
+        // 글리프(⌃) 하나만 쓰고 숨긴 상태에선 '보이기'로 또렷하게 적는다(되돌리는
+        // 길이 안 보이면 갇힌다). 제목 바로 옆이라 폭이 모자라도 잘리지 않는다.
+        Text(
+            if (hidden) "보이기" else "⌃",
+            modifier = GlanceModifier
+                .clickable(actionStartActivity(toggleHiddenIntent(LocalContext.current, "tasks")))
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            style = TextStyle(
+                color = AgendaTheme.accentProvider,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
         // 필터 버튼(진행·완료·전체) — 화면 전환 없이 위젯 목록이 그 필터로 바뀐다.
         if (showFilters) {
             FilterButton("진행", "pending", filter)

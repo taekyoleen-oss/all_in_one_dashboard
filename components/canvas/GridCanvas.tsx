@@ -101,8 +101,6 @@ export interface GridCanvasProps {
    * 이를 FocusOverlay(그리드 밖) 쪽 NoteCollapseOverrideProvider로 전달해, 전체보기의
    * '제목만 접기'도 모바일 기기-로컬 레이아웃까지 갱신하게 한다.
    */
-  /** 제목 줄 '더보기' — 화면을 가리지 않는 팝업을 연다(셸이 렌더). */
-  onMoreInstance?: (instanceId: string) => void;
   onRegisterCollapse?: (
     fn: (instanceId: string, level: NoteCollapseLevel) => void,
   ) => void;
@@ -427,14 +425,12 @@ function CanvasCell({
   actions,
   onExpand,
   onToggleCollapse,
-  onMore,
 }: {
   instance: WidgetInstance;
   registry: WidgetRegistry;
   actions?: React.ReactNode;
   onExpand?: () => void;
   onToggleCollapse?: () => void;
-  onMore?: () => void;
 }) {
   // 제목만 접힌 상태인가 — 접기 상태는 위젯 config에 함께 산다(노트가 쓰던 키를
   // 모든 위젯이 공유: collapse/normalHeight).
@@ -512,7 +508,6 @@ function CanvasCell({
           onExpand={onExpand}
           onToggleCollapse={onToggleCollapse}
           collapsed={collapsed}
-          onMore={onMore}
         >
           <p className="text-xs text-muted-foreground">
             레지스트리에 등록되지 않은 타입입니다.
@@ -555,7 +550,6 @@ function CanvasCell({
         onExpand={onExpand}
         onToggleCollapse={onToggleCollapse}
         collapsed={collapsed}
-        onMore={onMore}
       >
         {/* Per-instance 글자 크기: CSS zoom scales the whole subtree (text +
             spacing). h-full keeps the height chain intact so fill-frame widgets
@@ -761,7 +755,6 @@ export function GridCanvas({
   layout,
   onLayoutChange,
   onCollapseNote,
-  onMoreInstance,
   onRegisterCollapse,
   editable = true,
   onDropWidget,
@@ -1413,13 +1406,10 @@ export function GridCanvas({
                   : "title",
               )
             }
-            onMore={
-              onMoreInstance ? () => onMoreInstance(instance.instanceId) : undefined
-            }
           />
         </div>
       )),
-    [instances, registry, renderActions, onFocusInstance, onMoreInstance, handleCollapse],
+    [instances, registry, renderActions, onFocusInstance, handleCollapse],
   );
 
   const handleLayoutChange = React.useCallback(

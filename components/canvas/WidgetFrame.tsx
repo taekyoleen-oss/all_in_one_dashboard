@@ -18,7 +18,7 @@
  */
 
 import * as React from "react";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Maximize2, Pencil } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2, Pencil } from "lucide-react";
 
 /* ----------------------------- Error Boundary ----------------------------- */
 
@@ -116,18 +116,13 @@ export interface WidgetFrameProps {
    */
   onExpand?: () => void;
   /**
-   * 제목만 남기고 접기/펴기(요구). 눌리면 타일 높이가 제목 한 줄로 줄고, 아래
-   * 위젯이 그만큼 올라온다(접기 계산은 collapseLayout.ts — 노트가 쓰던 경로를
-   * 모든 위젯이 공유한다).
+   * **숨기기 / 보이기**(요구) — 내용을 접어 제목만 남기고, 다시 누르면 원래대로
+   * 되돌린다. 숨기면 타일 높이가 제목 한 줄로 줄고 아래 위젯이 그만큼 올라온다
+   * (접기 계산은 collapseLayout.ts — 노트가 쓰던 경로를 모든 위젯이 공유한다).
    */
   onToggleCollapse?: () => void;
-  /** 지금 제목만 보이는 상태인가(아이콘 방향·라벨을 뒤집는다). */
+  /** 지금 제목만 보이는 상태인가(버튼 라벨을 숨기기↔보이기로 뒤집는다). */
   collapsed?: boolean;
-  /**
-   * '더보기' — 화면을 가리지 않는 팝업으로 내용을 아래로 길게 펼친다(요구).
-   * 전체보기(onExpand)와 달리 뒤 캔버스가 그대로 보인다.
-   */
-  onMore?: () => void;
 }
 
 export function WidgetFrame({
@@ -143,7 +138,6 @@ export function WidgetFrame({
   onExpand,
   onToggleCollapse,
   collapsed = false,
-  onMore,
 }: WidgetFrameProps) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(title);
@@ -247,33 +241,20 @@ export function WidgetFrame({
             ) : null}
           </div>
         )}
-        {/* 더보기 — 화면을 가리지 않는 팝업(WidgetPopover). 접힌 상태에서 내용을
-            보는 기본 경로라 '전체'보다 앞에 둔다. */}
-        {onMore ? (
-          <button
-            type="button"
-            data-pb-no-drag=""
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onMore}
-            aria-label="더보기 (팝업으로 크게)"
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ChevronsUpDown size={12} aria-hidden />
-            더보기
-          </button>
-        ) : null}
-        {/* 제목만 접기/펴기 — 타일을 제목 한 줄로 줄였다 되돌린다. */}
+        {/* 숨기기 / 보이기 — 내용을 접어 제목만 남기고, 다시 누르면 원래대로.
+            아이콘만 두면 무슨 기능인지 모르므로 글자를 함께 쓴다('전체'와 같은 꼴). */}
         {onToggleCollapse ? (
           <button
             type="button"
             data-pb-no-drag=""
             onPointerDown={(e) => e.stopPropagation()}
             onClick={onToggleCollapse}
-            aria-label={collapsed ? "펼치기" : "제목만 남기고 접기"}
-            title={collapsed ? "펼치기" : "제목만 남기고 접기"}
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={collapsed ? "내용 보이기" : "내용 숨기기 (제목만)"}
+            title={collapsed ? "내용 보이기" : "내용 숨기기 (제목만 남김)"}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+            {collapsed ? <ChevronDown size={12} aria-hidden /> : <ChevronUp size={12} aria-hidden />}
+            {collapsed ? "보이기" : "숨기기"}
           </button>
         ) : null}
         {/* 전체 — open this widget full-screen (FocusOverlay). data-pb-no-drag so
@@ -297,19 +278,24 @@ export function WidgetFrame({
 
       {/* Body — error-isolated; min-h-0 lets it scroll within the grid cell.
           Overflow scrolls vertically with a THIN (6px) themed scrollbar
-          (scrollbar-width:thin for Firefox + ::-webkit-scrollbar for Chromium). */}
-      <div
-        className={[
-          "min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-[var(--density-pad)]",
-          "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
-          "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5",
-          "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
-          "[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/40",
-          "[&::-webkit-scrollbar-track]:bg-transparent",
-        ].join(" ")}
-      >
-        <WidgetErrorBoundary title={title}>{children}</WidgetErrorBoundary>
-      </div>
+          (scrollbar-width:thin for Firefox + ::-webkit-scrollbar for Chromium).
+
+          숨김 상태에선 **아예 그리지 않는다** — 타일 높이만 줄이면 제목 아래로
+          내용이 한두 줄 비어져 나온다(실측). 요구는 "제목만"이므로 본문을 뺀다. */}
+      {collapsed ? null : (
+        <div
+          className={[
+            "min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-[var(--density-pad)]",
+            "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
+            "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5",
+            "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
+            "[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/40",
+            "[&::-webkit-scrollbar-track]:bg-transparent",
+          ].join(" ")}
+        >
+          <WidgetErrorBoundary title={title}>{children}</WidgetErrorBoundary>
+        </div>
+      )}
     </div>
   );
 }
