@@ -46,3 +46,10 @@ test("호스트 라벨 — www. 는 떼고 보여준다", () => {
   assert.equal(urlHost("https://news.naver.com/x"), "news.naver.com");
   assert.equal(urlHost("not a url"), "not a url");
 });
+
+test("본문이 없어도 터지지 않는다(옛 데이터·가져오기 경로)", () => {
+  // 실제로 text 없는 메모 config에서 findUrls(undefined)가 타일을 오류 화면으로
+  // 떨어뜨렸다 — 빈 목록으로 조용히 넘어가야 한다.
+  assert.deepEqual(findUrls(undefined as unknown as string), []);
+  assert.deepEqual(findUrls(""), []);
+});

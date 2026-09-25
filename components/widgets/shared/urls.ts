@@ -23,6 +23,9 @@ export interface FoundUrl {
 /** 문자열에서 웹주소를 찾아 위치와 함께 돌려준다(없으면 빈 배열). */
 export function findUrls(s: string): FoundUrl[] {
   const out: FoundUrl[] = [];
+  // 본문이 없는(옛 데이터·가져오기로 들어온) 위젯도 있다 — 여기서 터지면 타일 전체가
+  // 오류 화면이 된다. 실제로 text 없는 메모 config로 재현됐다.
+  if (typeof s !== "string" || s.length === 0) return out;
   for (const m of s.matchAll(URL_RE)) {
     // 문장 끝 부호는 주소가 아니다: "…참고 https://a.com," → https://a.com
     const text = m[0].replace(/[.,;:!?]+$/, "");
