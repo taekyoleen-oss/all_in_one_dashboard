@@ -154,10 +154,14 @@ private fun StocksRoot(s: StocksUi) {
  * 평소 행과 눈으로 구분되는 것이 목적이라 이름과 등락률만 키우고, 값은 작게 곁들인다.
  *
  * 탭 동작을 주지 않는다 — 접힌 상태에서 행을 눌러 삭제 화면이 열리면 놀란다.
+ *
+ * 크기·간격은 요구로 한 번 더 키웠다(22→28sp = 글자 크기 단계 2칸, 값 13→16sp,
+ * 행 여백 6→10dp = 행 사이 20dp). 여기서도 `scaled`를 쓰므로 ⚙의 글자 크기 설정을
+ * 올리면 요약 글자와 간격이 같은 비율로 함께 커진다.
  */
 @Composable
 private fun SummaryRow(item: QuoteItem, textLevel: Int) {
-    val bigSp = WidgetStyle.scaled(textLevel, 22f).sp
+    val bigSp = WidgetStyle.scaled(textLevel, 28f).sp
     val dir = when {
         item.changePct > 0 -> AgendaTheme.up
         item.changePct < 0 -> AgendaTheme.down
@@ -166,7 +170,7 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
+            .padding(vertical = WidgetStyle.scaled(textLevel, 10f).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -179,7 +183,7 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
             item.priceText(),
             style = TextStyle(
                 color = AgendaTheme.textDim,
-                fontSize = WidgetStyle.scaled(textLevel, 13f).sp,
+                fontSize = WidgetStyle.scaled(textLevel, 16f).sp,
             ),
         )
         Spacer(GlanceModifier.width(6.dp))
