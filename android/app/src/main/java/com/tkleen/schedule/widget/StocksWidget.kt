@@ -161,10 +161,10 @@ private fun StocksRoot(s: StocksUi) {
  */
 @Composable
 private fun SummaryRow(item: QuoteItem, textLevel: Int) {
-    // 지수는 **줄이지 않는다**(요구) — 코스피·다우와 숫자 크기가 같아야 요약이 한 덩어리로
-    // 읽힌다. 자동 축소는 이름이 긴 개별 종목·ETF에만 적용한다.
-    val k = if (item.isIndex) 1f else summaryScale(item.name)
-    val bigSp = WidgetStyle.scaled(textLevel, 28f * k).sp
+    // 값·등락률은 **늘 같은 크기**(요구) — 지수든 종목이든 숫자가 한 덩어리로 읽힌다.
+    val bigSp = WidgetStyle.scaled(textLevel, 28f).sp
+    // 자동 축소는 **이름에만**(요구) — "필라델피아 반도체"처럼 긴 이름만 작아진다.
+    val nameSp = WidgetStyle.scaled(textLevel, 28f * nameScale(item.name)).sp
     val dir = when {
         item.changePct > 0 -> AgendaTheme.up
         item.changePct < 0 -> AgendaTheme.down
@@ -180,13 +180,13 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
             item.name,
             maxLines = 1,
             modifier = GlanceModifier.defaultWeight(),
-            style = TextStyle(color = AgendaTheme.text, fontSize = bigSp, fontWeight = FontWeight.Bold),
+            style = TextStyle(color = AgendaTheme.text, fontSize = nameSp, fontWeight = FontWeight.Bold),
         )
         Text(
             item.priceText(),
             style = TextStyle(
                 color = AgendaTheme.textDim,
-                fontSize = WidgetStyle.scaled(textLevel, 16f * k).sp,
+                fontSize = WidgetStyle.scaled(textLevel, 16f).sp,
             ),
         )
         Spacer(GlanceModifier.width(6.dp))
@@ -198,24 +198,22 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
 }
 
 /**
- * 이름이 긴 **개별 종목·ETF**만 행 전체 글자를 줄여 맞춘다. Glance엔 자동 축소(autosize)가
- * 없으므로 **글자 폭**으로 정한다 — 한글·한자·가나는 로마자의 두 배 폭이라 2로 센다
- * ("삼성전자"=8, "SK하이닉스"=10, "KODEX 200선물인버스2X"=21). 이름만 줄이면 옆의 등락률이
- * 그대로 커서 행이 어그러지므로 값·등락률까지 같은 배율로 줄인다. 행 간격은 그대로 둔다
- * (행마다 달라지면 들쭉날쭉해진다).
+ * 긴 이름을 **이름 글자만** 줄여 맞춘다(요구). Glance엔 자동 축소(autosize)가 없으므로
+ * **글자 폭**으로 계산한다 — 한글·한자·가나는 로마자의 두 배 폭이라 2로 센다
+ * ("코스피"=6, "삼성전자"=8, "필라델피아 반도체"=17, "KODEX 200선물인버스2X"=21).
  *
- * **지수에는 쓰지 않는다**(요구) — 호출측에서 isIndex면 1.0으로 고정한다.
+ * 한 칸이 대략 `0.52 × 글자크기` dp를 먹고, 값·등락률이 쓰고 남는 이름 자리는 4칸 위젯에서
+ * 대략 105dp다 → 들어갈 수 있는 크기 = `105 / (0.52 × 폭)`, 이를 기준 28sp로 나누면
+ * `6.8 / 폭`(로마자가 계산보다 조금 넓어 여유를 뒀다 — "S&P 500"이 딱 걸린다). 아래로는 0.42(기본 설정에서 ≈11.8sp)까지만 줄인다 — 그보다 작으면 읽히지
+ * 않으니 차라리 말줄임이 낫다.
+ *
+ * ponytail: 위젯 폭을 4칸(≈290dp)으로 가정한 상수다. 더 좁으면 말줄임되고 더 넓으면 조금
+ * 작게 보일 뿐이라 감수한다 — 실제 폭을 읽으려면 SizeMode.Exact가 필요한데(v25에서 걷어냄)
+ * 그 대가가 이 오차보다 크다.
  */
-private fun summaryScale(name: String): Float {
+private fun nameScale(name: String): Float {
     val width = name.fold(0) { acc, c -> acc + if (c.code > 0x2E80) 2 else 1 }
-    return when {
-        width <= 6 -> 1f // 코스피·코스닥·다우·나스닥
-        width <= 8 -> 0.88f // S&P 500·삼성전자
-        width <= 12 -> 0.78f // SK하이닉스
-        width <= 16 -> 0.68f
-        width <= 20 -> 0.58f
-        else -> 0.5f // KODEX 200선물인버스2X 같은 긴 ETF 이름
-    }
+    return (6.8f / width).coerceIn(0.42f, 1f)
 }
 
 @Composable
