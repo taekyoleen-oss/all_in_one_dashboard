@@ -161,7 +161,9 @@ private fun StocksRoot(s: StocksUi) {
  */
 @Composable
 private fun SummaryRow(item: QuoteItem, textLevel: Int) {
-    val k = summaryScale(item.name)
+    // 지수는 **줄이지 않는다**(요구) — 코스피·다우와 숫자 크기가 같아야 요약이 한 덩어리로
+    // 읽힌다. 자동 축소는 이름이 긴 개별 종목·ETF에만 적용한다.
+    val k = if (item.isIndex) 1f else summaryScale(item.name)
     val bigSp = WidgetStyle.scaled(textLevel, 28f * k).sp
     val dir = when {
         item.changePct > 0 -> AgendaTheme.up
@@ -196,11 +198,13 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
 }
 
 /**
- * 긴 이름은 **행 전체 글자를 줄여** 맞춘다(요구: "필라델피아 반도체 지수처럼 글자가 많은
- * 이름은 폰트를 맞게 줄여서"). Glance엔 자동 축소(autosize)가 없으므로 **글자 폭**으로
- * 정한다 — 한글·한자·가나는 로마자의 두 배 폭이라 2로 센다("S&P 500"=7, "코스피"=6,
- * "필라델피아 반도체"=17). 이름만 줄이면 옆의 등락률이 그대로 커서 행이 어그러지므로
- * 값·등락률까지 같은 배율로 줄인다. 행 간격은 그대로 둔다(행마다 달라지면 들쭉날쭉해진다).
+ * 이름이 긴 **개별 종목·ETF**만 행 전체 글자를 줄여 맞춘다. Glance엔 자동 축소(autosize)가
+ * 없으므로 **글자 폭**으로 정한다 — 한글·한자·가나는 로마자의 두 배 폭이라 2로 센다
+ * ("삼성전자"=8, "SK하이닉스"=10, "KODEX 200선물인버스2X"=21). 이름만 줄이면 옆의 등락률이
+ * 그대로 커서 행이 어그러지므로 값·등락률까지 같은 배율로 줄인다. 행 간격은 그대로 둔다
+ * (행마다 달라지면 들쭉날쭉해진다).
+ *
+ * **지수에는 쓰지 않는다**(요구) — 호출측에서 isIndex면 1.0으로 고정한다.
  */
 private fun summaryScale(name: String): Float {
     val width = name.fold(0) { acc, c -> acc + if (c.code > 0x2E80) 2 else 1 }
@@ -209,7 +213,7 @@ private fun summaryScale(name: String): Float {
         width <= 8 -> 0.88f // S&P 500·삼성전자
         width <= 12 -> 0.78f // SK하이닉스
         width <= 16 -> 0.68f
-        width <= 20 -> 0.58f // 필라델피아 반도체(17)
+        width <= 20 -> 0.58f
         else -> 0.5f // KODEX 200선물인버스2X 같은 긴 ETF 이름
     }
 }

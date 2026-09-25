@@ -61,8 +61,8 @@ android {
         // 21→26: Glance 1.1(minSdk 23)·Android Keystore·java.time 때문. Android 8.0+(2017) 커버.
         minSdkVersion 26
         targetSdkVersion 36
-        versionCode 29
-        versionName "29"
+        versionCode 30
+        versionName "30"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
