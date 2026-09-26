@@ -35,6 +35,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.FxItem
+import com.tkleen.schedule.data.model.IndicatorItem
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -75,9 +76,11 @@ private class FxUi(context: Context) {
     val hidden = WidgetStore.hidden(context, KIND)
     /** 접혔을 때 배경 투명(옵션) — 환율은 기본 켜짐(요구: "투명하게 하여 접어"). */
     val clear = WidgetStore.collapsedClear(context, KIND)
-    /** 접힘 = 환전 계산기(요구) — 금액과 방향은 이 폰에만 남는다. */
-    val amount = WidgetStore.fxAmount(context)
-    val toWon = WidgetStore.fxToWon(context)
+    /**
+     * 접힘 상태에 그릴 **시장지표**(요구: 국내 금·브렌트유·미 10년 국채).
+     * 값·단위·출처를 서버가 만들어 준다 — 폰은 그리기만 한다.
+     */
+    val indicators = WidgetStore.fxIndicators(context)
     val textLevel = WidgetStore.textLevel(context, KIND)
     val bgIndex = WidgetStore.bgIndex(context, KIND)
 }
@@ -101,12 +104,12 @@ private fun FxRoot(s: FxUi) {
             PairingCta(revoked = s.unauthorized, subject = "환율")
         } else {
             QuoteHeader("환율", KIND, s.syncedAt, showAdd = s.linked && !s.hidden, hidden = s.hidden)
-            // 숨김: 목록 대신 **환전 계산기**를 그리고 끝낸다(요구). 접어 둔 공간이 놀지
-            // 않게 — 통화가 없으면 제목 줄만 남는다.
+            // 숨김: 환율 목록 대신 **시장지표**를 그리고 끝낸다(요구 — 환전 계산기를 대체).
+            // 접어 둔 공간이 놀지 않게, 못 받았으면 제목 줄만 남는다.
             if (s.hidden) {
-                if (s.linked && s.items.isNotEmpty()) {
+                if (s.indicators.isNotEmpty()) {
                     Spacer(GlanceModifier.height(6.dp))
-                    FxCalculator(s)
+                    IndicatorBlock(s.indicators, s.textLevel)
                 }
                 return@Column
             }
@@ -132,84 +135,64 @@ private fun FxRoot(s: FxUi) {
 }
 
 /**
- * 접힌 환율 위젯 = **환전 계산기**(요구: "이 위젯에서 보여지는 환율과 원화를 서로 환전").
+ * 접힌 환율 위젯 = **시장지표**(요구: 국내 금·브렌트유·미 10년 국채금리).
  *
- *  위젯엔 입력창이 없으므로(계획서 §0.3) 금액은 **×10·÷10 탭으로 자리수를 옮긴다**
- *  (1 → … → 10억). `⇄`가 방향을 바꾼다 — 원→외화 / 외화→원.
- *  계산식은 FxItem(wonToForeign·foreignToWon) 한 곳에 있다 — 엔은 100 단위라
- *  위젯에서 직접 나누면 100배 틀린다.
+ *  접으면 환율 목록 대신 이 세 줄이 남는다 — 환율이 왜 움직이는지 보여 주는 값들이라
+ *  한 화면에서 이어 읽힌다(직전의 환전 계산기를 요구로 대체).
+ *
+ *  이름 옆에 **출처를 작게** 적는다(요구). 같은 이름이라도 소스가 다르면 숫자가
+ *  다르기 때문이다(브렌트는 네이버 현물성 vs Yahoo 선물). 등락은 환율·주식과 같은
+ *  한국 관례(상승 빨강·하락 파랑).
  */
 @Composable
-private fun FxCalculator(s: FxUi) {
-    val bodySp = WidgetStyle.bodySp(s.textLevel).sp
-    val ctx = LocalContext.current
-    val amountText = if (s.toWon) NUM.format(s.amount) else NUM.format(s.amount) + "원"
-    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            amountText,
-            maxLines = 1,
-            modifier = GlanceModifier.defaultWeight(),
-            style = TextStyle(
-                color = AgendaTheme.text,
-                fontSize = WidgetStyle.scaled(s.textLevel, 17f).sp,
-                fontWeight = FontWeight.Bold,
-            ),
-        )
-        CalcButton("÷10", "d10", s.textLevel, ctx)
-        CalcButton("×10", "x10", s.textLevel, ctx)
-        CalcButton(if (s.toWon) "→원" else "→외화", "dir", s.textLevel, ctx)
-    }
-    Spacer(GlanceModifier.height(2.dp))
-    // 통화별 결과 — 행 구조는 상태와 무관하게 고정(v6).
+private fun IndicatorBlock(items: List<IndicatorItem>, textLevel: Int) {
+    val bodySp = WidgetStyle.bodySp(textLevel).sp
+    val smallSp = WidgetStyle.scaled(textLevel, 10f).sp
     Column(GlanceModifier.fillMaxWidth()) {
-        for (f in s.items.take(6)) {
+        for (i in items) {
+            val dir = when {
+                i.changePct == null -> AgendaTheme.textDim
+                i.changePct > 0 -> AgendaTheme.up
+                i.changePct < 0 -> AgendaTheme.down
+                else -> AgendaTheme.textDim
+            }
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .padding(vertical = WidgetStyle.rowPadDp(s.textLevel).dp),
+                    .padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    f.code,
+                    i.name,
+                    maxLines = 1,
+                    style = TextStyle(color = AgendaTheme.text, fontSize = bodySp),
+                )
+                Spacer(GlanceModifier.width(4.dp))
+                Text(
+                    i.source,
                     maxLines = 1,
                     modifier = GlanceModifier.defaultWeight(),
-                    style = TextStyle(color = AgendaTheme.textDim, fontSize = bodySp),
+                    style = TextStyle(color = AgendaTheme.textDim, fontSize = smallSp),
                 )
                 Text(
-                    if (s.toWon) {
-                        NUM.format(f.foreignToWon(s.amount.toDouble())) + "원"
-                    } else {
-                        DEC.format(f.wonToForeign(s.amount.toDouble())) + " " + f.code
-                    },
+                    i.valueText(),
                     maxLines = 1,
                     style = TextStyle(
                         color = AgendaTheme.text,
-                        fontSize = WidgetStyle.scaled(s.textLevel, 17f).sp,
+                        fontSize = bodySp,
                         fontWeight = FontWeight.Medium,
                     ),
+                )
+                Spacer(GlanceModifier.width(6.dp))
+                // 전일 대비를 모르면 자리만 비운다(행 구조는 상태와 무관하게 고정 — v6).
+                Text(
+                    i.pctText() ?: "",
+                    style = TextStyle(color = dir, fontSize = WidgetStyle.scaled(textLevel, 13f).sp),
                 )
             }
         }
     }
 }
-
-@Composable
-private fun CalcButton(label: String, action: String, textLevel: Int, ctx: android.content.Context) {
-    Text(
-        label,
-        modifier = GlanceModifier
-            .clickable(actionStartActivity(fxCalcIntent(ctx, action)))
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        style = TextStyle(
-            color = AgendaTheme.accentProvider,
-            fontSize = WidgetStyle.scaled(textLevel, 13f).sp,
-            fontWeight = FontWeight.Bold,
-        ),
-    )
-}
-
-private val NUM = java.text.DecimalFormat("#,##0")
-private val DEC = java.text.DecimalFormat("#,##0.##")
 
 @Composable
 private fun FxRow(item: FxItem, textLevel: Int) {

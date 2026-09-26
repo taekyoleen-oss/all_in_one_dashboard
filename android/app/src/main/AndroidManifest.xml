@@ -327,13 +327,6 @@
             android:noHistory="true"
             android:taskAffinity=":widgetaction"
             android:theme="@style/PbInvisible" />
-        <activity
-            android:name=".widget.FxCalcActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity=":widgetaction"
-            android:theme="@style/PbInvisible" />
 
         <!-- 주식·환율 위젯의 ＋(종목·통화 추가)가 여는 화면 -->
         <activity

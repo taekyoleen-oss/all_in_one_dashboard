@@ -164,6 +164,25 @@ try {
       "https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_JPYKRW",
     f1.items.find((i) => i.code === "JPY")?.infoUrl);
 
+  // 시장지표(요구: 국내 금·브렌트유·미 10년 국채금리) — 값·단위·출처까지 서버가 만든다.
+  const ind = f1.indicators ?? [];
+  const byKey = (k) => ind.find((i) => i.key === k);
+  check("시장지표 3종이 온다", ["gold-kr", "brent", "ust10y"].every(byKey),
+    ind.map((i) => i.key).join(","));
+  for (const i of ind) console.log(`   ${i.name} ${i.value} ${i.unit} (${i.changePct ?? "—"}%) · ${i.source}`);
+  const gold = byKey("gold-kr");
+  // 자릿수 대역 검사 — 원/g이 아니라 USD/oz를 잘못 집으면 여기서 걸린다.
+  check("국내 금은 원/g(만 단위)", gold && gold.unit === "원/g" && gold.value > 50_000 && gold.value < 1_000_000,
+    `${gold?.value} ${gold?.unit}`);
+  const brent = byKey("brent");
+  check("브렌트유는 USD/배럴(두세 자리)", brent && brent.value > 10 && brent.value < 400,
+    `${brent?.value} ${brent?.unit}`);
+  const ust = byKey("ust10y");
+  check("미 10년 국채는 %(한 자리)", ust && ust.unit === "%" && ust.value > 0 && ust.value < 20,
+    `${ust?.value}${ust?.unit}`);
+  check("줄마다 출처가 붙는다(요구)", ind.every((i) => typeof i.source === "string" && i.source.length > 0),
+    ind.map((i) => `${i.key}=${i.source}`).join(" "));
+
   const fEtag = f1res.headers.get("etag");
   const f304 = await fetch(`${BASE}/api/widget/fx`, { headers: { ...T, "if-none-match": fEtag } });
   check("환율도 304", f304.status === 304, `HTTP ${f304.status}`);

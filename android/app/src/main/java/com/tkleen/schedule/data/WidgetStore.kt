@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.tkleen.schedule.data.model.AgendaItem
 import com.tkleen.schedule.data.model.FxItem
+import com.tkleen.schedule.data.model.IndicatorItem
 import com.tkleen.schedule.data.model.QuoteItem
 import com.tkleen.schedule.data.model.NoteItem
 import com.tkleen.schedule.data.model.TaskItem
@@ -52,6 +53,8 @@ object WidgetStore {
     private const val K_FX_ETAG = "fx_etag"
     private const val K_FX_LINKED = "fx_linked"
     private const val K_FX_SYNCED_AT = "fx_synced_at"
+    /** 환율 위젯에 곁들이는 시장지표(요구) — 서버가 값·단위·출처까지 만들어 준다. */
+    private const val K_FX_IND = "fx_indicators_json"
     private const val K_TASKS_FILTER = "tasks_filter"
     private const val K_TASKS_FILTER_AT = "tasks_filter_at"
 
@@ -67,9 +70,6 @@ object WidgetStore {
     private const val K_HIDDEN = "hidden_"
     /** 접었을 때 배경을 투명하게(옵션) — 홈 화면 배경이 그대로 비친다. */
     private const val K_CLEAR = "collapsed_clear_"
-    /** 접힌 환율 위젯 = 환전 계산기(요구) — 금액과 방향. */
-    private const val K_FX_AMOUNT = "fx_calc_amount"
-    private const val K_FX_TO_WON = "fx_calc_to_won"
     /** 접힌 주식 위젯에 **크게** 띄울 종목(요구의 요약). 미지정이면 지수 전부. */
     private const val K_SUMMARY = "summary_symbols"
 
@@ -302,6 +302,7 @@ object WidgetStore {
         linked: Boolean,
         syncedAt: Long,
         unavailable: Boolean = false,
+        indicatorsJson: String? = null,
     ) {
         if (unavailable) {
             prefs(context).edit()
@@ -311,6 +312,9 @@ object WidgetStore {
             return
         }
         prefs(context).edit()
+            // 지표를 못 받은 회차(null)에는 **직전 값을 지우지 않는다** — 환율은 왔는데
+            // 지표 줄만 사라지면 고장으로 보인다.
+            .apply { if (indicatorsJson != null) putString(K_FX_IND, indicatorsJson) }
             .putString(K_FX, itemsJson)
             .putString(K_FX_ETAG, etag)
             .putBoolean(K_FX_LINKED, linked)
@@ -327,6 +331,15 @@ object WidgetStore {
     fun fxLinked(context: Context): Boolean = prefs(context).getBoolean(K_FX_LINKED, false)
 
     fun fxSyncedAt(context: Context): Long = prefs(context).getLong(K_FX_SYNCED_AT, 0L)
+
+    fun fxIndicators(context: Context): List<IndicatorItem> {
+        val json = prefs(context).getString(K_FX_IND, null) ?: return emptyList()
+        return try {
+            IndicatorItem.listFromJson(json)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     fun fxItems(context: Context): List<FxItem> {
         val json = prefs(context).getString(K_FX, null) ?: return emptyList()
@@ -433,24 +446,6 @@ object WidgetStore {
 
     fun setSummarySymbols(context: Context, symbols: Set<String>) {
         prefs(context).edit().putStringSet(K_SUMMARY, HashSet(symbols)).apply()
-    }
-
-    /**
-     * 접힌 환율 위젯의 계산 금액(요구). 기본 **10,000**(원 → 외화 감을 잡기 좋은 단위).
-     * 위젯에는 글자를 입력할 수 없으므로 ×10·÷10 탭으로 자리수를 옮긴다(계획서 §0.3).
-     */
-    fun fxAmount(context: Context): Long =
-        prefs(context).getLong(K_FX_AMOUNT, 10_000L).coerceIn(1L, 1_000_000_000L)
-
-    fun setFxAmount(context: Context, value: Long) {
-        prefs(context).edit().putLong(K_FX_AMOUNT, value.coerceIn(1L, 1_000_000_000L)).apply()
-    }
-
-    /** true = 외화→원, false = 원→외화(기본). 요구의 "서로 환전". */
-    fun fxToWon(context: Context): Boolean = prefs(context).getBoolean(K_FX_TO_WON, false)
-
-    fun setFxToWon(context: Context, value: Boolean) {
-        prefs(context).edit().putBoolean(K_FX_TO_WON, value).apply()
     }
 
     fun textLevel(context: Context, kind: String): Int =

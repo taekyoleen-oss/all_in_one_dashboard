@@ -27,7 +27,10 @@ internal fun pullNow(context: Context, kind: String) {
         if (kind == "fx") {
             val r = WidgetApi.fetchFx(token, null)
             if (r is WidgetApi.ListResult.Ok) {
-                WidgetStore.putFx(app, r.itemsJson, r.etag, r.linked, System.currentTimeMillis(), r.unavailable)
+                WidgetStore.putFx(
+                    app, r.itemsJson, r.etag, r.linked, System.currentTimeMillis(),
+                    r.unavailable, r.indicatorsJson,
+                )
             }
             runBlocking { FxWidget.refresh(app) }
         } else {

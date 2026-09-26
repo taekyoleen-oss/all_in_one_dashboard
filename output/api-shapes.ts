@@ -920,6 +920,23 @@ export const WidgetFxItemSchema = z.object({
 });
 export type WidgetFxItem = z.infer<typeof WidgetFxItemSchema>;
 
+/**
+ * 환율 위젯에 곁들이는 시장지표 한 줄(요구: 국내 금·브렌트유·미 10년 국채금리).
+ * **출처를 값과 함께** 내려보낸다 — 같은 이름이라도 소스가 다르면 숫자가 다르다
+ * (브렌트: 네이버 현물성 vs Yahoo 선물 월물). 화면에 작게 표시한다(요구).
+ */
+export const MarketIndicatorSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  value: z.number(),
+  /** "원/g" · "USD/배럴" · "%" — 값 뒤에 그대로 붙인다. */
+  unit: z.string(),
+  changePct: z.number().optional(),
+  /** "KRX·네이버" · "네이버" · "Yahoo". */
+  source: z.string(),
+});
+export type MarketIndicator = z.infer<typeof MarketIndicatorSchema>;
+
 /** GET /api/widget/fx 응답 — instanceId=null이면 대상 위젯 미지정. */
 export const WidgetFxSchema = z.object({
   instanceId: z.string().nullable(),
@@ -933,6 +950,8 @@ export const WidgetFxSchema = z.object({
    * 폰은 이때 캐시를 덮어쓰지 않는다.
    */
   unavailable: z.boolean().optional(),
+  /** 시장지표(요구) — 못 받은 줄은 아예 빠진다. */
+  indicators: z.array(MarketIndicatorSchema).optional(),
   ts: z.number().int(),
 });
 export type WidgetFx = z.infer<typeof WidgetFxSchema>;
