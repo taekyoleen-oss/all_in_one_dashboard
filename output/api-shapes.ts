@@ -882,6 +882,11 @@ export const WidgetStockQuoteSchema = z.object({
   /** 시간외 표식 — StockQuote.session과 같은 값(없으면 정규장). */
   session: z.enum(["pre", "post"]).optional(),
   /**
+   * 종목 정보 웹페이지(요구: 폰에서도 PC처럼 정보 페이지로) — **서버가 만들어 보낸다**.
+   * 웹 행 클릭과 같은 `quoteInfoUrl` 한 곳을 쓰므로 두 화면의 링크가 갈라지지 않는다.
+   */
+  infoUrl: z.string().optional(),
+  /**
    * 이번 조회에서 시세를 못 받은 행(업스트림 일시 실패·한도 등).
    * **행 자체는 빠지지 않는다** — 빼면 폰 목록에서 종목이 사라졌다 다시 나타난다
    * (사용자 신고). 폰은 이 표식을 보고 직전에 받은 값을 그대로 유지한다.

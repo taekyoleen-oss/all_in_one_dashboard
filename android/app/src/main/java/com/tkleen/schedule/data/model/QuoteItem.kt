@@ -20,6 +20,11 @@ data class QuoteItem(
     val session: String?, // "pre" | "post" | null(정규장)
     /** 이번 응답에서 시세를 못 받은 행(직전 값도 없으면 "—"로 그린다). */
     val unavailable: Boolean = false,
+    /**
+     * 종목 정보 웹페이지(요구) — **서버가 만들어 준 값**을 그대로 연다. 폰이 규칙을
+     * 따로 가지면 웹 행 클릭과 링크가 갈라진다(웹 quoteInfoUrl 한 곳이 진실).
+     */
+    val infoUrl: String? = null,
 ) {
     /** 원화는 소수점 없이, 그 외 통화는 두 자리까지(달러·지수 소수 보존). */
     fun priceText(): String =
@@ -55,6 +60,7 @@ data class QuoteItem(
                     .put("changePct", q.changePct).put("currency", q.currency)
                     .put("isIndex", q.isIndex)
                 if (q.session != null) o.put("session", q.session)
+                if (q.infoUrl != null) o.put("infoUrl", q.infoUrl)
                 if (q.unavailable) o.put("unavailable", true)
                 arr.put(o)
             }
@@ -73,7 +79,8 @@ data class QuoteItem(
                 if (!item.unavailable) return@map item
                 val old = prev[item.symbol]
                 if (old == null || old.unavailable) item
-                else old.copy(name = item.name) // 이름은 최신 것(개명 반영), 숫자는 직전 값
+                // 이름·링크는 최신 것(개명·규칙 변경 반영), 숫자는 직전 값
+                else old.copy(name = item.name, infoUrl = item.infoUrl ?: old.infoUrl)
             }
         }
 
@@ -97,6 +104,9 @@ data class QuoteItem(
                             it.isNotEmpty() && !o.isNull("session")
                         },
                         unavailable = o.optBoolean("unavailable", false),
+                        infoUrl = o.optString("infoUrl").takeIf {
+                            it.isNotEmpty() && !o.isNull("infoUrl")
+                        },
                     ),
                 )
             }

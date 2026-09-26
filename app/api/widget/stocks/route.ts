@@ -29,6 +29,7 @@ import { sha256Hex } from "@/lib/api/widgetCore";
 import { resolveMobileTarget } from "@/lib/api/widgetMobileTarget";
 import { getProvider } from "@/lib/api/stock/provider";
 import { resolveMeta } from "@/lib/api/stock/symbols";
+import { quoteInfoUrl } from "@/components/widgets/stock/format";
 import type { Json } from "@/output/types/database";
 import type { StockSymbol, WidgetStockQuote, WidgetStocks } from "@/output/api-shapes";
 
@@ -89,6 +90,7 @@ export async function GET(request: NextRequest) {
           currency: meta.currency,
           isIndex: meta.isIndex ?? false,
           unavailable: true,
+          infoUrl: quoteInfoUrl(symbol),
         } satisfies WidgetStockQuote;
       }
       const item: WidgetStockQuote = {
@@ -99,6 +101,8 @@ export async function GET(request: NextRequest) {
         changePct: q.changePct,
         currency: q.currency ?? "KRW",
         isIndex: q.isIndex ?? false,
+        // 정보 페이지 링크는 웹 행 클릭과 같은 함수로 만든다(규칙 한 곳).
+        infoUrl: quoteInfoUrl(q.symbol),
       };
       if (q.session) item.session = q.session;
       return item;

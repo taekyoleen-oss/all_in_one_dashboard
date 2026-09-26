@@ -3,6 +3,7 @@ package com.tkleen.schedule.quotes
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.widget.Button
@@ -17,7 +18,11 @@ import com.tkleen.schedule.widget.StocksWidget
 import kotlinx.coroutines.runBlocking
 
 /**
- * 종목·통화 삭제 화면 — 주식/환율 위젯의 행을 누르면 열린다(요구: 폰에서도 삭제).
+ * 종목·통화 화면 — 주식/환율 위젯의 행을 누르면 열린다(삭제 + **종목 정보 페이지**).
+ *
+ *  정보 버튼은 요구로 더했다: "PC에서 더블클릭하면 종목 정보 웹페이지가 나오는 것처럼".
+ *  폰 위젯은 행 탭이 이 화면이라 그 자리에 버튼으로 둔다(탭 한 번으로 브라우저가 열리면
+ *  삭제하러 들어온 사람이 엉뚱한 곳으로 나가게 된다). 삭제 버튼과 한 칸 떨어뜨렸다.
  *
  *  홈 화면에서 잘못 누르기 쉬운 자리라 **2단계 확인**을 둔다(소제목 삭제와 같은 규칙).
  *  지우는 순간 캐시에서도 빼고 위젯을 다시 그린다 — 다음 동기화(최대 15분)를
@@ -44,6 +49,13 @@ class QuoteDeleteActivity : Activity() {
         val key = intent?.getStringExtra("key").orEmpty()
         val label = intent?.getStringExtra("label").orEmpty().ifEmpty { key }
         val detail = intent?.getStringExtra("detail").orEmpty()
+        // 정보 페이지 링크(요구) — 서버가 준 값. 옛 캐시엔 없을 수 있어 그때는 검색으로 연다.
+        val infoUrl = intent?.getStringExtra("infoUrl")?.takeIf { it.startsWith("http") }
+            ?: if (kind == "stocks") {
+                "https://search.naver.com/search.naver?query=" + Uri.encode(key)
+            } else {
+                null
+            }
         if (key.isEmpty()) {
             finish()
             return
@@ -68,6 +80,18 @@ class QuoteDeleteActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
         }
         val status = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f) }
+        // 종목 정보 페이지(요구: PC에서 행을 더블클릭하면 열리는 그 페이지) — 국내는 네이버
+        // 종목·지수, 미국·해외 지수는 야후. 링크는 서버가 웹과 같은 규칙으로 만들어 준다.
+        val infoBtn = if (infoUrl == null) null else Button(this).apply {
+            text = "종목 정보 보기"
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(infoUrl)))
+                } catch (e: Exception) {
+                    status.text = "브라우저를 열 수 없습니다."
+                }
+            }
+        }
         val closeBtn = Button(this).apply { text = "닫기" }
         closeBtn.setOnClickListener { finish() }
         val deleteBtn = Button(this).apply {
@@ -122,6 +146,10 @@ class QuoteDeleteActivity : Activity() {
                 addView(space(pad))
                 addView(note, wide())
                 addView(space(pad))
+                if (infoBtn != null) {
+                    addView(infoBtn, wide())
+                    addView(space(pad))
+                }
                 addView(deleteBtn, wide())
                 addView(space(pad / 4))
                 addView(closeBtn, wide())

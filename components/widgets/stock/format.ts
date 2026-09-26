@@ -94,6 +94,11 @@ export function quoteInfoUrl(symbol: string): string {
   if (/^[A-Za-z][A-Za-z0-9.-]{0,9}$/.test(symbol))
     return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.toUpperCase())}`;
 
+  // 그 밖의 지수(`^SOX` 필라델피아 반도체 등): 야후 지수 페이지. 네이버 통합검색으로
+  // 보내면 "^SOX"를 그대로 검색해 쓸모없는 결과가 나온다(폰 위젯도 같은 링크를 쓴다).
+  if (/^\^[A-Za-z0-9.]{1,10}$/.test(symbol))
+    return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.toUpperCase())}`;
+
   // 폴백: 네이버 통합검색
   return `https://search.naver.com/search.naver?query=${encodeURIComponent(symbol)}`;
 }

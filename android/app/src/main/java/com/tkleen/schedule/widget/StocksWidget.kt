@@ -205,10 +205,11 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
  * 한 칸이 대략 `0.52 × 글자크기` dp를 먹고, 값·등락률이 쓰고 남는 이름 자리는 4칸 위젯에서
  * 대략 105dp다 → 들어갈 수 있는 크기 = `105 / (0.52 × 폭)`, 이를 기준 28sp로 나누면 `7.6 / 폭`.
  *
- * 계수와 하한은 **요구로 두 번 올렸다**(6.8→7.6 · 0.42→0.46→**0.50**) — "13sp 정도로, 다른 긴
- * 이름도 전체적으로", 이어서 "글자가 많은 경우 1sp 더". 마지막 요구는 **가장 긴 이름들만**
- * 해당하므로 계수(7.6)는 그대로 두고 하한만 올렸다 — 중간 길이(삼성전자·SK하이닉스)까지 더
- * 키우면 그쪽이 먼저 잘린다. 하한 **0.50 = 기본 설정에서 14sp**이고, 긴 이름들이
+ * 계수와 하한은 **요구로 세 번 올렸다**(계수 6.8→7.6 / 하한 11.8→12.9→14→**16sp**) — "13sp
+ * 정도로, 다른 긴 이름도 전체적으로" → "글자가 많은 경우 1sp 더" → "2sp 더". 뒤의 두 요구는
+ * **가장 긴 이름들만** 가리키므로 계수(7.6)는 그대로 두고 하한(`MIN_NAME_SP`)만 올렸다 —
+ * 중간 길이(삼성전자·SK하이닉스)까지 키우면 그쪽이 먼저 잘린다. 하한이 걸리는 구간은
+ * 글자폭 14 이상(= 한글 7자 이상)이고, 긴 이름들이
  * 계산상 자리(105dp)를 5dp쯤 넘어서므로 좁은 위젯에서는 끝이 말줄임될 수 있다 — 작게 보이는
  * 쪽보다 큰 쪽을 택한 결과다.
  *
@@ -218,8 +219,11 @@ private fun SummaryRow(item: QuoteItem, textLevel: Int) {
  */
 private fun nameScale(name: String): Float {
     val width = name.fold(0) { acc, c -> acc + if (c.code > 0x2E80) 2 else 1 }
-    return (7.6f / width).coerceIn(0.50f, 1f)
+    return (7.6f / width).coerceIn(MIN_NAME_SP / 28f, 1f)
 }
+
+/** 아무리 이름이 길어도 이 크기보다 작게는 쓰지 않는다(기본 글자 크기 기준 sp). */
+private const val MIN_NAME_SP = 16f
 
 @Composable
 private fun QuoteRow(item: QuoteItem, textLevel: Int) {
@@ -232,7 +236,7 @@ private fun QuoteRow(item: QuoteItem, textLevel: Int) {
     // 행 탭 = 삭제 화면(요구). clickable을 padding보다 먼저 — 터치 영역이 패딩까지
     // 포함되도록(v5 교훈).
     val open = deleteIntent(
-        LocalContext.current, KIND, item.symbol, item.name, item.priceText(),
+        LocalContext.current, KIND, item.symbol, item.name, item.priceText(), item.infoUrl,
     )
     Row(
         modifier = GlanceModifier
@@ -354,12 +358,14 @@ internal fun deleteIntent(
     key: String,
     label: String,
     detail: String,
+    infoUrl: String? = null,
 ): Intent = Intent(context, QuoteDeleteActivity::class.java).apply {
     data = Uri.parse("pbdel://$kind/" + Uri.encode(key))
     putExtra("kind", kind)
     putExtra("key", key)
     putExtra("label", label)
     putExtra("detail", detail)
+    if (infoUrl != null) putExtra("infoUrl", infoUrl)
 }
 
 /**

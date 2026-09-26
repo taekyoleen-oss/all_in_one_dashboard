@@ -105,6 +105,15 @@ try {
     sessions.length ? sessions.join(",") : "표식 없음(정규장)");
   for (const i of s1.items) console.log(`   ${i.symbol} ${i.name} ${i.price} ${i.changePct}% ${i.session ?? ""}`);
 
+  // 종목 정보 페이지 링크(요구) — 웹 행 클릭과 같은 규칙을 서버가 만들어 보낸다.
+  const urlOf = (list, sym) => list.find((i) => i.symbol === sym)?.infoUrl;
+  check("지수 링크 = 네이버 지수 페이지",
+    urlOf(s1.items, "^KS11") === "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+    urlOf(s1.items, "^KS11"));
+  check("국내 종목 링크 = 네이버 종목 페이지",
+    urlOf(s1.items, "005930") === "https://finance.naver.com/item/main.naver?code=005930",
+    urlOf(s1.items, "005930"));
+
   const etag = s1res.headers.get("etag");
   const s304 = await fetch(`${BASE}/api/widget/stocks`, { headers: { ...T, "if-none-match": etag } });
   check("같은 값이면 304(폴링 비용 절감)", s304.status === 304 || s304.status === 200,
@@ -125,6 +134,8 @@ try {
   check("지정한 위젯이 대상", s3.instanceId === stockB.id, s3.instanceId);
   check("미국 종목도 조회된다", s3.items[0]?.symbol === "AAPL" && s3.items[0]?.currency === "USD",
     `${s3.items[0]?.name} ${s3.items[0]?.price} ${s3.items[0]?.currency} ${s3.items[0]?.session ?? ""}`);
+  check("미국 종목 링크 = 야후 종목 페이지",
+    s3.items[0]?.infoUrl === "https://finance.yahoo.com/quote/AAPL", s3.items[0]?.infoUrl);
 
   /* ── 환율 ──────────────────────────────────────────────────────────── */
   const f1res = await fetch(`${BASE}/api/widget/fx`, { headers: T });
@@ -196,6 +207,8 @@ try {
   check("^SOX 추가", (await post("/api/widget/stocks", { symbol: "^SOX" })).status === 201);
   const soxRow = (await (await fetch(`${BASE}/api/widget/stocks`, { headers: D })).json())
     .items.find((i) => i.symbol === "^SOX");
+  check("^SOX 링크 = 야후 지수 페이지(네이버 검색 폴백 아님)",
+    soxRow?.infoUrl === "https://finance.yahoo.com/quote/%5ESOX", soxRow?.infoUrl);
   check("^SOX에 시세가 붙고 지수로 표시된다",
     Boolean(soxRow) && soxRow.isIndex && !soxRow.unavailable && soxRow.price > 1000,
     soxRow && `${soxRow.name} ${soxRow.price} ${soxRow.currency} ${soxRow.changePct}%`);
