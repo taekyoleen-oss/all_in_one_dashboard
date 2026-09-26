@@ -159,6 +159,31 @@ export function WidgetFrame({
       if (onTitleChange) startEditing();
     }
   }, [editSignal, onTitleChange, startEditing]);
+
+  /*
+   * 접힘 애니메이션 상태 — 접힌 **뒤에는 본문을 언마운트**한다(v26 규약: 제목만 남아야
+   * 하고, 숨긴 위젯이 폴링·타이머를 계속 돌리면 공유 API 한도를 먹는다). 그래서 단계가
+   * 셋이다: 보임(mounted+open) → 걷히는 중(mounted+closed) → 접힘(unmounted).
+   */
+  const [bodyMounted, setBodyMounted] = React.useState(!collapsed);
+  const [bodyOpen, setBodyOpen] = React.useState(!collapsed);
+  /*
+   * collapsed(prop)가 바뀐 **뒤에** 닫힘/열림 클래스를 입혀야 트랜지션이 돈다 — 같은
+   * 렌더에서 바꾸면 브라우저가 중간 상태를 못 보고 점프한다. 그래서 시간 축 상태이고,
+   * 렌더에서 파생할 수 없다(아래 disable 두 줄의 근거 — 저장소의 다른 disable과 같은 부류).
+   */
+  React.useEffect(() => {
+    if (collapsed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBodyOpen(false);
+      const t = window.setTimeout(() => setBodyMounted(false), 280);
+      return () => window.clearTimeout(t);
+    }
+    setBodyMounted(true);
+    const id = requestAnimationFrame(() => setBodyOpen(true));
+    return () => cancelAnimationFrame(id);
+  }, [collapsed]);
+
   return (
     <div
       style={tint ? { backgroundColor: tint } : undefined}
@@ -282,20 +307,34 @@ export function WidgetFrame({
 
           숨김 상태에선 **아예 그리지 않는다** — 타일 높이만 줄이면 제목 아래로
           내용이 한두 줄 비어져 나온다(실측). 요구는 "제목만"이므로 본문을 뺀다. */}
-      {collapsed ? null : (
+      {bodyMounted ? (
+        // 숨기기/보이기 애니메이션(요구): 접힐 때 내용이 **아래에서 위로 걷히고**, 펼칠 때
+        // **아래로 내려온다**. 바깥을 잘라(overflow-hidden) 높이를 줄이는 아코디언 방식 —
+        // 타일 높이도 같은 260ms로 움직이므로(globals.css의 .react-grid-item transition)
+        // 둘이 함께 미끄러지고, 아래 위젯들도 그 리듬으로 올라온다.
         <div
+          data-pb-body-open={bodyOpen ? "true" : "false"}
           className={[
-            "min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-[var(--density-pad)]",
-            "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
-            "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5",
-            "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
-            "[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/40",
-            "[&::-webkit-scrollbar-track]:bg-transparent",
+            "min-h-0 overflow-hidden",
+            "transition-[max-height,opacity] duration-[260ms] ease-[cubic-bezier(0.2,0.7,0.2,1)]",
+            "motion-reduce:transition-none",
+            bodyOpen ? "max-h-full flex-1 opacity-100" : "max-h-0 flex-none opacity-0",
           ].join(" ")}
         >
-          <WidgetErrorBoundary title={title}>{children}</WidgetErrorBoundary>
+          <div
+            className={[
+              "h-full min-h-0 overflow-y-auto overflow-x-hidden p-[var(--density-pad)]",
+              "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
+              "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5",
+              "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
+              "[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/40",
+              "[&::-webkit-scrollbar-track]:bg-transparent",
+            ].join(" ")}
+          >
+            <WidgetErrorBoundary title={title}>{children}</WidgetErrorBoundary>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

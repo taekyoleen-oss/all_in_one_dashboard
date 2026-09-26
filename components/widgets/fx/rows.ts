@@ -49,3 +49,16 @@ export function fxRows(
   }
   return out;
 }
+
+/**
+ * 환율 정보 웹페이지 — 웹 행 더블클릭과 폰 위젯이 **함께 쓴다**(주식 quoteInfoUrl과 같은 역할).
+ *
+ *  이 위젯의 행은 전부 **원화 기준**(krw = unit당 원)이라 네이버 환율 상세의
+ *  `FX_{코드}KRW` 페이지가 그대로 맞는다(USD·JPY·EUR·CNY 실측 200). 3자리 코드가
+ *  아니면 시장지표 메인으로 보낸다 — 없는 페이지로 보내 404를 보여 주지 않는다.
+ */
+export function fxInfoUrl(code: string): string {
+  const c = code.toUpperCase();
+  if (!/^[A-Z]{3}$/.test(c)) return "https://finance.naver.com/marketindex/";
+  return `https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_${c}KRW`;
+}

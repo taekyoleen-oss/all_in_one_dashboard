@@ -915,6 +915,8 @@ export const WidgetFxItemSchema = z.object({
   krw: z.number(),
   /** 전일 대비 퍼센트(원화 값 기준, 부호 있음) — 없을 수 있다. */
   changePct: z.number().optional(),
+  /** 환율 정보 웹페이지(요구) — 웹 행 더블클릭과 같은 `fxInfoUrl`을 서버가 만들어 보낸다. */
+  infoUrl: z.string().optional(),
 });
 export type WidgetFxItem = z.infer<typeof WidgetFxItemSchema>;
 

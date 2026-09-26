@@ -21,7 +21,7 @@ import { requireDevice } from "@/lib/api/widgetDevice";
 import { sha256Hex } from "@/lib/api/widgetCore";
 import { resolveMobileTarget } from "@/lib/api/widgetMobileTarget";
 import { fetchRates } from "@/lib/api/fxClient";
-import { fxRows } from "@/components/widgets/fx/rows";
+import { fxRows, fxInfoUrl } from "@/components/widgets/fx/rows";
 import { foreignCurrencies, type FxConfig } from "@/components/widgets/fx/types";
 import type { Json } from "@/output/types/database";
 import type { WidgetFx, WidgetFxItem } from "@/output/api-shapes";
@@ -69,7 +69,13 @@ export async function GET(request: NextRequest) {
       date = rates.date ?? null;
       stale = rates.stale;
       items = fxRows(codes, rates.rates, rates.changePct).map((r) => {
-        const item: WidgetFxItem = { code: r.code, unit: r.unit, krw: r.krw };
+        const item: WidgetFxItem = {
+          code: r.code,
+          unit: r.unit,
+          krw: r.krw,
+          // 정보 페이지 링크는 웹 행 더블클릭과 같은 함수로(규칙 한 곳).
+          infoUrl: fxInfoUrl(r.code),
+        };
         if (r.changePct !== undefined) item.changePct = r.changePct;
         return item;
       });

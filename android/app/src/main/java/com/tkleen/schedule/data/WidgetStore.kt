@@ -67,6 +67,9 @@ object WidgetStore {
     private const val K_HIDDEN = "hidden_"
     /** 접었을 때 배경을 투명하게(옵션) — 홈 화면 배경이 그대로 비친다. */
     private const val K_CLEAR = "collapsed_clear_"
+    /** 접힌 환율 위젯 = 환전 계산기(요구) — 금액과 방향. */
+    private const val K_FX_AMOUNT = "fx_calc_amount"
+    private const val K_FX_TO_WON = "fx_calc_to_won"
     /** 접힌 주식 위젯에 **크게** 띄울 종목(요구의 요약). 미지정이면 지수 전부. */
     private const val K_SUMMARY = "summary_symbols"
 
@@ -430,6 +433,24 @@ object WidgetStore {
 
     fun setSummarySymbols(context: Context, symbols: Set<String>) {
         prefs(context).edit().putStringSet(K_SUMMARY, HashSet(symbols)).apply()
+    }
+
+    /**
+     * 접힌 환율 위젯의 계산 금액(요구). 기본 **10,000**(원 → 외화 감을 잡기 좋은 단위).
+     * 위젯에는 글자를 입력할 수 없으므로 ×10·÷10 탭으로 자리수를 옮긴다(계획서 §0.3).
+     */
+    fun fxAmount(context: Context): Long =
+        prefs(context).getLong(K_FX_AMOUNT, 10_000L).coerceIn(1L, 1_000_000_000L)
+
+    fun setFxAmount(context: Context, value: Long) {
+        prefs(context).edit().putLong(K_FX_AMOUNT, value.coerceIn(1L, 1_000_000_000L)).apply()
+    }
+
+    /** true = 외화→원, false = 원→외화(기본). 요구의 "서로 환전". */
+    fun fxToWon(context: Context): Boolean = prefs(context).getBoolean(K_FX_TO_WON, false)
+
+    fun setFxToWon(context: Context, value: Boolean) {
+        prefs(context).edit().putBoolean(K_FX_TO_WON, value).apply()
     }
 
     fun textLevel(context: Context, kind: String): Int =

@@ -50,11 +50,13 @@ class QuoteDeleteActivity : Activity() {
         val label = intent?.getStringExtra("label").orEmpty().ifEmpty { key }
         val detail = intent?.getStringExtra("detail").orEmpty()
         // 정보 페이지 링크(요구) — 서버가 준 값. 옛 캐시엔 없을 수 있어 그때는 검색으로 연다.
+        // 주식·환율 모두 서버가 링크를 준다(웹과 같은 규칙). 옛 캐시엔 없을 수 있어
+        // 그때만 종목은 검색, 환율은 시장지표 메인으로 보낸다.
         val infoUrl = intent?.getStringExtra("infoUrl")?.takeIf { it.startsWith("http") }
-            ?: if (kind == "stocks") {
-                "https://search.naver.com/search.naver?query=" + Uri.encode(key)
+            ?: if (kind == "fx") {
+                "https://finance.naver.com/marketindex/"
             } else {
-                null
+                "https://search.naver.com/search.naver?query=" + Uri.encode(key)
             }
         if (key.isEmpty()) {
             finish()
@@ -82,8 +84,8 @@ class QuoteDeleteActivity : Activity() {
         val status = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f) }
         // 종목 정보 페이지(요구: PC에서 행을 더블클릭하면 열리는 그 페이지) — 국내는 네이버
         // 종목·지수, 미국·해외 지수는 야후. 링크는 서버가 웹과 같은 규칙으로 만들어 준다.
-        val infoBtn = if (infoUrl == null) null else Button(this).apply {
-            text = "종목 정보 보기"
+        val infoBtn = Button(this).apply {
+            text = if (kind == "fx") "환율 정보 보기" else "종목 정보 보기"
             setOnClickListener {
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(infoUrl)))
@@ -146,10 +148,8 @@ class QuoteDeleteActivity : Activity() {
                 addView(space(pad))
                 addView(note, wide())
                 addView(space(pad))
-                if (infoBtn != null) {
-                    addView(infoBtn, wide())
-                    addView(space(pad))
-                }
+                addView(infoBtn, wide())
+                addView(space(pad))
                 addView(deleteBtn, wide())
                 addView(space(pad / 4))
                 addView(closeBtn, wide())

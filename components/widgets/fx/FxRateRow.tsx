@@ -15,6 +15,7 @@ import {
   formatRate,
   formatFxAmount,
 } from "./format";
+import { fxInfoUrl } from "./rows";
 import type { FxRow } from "./useFxRates";
 
 export function FxRateRow({
@@ -27,11 +28,30 @@ export function FxRateRow({
   size?: "compact" | "expanded";
 }) {
   const big = size === "expanded";
+  const href = fxInfoUrl(row.quote);
+  const open = () => window.open(href, "_blank", "noopener,noreferrer");
   return (
-    <li
-      data-direction={row.direction}
-      className="flex items-center justify-between gap-3 rounded-md px-1.5 py-1"
-    >
+    <li data-direction={row.direction} className="rounded-md">
+      {/* 요구: 주식 행처럼 **더블클릭**하면 그 통화의 환율 정보 페이지로(한 번 클릭은 무시 —
+          위젯을 끌어 옮기다 눌리는 자리다). 보조 키·가운데 클릭은 브라우저 기본 동작 유지. */}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+          e.preventDefault();
+        }}
+        onDoubleClick={open}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            open();
+          }
+        }}
+        title={`${row.quote} 환율정보 보기 (더블클릭 · 새 탭)`}
+        className="flex items-center justify-between gap-3 rounded-md px-1.5 py-1 hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
       <div className="flex min-w-0 flex-col">
         <span
           className={[
@@ -80,6 +100,7 @@ export function FxRateRow({
           </span>
         ) : null}
       </div>
+      </a>
     </li>
   );
 }

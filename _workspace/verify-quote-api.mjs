@@ -154,6 +154,16 @@ try {
     f1.items.map((i) => `${i.code}:${i.changePct ?? "—"}`).join(" "));
   for (const i of f1.items) console.log(`   ${i.unit === 1 ? i.code : i.unit + " " + i.code} = ${i.krw}원 (${i.changePct ?? "—"}%)`);
 
+  // 환율 정보 페이지 링크(요구) — 웹 행 더블클릭과 같은 규칙.
+  check("환율 링크 = 네이버 환율 상세",
+    f1.items.find((i) => i.code === "USD")?.infoUrl ===
+      "https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW",
+    f1.items.find((i) => i.code === "USD")?.infoUrl);
+  check("엔화도 같은 규칙(100 단위와 무관)",
+    f1.items.find((i) => i.code === "JPY")?.infoUrl ===
+      "https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_JPYKRW",
+    f1.items.find((i) => i.code === "JPY")?.infoUrl);
+
   const fEtag = f1res.headers.get("etag");
   const f304 = await fetch(`${BASE}/api/widget/fx`, { headers: { ...T, "if-none-match": fEtag } });
   check("환율도 304", f304.status === 304, `HTTP ${f304.status}`);

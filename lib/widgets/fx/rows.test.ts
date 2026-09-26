@@ -4,7 +4,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fxRows } from "../../../components/widgets/fx/rows.ts";
+import { fxRows, fxInfoUrl } from "../../../components/widgets/fx/rows.ts";
 
 const near = (a: number | undefined, b: number, eps = 1e-6) =>
   assert.ok(a !== undefined && Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -37,4 +37,17 @@ test("환율이 없거나 0인 코드는 행을 만들지 않는다(0 나눗셈 
   assert.deepEqual(fxRows(["USD", "EUR", "XXX"], { USD: 0, EUR: 1 / 1400 }).map((r) => r.code), [
     "EUR",
   ]);
+});
+
+test("환율 정보 링크는 원화 기준 네이버 환율 상세(웹·폰 공용)", () => {
+  assert.equal(
+    fxInfoUrl("usd"),
+    "https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW",
+  );
+  assert.equal(
+    fxInfoUrl("JPY"),
+    "https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_JPYKRW",
+  );
+  // 3자리 코드가 아니면 없는 페이지로 보내지 않고 시장지표 메인으로.
+  assert.equal(fxInfoUrl("XX"), "https://finance.naver.com/marketindex/");
 });
