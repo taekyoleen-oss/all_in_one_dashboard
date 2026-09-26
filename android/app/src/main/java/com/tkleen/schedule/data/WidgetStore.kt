@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.tkleen.schedule.data.model.AgendaItem
 import com.tkleen.schedule.data.model.FxItem
+import com.tkleen.schedule.data.model.IndicatorItem
 import com.tkleen.schedule.data.model.QuoteItem
 import com.tkleen.schedule.data.model.NoteItem
 import com.tkleen.schedule.data.model.TaskItem
@@ -52,6 +53,8 @@ object WidgetStore {
     private const val K_FX_ETAG = "fx_etag"
     private const val K_FX_LINKED = "fx_linked"
     private const val K_FX_SYNCED_AT = "fx_synced_at"
+    /** 환율 위젯에 곁들이는 시장지표(요구) — 서버가 값·단위·출처까지 만들어 준다. */
+    private const val K_FX_IND = "fx_indicators_json"
     private const val K_TASKS_FILTER = "tasks_filter"
     private const val K_TASKS_FILTER_AT = "tasks_filter_at"
 
@@ -302,6 +305,7 @@ object WidgetStore {
         linked: Boolean,
         syncedAt: Long,
         unavailable: Boolean = false,
+        indicatorsJson: String? = null,
     ) {
         if (unavailable) {
             prefs(context).edit()
@@ -311,6 +315,9 @@ object WidgetStore {
             return
         }
         prefs(context).edit()
+            // 지표를 못 받은 회차(null)에는 **직전 값을 지우지 않는다** — 환율은 왔는데
+            // 지표 줄만 사라지면 고장으로 보인다.
+            .apply { if (indicatorsJson != null) putString(K_FX_IND, indicatorsJson) }
             .putString(K_FX, itemsJson)
             .putString(K_FX_ETAG, etag)
             .putBoolean(K_FX_LINKED, linked)
@@ -327,6 +334,15 @@ object WidgetStore {
     fun fxLinked(context: Context): Boolean = prefs(context).getBoolean(K_FX_LINKED, false)
 
     fun fxSyncedAt(context: Context): Long = prefs(context).getLong(K_FX_SYNCED_AT, 0L)
+
+    fun fxIndicators(context: Context): List<IndicatorItem> {
+        val json = prefs(context).getString(K_FX_IND, null) ?: return emptyList()
+        return try {
+            IndicatorItem.listFromJson(json)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     fun fxItems(context: Context): List<FxItem> {
         val json = prefs(context).getString(K_FX, null) ?: return emptyList()

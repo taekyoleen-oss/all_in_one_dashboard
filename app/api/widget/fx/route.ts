@@ -22,6 +22,7 @@ import { sha256Hex } from "@/lib/api/widgetCore";
 import { resolveMobileTarget } from "@/lib/api/widgetMobileTarget";
 import { fetchRates } from "@/lib/api/fxClient";
 import { fxRows, fxInfoUrl } from "@/components/widgets/fx/rows";
+import { fetchIndicators } from "@/lib/api/marketIndexClient";
 import { foreignCurrencies, type FxConfig } from "@/components/widgets/fx/types";
 import type { Json } from "@/output/types/database";
 import type { WidgetFx, WidgetFxItem } from "@/output/api-shapes";
@@ -82,12 +83,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // 시장지표(요구) — 대상 위젯이 있을 때만 붙인다(미연결 화면엔 그릴 자리가 없다).
+  // 실패해도 환율은 그대로 간다(fetchIndicators가 못 받은 줄을 빼고 돌려준다).
+  const indicators = target ? await fetchIndicators() : [];
+
   const body: WidgetFx = {
     instanceId: target?.id ?? null,
     items,
     date,
     stale,
     ...(unavailable ? { unavailable: true } : {}),
+    ...(indicators.length > 0 ? { indicators } : {}),
     ts: Date.now(),
   };
   const etag = `"${sha256Hex(JSON.stringify({ ...body, ts: 0 })).slice(0, 32)}"`;
