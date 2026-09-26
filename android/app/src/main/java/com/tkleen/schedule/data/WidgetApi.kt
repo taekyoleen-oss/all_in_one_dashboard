@@ -281,8 +281,6 @@ object WidgetApi {
             val linked: Boolean,
             /** 환율 전용 — 조회 자체가 실패(빈 목록을 '통화 없음'으로 오해하지 않게). */
             val unavailable: Boolean = false,
-            /** 환율 전용 — 시장지표 배열(요구). 없으면 null(주식 응답엔 아예 없다). */
-            val indicatorsJson: String? = null,
         ) : ListResult()
         object NotModified : ListResult()
         object Unauthorized : ListResult()
@@ -310,7 +308,6 @@ object WidgetApi {
                         etag = conn.getHeaderField("ETag"),
                         linked = !body.isNull("instanceId"),
                         unavailable = body.optBoolean("unavailable", false),
-                        indicatorsJson = body.optJSONArray("indicators")?.toString(),
                     )
                 }
                 304 -> ListResult.NotModified

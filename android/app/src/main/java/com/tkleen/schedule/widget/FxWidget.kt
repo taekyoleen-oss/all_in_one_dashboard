@@ -35,7 +35,6 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.tkleen.schedule.data.WidgetStore
 import com.tkleen.schedule.data.model.FxItem
-import com.tkleen.schedule.data.model.IndicatorItem
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -76,8 +75,6 @@ private class FxUi(context: Context) {
     val hidden = WidgetStore.hidden(context, KIND)
     /** 접혔을 때 배경 투명(옵션) — 환율은 기본 켜짐(요구: "투명하게 하여 접어"). */
     val clear = WidgetStore.collapsedClear(context, KIND)
-    /** 환율 아래 곁들이는 시장지표(요구) — 값·단위·출처를 서버가 만들어 준다. */
-    val indicators = WidgetStore.fxIndicators(context)
     /** 접힘 = 환전 계산기(요구) — 금액과 방향은 이 폰에만 남는다. */
     val amount = WidgetStore.fxAmount(context)
     val toWon = WidgetStore.fxToWon(context)
@@ -124,15 +121,10 @@ private fun FxRoot(s: FxUi) {
                     )
                 }
             } else {
-                // 목록은 남는 높이를 쓰고(defaultWeight), 지표는 **아래에 고정**된다 —
-                // 통화가 늘어도 지표 줄이 밀려나지 않게.
-                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
+                LazyColumn(GlanceModifier.fillMaxSize()) {
                     items(s.items, itemId = { it.code.hashCode().toLong() }) {
                         FxRow(it, s.textLevel)
                     }
-                }
-                if (s.indicators.isNotEmpty()) {
-                    IndicatorBlock(s.indicators, s.textLevel)
                 }
             }
         }
@@ -218,70 +210,6 @@ private fun CalcButton(label: String, action: String, textLevel: Int, ctx: andro
 
 private val NUM = java.text.DecimalFormat("#,##0")
 private val DEC = java.text.DecimalFormat("#,##0.##")
-
-/**
- * 시장지표 블록(요구: 국내 금·브렌트유·미 10년 국채금리) — 환율 목록 아래 얇은 구분선과 함께.
- *
- *  이름 옆에 **출처를 작게** 적는다(요구). 같은 이름이라도 소스가 다르면 숫자가
- *  다르기 때문에(브렌트는 네이버 현물성 vs Yahoo 선물) 어디 값인지 보이는 편이 낫다.
- *  등락은 환율·주식과 같은 한국 관례(상승 빨강·하락 파랑).
- */
-@Composable
-private fun IndicatorBlock(items: List<IndicatorItem>, textLevel: Int) {
-    val bodySp = WidgetStyle.bodySp(textLevel).sp
-    val smallSp = WidgetStyle.scaled(textLevel, 10f).sp
-    Spacer(
-        GlanceModifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(AgendaTheme.textDim)
-            .padding(vertical = 2.dp),
-    )
-    Column(GlanceModifier.fillMaxWidth()) {
-        for (i in items) {
-            val dir = when {
-                i.changePct == null -> AgendaTheme.textDim
-                i.changePct > 0 -> AgendaTheme.up
-                i.changePct < 0 -> AgendaTheme.down
-                else -> AgendaTheme.textDim
-            }
-            Row(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    i.name,
-                    maxLines = 1,
-                    style = TextStyle(color = AgendaTheme.text, fontSize = bodySp),
-                )
-                Spacer(GlanceModifier.width(4.dp))
-                Text(
-                    i.source,
-                    maxLines = 1,
-                    modifier = GlanceModifier.defaultWeight(),
-                    style = TextStyle(color = AgendaTheme.textDim, fontSize = smallSp),
-                )
-                Text(
-                    i.valueText(),
-                    maxLines = 1,
-                    style = TextStyle(
-                        color = AgendaTheme.text,
-                        fontSize = bodySp,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                )
-                Spacer(GlanceModifier.width(6.dp))
-                // 전일 대비를 모르면 자리만 비운다(행 구조는 상태와 무관하게 고정 — v6).
-                Text(
-                    i.pctText() ?: "",
-                    style = TextStyle(color = dir, fontSize = WidgetStyle.scaled(textLevel, 13f).sp),
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun FxRow(item: FxItem, textLevel: Int) {
