@@ -64,4 +64,5 @@ env -u NoDefaultCurrentDirectoryInExePath bubblewrap build --skipPwaValidation
 2. [ ] `bubblewrap update --skipVersionUpgrade` → 위 빌드 절차
 3. [ ] `apksigner verify --print-certs` 지문이 assetlinks와 일치하는지 확인
 4. [ ] 실기기 설치 → 주소창 미표시 확인(보이면 DAL 문제: 지문·패키지·배포 상태 재확인)
-5. [ ] APK 공유(파일 전달) — 링크 배포 시 다운로드 후 '알 수 없는 앱 설치 허용' 필요 안내
+5. [ ] `node scripts/upload-apk.mjs` — Storage `pb-releases/paneboard.apk`를 최신본으로 덮어쓴다.
+   회원은 웹 **설정 > 위젯 > '안드로이드 앱(APK) 최신 버전 다운로드'**(`/api/app/apk`, 로그인 필요·5분 서명 URL)로 받는다.

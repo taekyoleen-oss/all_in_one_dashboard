@@ -17,6 +17,8 @@
  *       승인 판정과 계정 생성은 세션이 **생기기 전에** 일어나고, `pb_members`는
  *       RLS 정책이 없어(deny-by-default) 오직 이 경로로만 접근한다. 쓰기 대상은
  *       항상 서버가 정규화한 이메일이며, 관리자 여부는 검증된 JWT로 재확인한다.
+ *    3. `app/api/app/apk/route.ts` — 로그인 확인 뒤 비공개 버킷 `pb-releases`의
+ *       APK 서명 URL만 만든다(사용자 데이터 접근 없음).
  *
  *  This module is server-only by convention (mirrors lib/api/*Client.ts): the
  *  service-role key is a non-`NEXT_PUBLIC_` env var and is never inlined into the

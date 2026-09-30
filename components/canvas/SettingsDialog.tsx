@@ -35,6 +35,7 @@ import {
   Trash2,
   LogOut,
   Smartphone,
+  Download,
 } from "lucide-react";
 import { useSignOut } from "@/lib/auth/useSignOut";
 import { initialOf } from "@/components/canvas/AccountMenu";
@@ -431,8 +432,16 @@ function WidgetDeviceSettings() {
         )}
       </div>
 
+      <a
+        href="/api/app/apk"
+        className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+      >
+        <Download size={14} aria-hidden /> 안드로이드 앱(APK) 최신 버전 다운로드
+      </a>
+
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        설치 방법: ① 안드로이드 앱(APK) 설치 → ② 홈 화면 길게 눌러 ‘위젯’에서 추가 →
+        설치 방법: ① 위 버튼으로 앱(APK)을 받아 설치(처음이면 ‘출처를 알 수 없는 앱 설치’
+        허용, 기존 앱 위에 그대로 업데이트됩니다) → ② 홈 화면 길게 눌러 ‘위젯’에서 추가 →
         ③ 위젯 설정 화면에 이 코드 입력. 폐기하면 그 기기의 위젯은 더 이상 일정을 읽지
         못합니다.
       </p>

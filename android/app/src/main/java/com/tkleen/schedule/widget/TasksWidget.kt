@@ -98,6 +98,8 @@ private class TasksUi(context: Context) {
     /** 접혔을 때 배경 투명(옵션) — 작업·노트는 기본 꺼짐. */
     val clear = WidgetStore.collapsedClear(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
+    /** 행 위아래 여백(dp) — ⚙의 '목록 간격'. */
+    val rowPad = WidgetStyle.listRowPadDp(textLevel, WidgetStore.rowGap(context, KIND))
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
 }
@@ -160,6 +162,7 @@ private fun TasksRoot(s: TasksUi) {
                                 it,
                                 markedForDelete = s.deleteMarks.contains(it.id),
                                 textLevel = s.textLevel,
+                                rowPad = s.rowPad,
                                 colorIndex = s.colors[it.id] ?: 0,
                             )
                         }
@@ -296,6 +299,7 @@ private fun TaskRow(
     item: TaskItem,
     markedForDelete: Boolean,
     textLevel: Int,
+    rowPad: Float,
     colorIndex: Int,
 ) {
     val bodySp = WidgetStyle.bodySp(textLevel).sp
@@ -308,7 +312,7 @@ private fun TaskRow(
         if (item.dueOn != null) putExtra("taskDue", item.dueOn)
     }
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = WidgetStyle.listRowPadDp(textLevel).dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = rowPad.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 상태 표시 라벨(조작 불가 — 변경은 수정 화면에서).

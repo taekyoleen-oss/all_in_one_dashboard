@@ -65,6 +65,7 @@ object WidgetStore {
     /** 표시 설정(요구) — 위젯 종류별 접미사가 붙는다: `style_text_tasks` 등. */
     private const val K_STYLE_TEXT = "style_text_"
     private const val K_STYLE_BG = "style_bg_"
+    private const val K_STYLE_GAP = "style_gap_"
     private const val K_ITEM_COLORS = "item_colors_"
     /** 숨기기/보이기(요구) — 접으면 위젯이 공간은 그대로 두고 제목 줄만 그린다. */
     private const val K_HIDDEN = "hidden_"
@@ -460,6 +461,14 @@ object WidgetStore {
 
     fun setBgIndex(context: Context, kind: String, index: Int) {
         prefs(context).edit().putInt(K_STYLE_BG + kind, index).apply()
+    }
+
+    /** 목록 행 간격 단계(작업·노트) — WidgetStyle.GAP_LABELS의 index. */
+    fun rowGap(context: Context, kind: String): Int =
+        prefs(context).getInt(K_STYLE_GAP + kind, WidgetStyle.DEFAULT_GAP)
+
+    fun setRowGap(context: Context, kind: String, gap: Int) {
+        prefs(context).edit().putInt(K_STYLE_GAP + kind, gap).apply()
     }
 
     /** 항목 id → 색 index. 기본색(0)은 아예 저장하지 않는다(맵이 커지지 않게). */

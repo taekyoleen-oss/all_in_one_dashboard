@@ -37,8 +37,17 @@ object WidgetStyle {
      */
     fun rowPadDp(level: Int): Float = scaled(level, 6f)
 
-    /** 작업·노트 목록은 제목 한 줄씩이라 조금 좁게(요구: 6→4dp, 행 사이 8dp). */
-    fun listRowPadDp(level: Int): Float = scaled(level, 4f)
+    /**
+     * 작업·노트 목록의 행 간격 — ⚙ 설정에서 5단계로 고른다(요구). 값은 행 위아래
+     * 여백(dp, 행 사이는 두 배)이고, 글자를 키우면 같은 비율로 함께 커진다.
+     * 기본은 '좁게'(2dp) — v38의 4dp도 넓다는 요구로 한 단계 더 줄였다.
+     */
+    val GAP_LABELS = listOf("없음", "아주 좁게", "좁게", "보통", "넓게")
+    private val GAP_DP = floatArrayOf(0f, 1f, 2f, 4f, 6f)
+    const val DEFAULT_GAP = 2
+
+    fun listRowPadDp(level: Int, gap: Int): Float =
+        scaled(level, GAP_DP[gap.coerceIn(GAP_DP.indices)])
 
     /* ── 배경색 ────────────────────────────────────────────────────────── */
 

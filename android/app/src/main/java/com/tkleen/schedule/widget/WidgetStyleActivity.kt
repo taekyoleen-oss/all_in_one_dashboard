@@ -32,6 +32,9 @@ class WidgetStyleActivity : Activity() {
     private val KINDS = setOf("tasks", "notes", "stocks", "fx")
 
     private lateinit var kind: String
+
+    /** 목록 간격 설정은 제목 목록형(작업·노트)에만 있다. */
+    private val hasGap get() = kind == "tasks" || kind == "notes"
     private var night = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,10 +54,10 @@ class WidgetStyleActivity : Activity() {
 
         val preview = TextView(this).apply {
             text = when (kind) {
-                "notes" -> "1주차 강의 정리"
+                "notes" -> "1주차 강의 정리\n2주차 과제 메모"
                 "stocks" -> "삼성전자          77,800  +1.24%"
                 "fx" -> "USD                1,378.20원"
-                else -> "장보기 목록 정리"
+                else -> "장보기 목록 정리\n주간 보고서 작성"
             }
             setPadding(pad, pad, pad, pad)
         }
@@ -71,6 +74,11 @@ class WidgetStyleActivity : Activity() {
                 if (bg == 0) defaultBgArgb() else WidgetStyle.bgArgb(bg, night),
             )
             preview.setTextColor(if (night) 0xFFECEFF4.toInt() else 0xFF1B2845.toInt())
+            if (hasGap) {
+                // 행 사이 = 위아래 여백 두 배 — 위젯과 같은 계산.
+                val gapDp = 2 * WidgetStyle.listRowPadDp(level, WidgetStore.rowGap(this, kind))
+                preview.setLineSpacing(gapDp * resources.displayMetrics.density, 1f)
+            }
         }
 
         /* 글자 크기 — 라디오 글자 자체를 그 크기로 그려 고르기 전에 확인된다. */
@@ -88,6 +96,27 @@ class WidgetStyleActivity : Activity() {
             check(100 + WidgetStore.textLevel(this@WidgetStyleActivity, kind))
             setOnCheckedChangeListener { _, checkedId ->
                 WidgetStore.setTextLevel(this@WidgetStyleActivity, kind, checkedId - 100)
+                applyPreview()
+                refreshWidget(this@WidgetStyleActivity, kind)
+            }
+        }
+
+        /* 목록 간격(작업·노트) — 제목과 제목 사이 위아래 여백(요구). */
+        val gapGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.HORIZONTAL
+            WidgetStyle.GAP_LABELS.forEachIndexed { i, label ->
+                addView(
+                    RadioButton(this@WidgetStyleActivity).apply {
+                        text = label
+                        id = 200 + i
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    },
+                    RadioGroup.LayoutParams(0, RadioGroup.LayoutParams.WRAP_CONTENT, 1f),
+                )
+            }
+            check(200 + WidgetStore.rowGap(this@WidgetStyleActivity, kind))
+            setOnCheckedChangeListener { _, checkedId ->
+                WidgetStore.setRowGap(this@WidgetStyleActivity, kind, checkedId - 200)
                 applyPreview()
                 refreshWidget(this@WidgetStyleActivity, kind)
             }
@@ -189,6 +218,11 @@ class WidgetStyleActivity : Activity() {
                         addView(space(pad))
                         addView(sectionLabel("글자 크기"))
                         addView(sizeGroup)
+                        if (hasGap) {
+                            addView(space(pad))
+                            addView(sectionLabel("목록 간격"))
+                            addView(gapGroup, wide())
+                        }
                         addView(space(pad))
                         addView(sectionLabel("배경색"))
                         addView(bgRow, wide())
