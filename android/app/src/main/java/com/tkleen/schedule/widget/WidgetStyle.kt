@@ -38,16 +38,27 @@ object WidgetStyle {
     fun rowPadDp(level: Int): Float = scaled(level, 6f)
 
     /**
-     * 작업·노트 목록의 행 간격 — ⚙ 설정에서 5단계로 고른다(요구). 값은 행 위아래
-     * 여백(dp, 행 사이는 두 배)이고, 글자를 키우면 같은 비율로 함께 커진다.
-     * 기본은 '좁게'(2dp) — v38의 4dp도 넓다는 요구로 한 단계 더 줄였다.
+     * 작업·노트 목록의 행 간격 — ⚙에서 5단계(요구). 가운데 '보통'이 v39의 '없음'
+     * (행 여백 0)이다.
+     *
+     *  행 높이를 정하는 건 행 여백만이 아니다 — 제목(위아래 4dp)과 오른쪽 '›'
+     *  (위아래 8dp, 터치 영역)의 안쪽 여백이 바닥을 만든다. 그래서 '보통'보다
+     *  좁은 단계는 이 안쪽 여백을 줄이고, 넓은 단계는 행 여백을 더한다.
+     *  전부 글자 크기 비율로 함께 커진다.
      */
-    val GAP_LABELS = listOf("없음", "아주 좁게", "좁게", "보통", "넓게")
-    private val GAP_DP = floatArrayOf(0f, 1f, 2f, 4f, 6f)
+    val GAP_LABELS = listOf("아주 좁게", "좁게", "보통", "넓게", "아주 넓게")
     const val DEFAULT_GAP = 2
+    private val GAP_ROW = floatArrayOf(0f, 0f, 0f, 3f, 6f)
+    private val GAP_TITLE = floatArrayOf(0f, 2f, 4f, 4f, 4f)
+    private val GAP_ARROW = floatArrayOf(2f, 5f, 8f, 8f, 8f)
 
-    fun listRowPadDp(level: Int, gap: Int): Float =
-        scaled(level, GAP_DP[gap.coerceIn(GAP_DP.indices)])
+    /** 한 행의 세로 여백들(dp) — row: 행 바깥, title: 제목 안쪽, arrow: '›' 안쪽. */
+    class RowGap(val row: Float, val title: Float, val arrow: Float)
+
+    fun listRowGap(level: Int, gap: Int): RowGap {
+        val i = gap.coerceIn(0, GAP_LABELS.lastIndex)
+        return RowGap(scaled(level, GAP_ROW[i]), scaled(level, GAP_TITLE[i]), scaled(level, GAP_ARROW[i]))
+    }
 
     /* ── 배경색 ────────────────────────────────────────────────────────── */
 

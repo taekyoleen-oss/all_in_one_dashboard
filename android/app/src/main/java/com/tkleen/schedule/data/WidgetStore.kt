@@ -65,7 +65,7 @@ object WidgetStore {
     /** 표시 설정(요구) — 위젯 종류별 접미사가 붙는다: `style_text_tasks` 등. */
     private const val K_STYLE_TEXT = "style_text_"
     private const val K_STYLE_BG = "style_bg_"
-    private const val K_STYLE_GAP = "style_gap_"
+    private const val K_STYLE_GAP = "style_gap2_" // v40 척도 변경 — 모두 '보통'(=v39 없음)에서 시작
     private const val K_ITEM_COLORS = "item_colors_"
     /** 숨기기/보이기(요구) — 접으면 위젯이 공간은 그대로 두고 제목 줄만 그린다. */
     private const val K_HIDDEN = "hidden_"

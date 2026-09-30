@@ -97,8 +97,8 @@ private class NotesUi(context: Context) {
     /** 접혔을 때 배경 투명(옵션) — 작업·노트는 기본 꺼짐. */
     val clear = WidgetStore.collapsedClear(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
-    /** 행 위아래 여백(dp) — ⚙의 '목록 간격'. */
-    val rowPad = WidgetStyle.listRowPadDp(textLevel, WidgetStore.rowGap(context, KIND))
+    /** 행 세로 여백들 — ⚙의 '목록 간격'. */
+    val rowGap = WidgetStyle.listRowGap(textLevel, WidgetStore.rowGap(context, KIND))
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
 }
@@ -142,7 +142,7 @@ private fun NotesRoot(s: NotesUi) {
                         s.items,
                         itemId = { (it.key.hashCode().toLong() shl 3) or (s.colors[it.key] ?: 0).toLong() },
                     ) {
-                        NoteRow(it, s.textLevel, s.rowPad, s.colors[it.key] ?: 0)
+                        NoteRow(it, s.textLevel, s.rowGap, s.colors[it.key] ?: 0)
                     }
                 }
             }
@@ -247,7 +247,7 @@ private fun syncIntent(context: Context): Intent =
     }
 
 @Composable
-private fun NoteRow(item: NoteItem, textLevel: Int, rowPad: Float, colorIndex: Int) {
+private fun NoteRow(item: NoteItem, textLevel: Int, rowGap: WidgetStyle.RowGap, colorIndex: Int) {
     // 항목마다 고유 data URI + extras(값 전달) — PendingIntent 병합 없이 정확히 연다.
     val openIntent = Intent(LocalContext.current, NoteEditActivity::class.java).apply {
         data = Uri.parse("pbnote://open/${item.noteId}/${item.sectionId}")
@@ -259,7 +259,7 @@ private fun NoteRow(item: NoteItem, textLevel: Int, rowPad: Float, colorIndex: I
         putExtra("noteTitle", item.noteTitle)
     }
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = rowPad.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = rowGap.row.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 이미지·표가 든 소제목 표시 — 자리를 늘 차지하게 둔다(행 구조가 상태에
@@ -276,7 +276,7 @@ private fun NoteRow(item: NoteItem, textLevel: Int, rowPad: Float, colorIndex: I
             modifier = GlanceModifier
                 .defaultWeight()
                 .clickable(actionStartActivity(openIntent))
-                .padding(vertical = 4.dp),
+                .padding(vertical = rowGap.title.dp),
             style = TextStyle(
                 color = WidgetStyle.itemColor(colorIndex, AgendaTheme.text),
                 fontSize = WidgetStyle.bodySp(textLevel).sp,
@@ -286,7 +286,7 @@ private fun NoteRow(item: NoteItem, textLevel: Int, rowPad: Float, colorIndex: I
             "›",
             modifier = GlanceModifier
                 .clickable(actionStartActivity(openIntent))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = rowGap.arrow.dp),
             style = TextStyle(color = AgendaTheme.textDim, fontSize = WidgetStyle.scaled(textLevel, 16f).sp),
         )
     }

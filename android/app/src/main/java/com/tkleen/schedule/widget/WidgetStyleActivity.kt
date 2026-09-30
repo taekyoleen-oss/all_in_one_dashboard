@@ -76,7 +76,8 @@ class WidgetStyleActivity : Activity() {
             preview.setTextColor(if (night) 0xFFECEFF4.toInt() else 0xFF1B2845.toInt())
             if (hasGap) {
                 // 행 사이 = 위아래 여백 두 배 — 위젯과 같은 계산.
-                val gapDp = 2 * WidgetStyle.listRowPadDp(level, WidgetStore.rowGap(this, kind))
+                val g = WidgetStyle.listRowGap(level, WidgetStore.rowGap(this, kind))
+                val gapDp = 2 * (g.row + maxOf(g.title, g.arrow - 2f))
                 preview.setLineSpacing(gapDp * resources.displayMetrics.density, 1f)
             }
         }

@@ -98,8 +98,8 @@ private class TasksUi(context: Context) {
     /** 접혔을 때 배경 투명(옵션) — 작업·노트는 기본 꺼짐. */
     val clear = WidgetStore.collapsedClear(context, KIND)
     val textLevel = WidgetStore.textLevel(context, KIND)
-    /** 행 위아래 여백(dp) — ⚙의 '목록 간격'. */
-    val rowPad = WidgetStyle.listRowPadDp(textLevel, WidgetStore.rowGap(context, KIND))
+    /** 행 세로 여백들 — ⚙의 '목록 간격'. */
+    val rowGap = WidgetStyle.listRowGap(textLevel, WidgetStore.rowGap(context, KIND))
     val bgIndex = WidgetStore.bgIndex(context, KIND)
     val colors = WidgetStore.itemColors(context, KIND)
 }
@@ -162,7 +162,7 @@ private fun TasksRoot(s: TasksUi) {
                                 it,
                                 markedForDelete = s.deleteMarks.contains(it.id),
                                 textLevel = s.textLevel,
-                                rowPad = s.rowPad,
+                                rowGap = s.rowGap,
                                 colorIndex = s.colors[it.id] ?: 0,
                             )
                         }
@@ -299,7 +299,7 @@ private fun TaskRow(
     item: TaskItem,
     markedForDelete: Boolean,
     textLevel: Int,
-    rowPad: Float,
+    rowGap: WidgetStyle.RowGap,
     colorIndex: Int,
 ) {
     val bodySp = WidgetStyle.bodySp(textLevel).sp
@@ -312,7 +312,7 @@ private fun TaskRow(
         if (item.dueOn != null) putExtra("taskDue", item.dueOn)
     }
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = rowPad.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = rowGap.row.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 상태 표시 라벨(조작 불가 — 변경은 수정 화면에서).
@@ -332,7 +332,7 @@ private fun TaskRow(
             modifier = GlanceModifier
                 .defaultWeight()
                 .clickable(actionStartActivity(editIntent))
-                .padding(vertical = 4.dp),
+                .padding(vertical = rowGap.title.dp),
             style = TextStyle(
                 // 완료·삭제 예정은 상태 표시가 우선(흐리게) — 그 외에만 고른 글자색.
                 color = if (item.done || markedForDelete) AgendaTheme.textDim
@@ -366,7 +366,7 @@ private fun TaskRow(
             "›",
             modifier = GlanceModifier
                 .clickable(actionStartActivity(editIntent))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = rowGap.arrow.dp),
             style = TextStyle(color = AgendaTheme.textDim, fontSize = WidgetStyle.scaled(textLevel, 16f).sp),
         )
     }
