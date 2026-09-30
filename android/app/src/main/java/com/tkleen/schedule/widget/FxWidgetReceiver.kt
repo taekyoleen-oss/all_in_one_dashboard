@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import com.tkleen.schedule.sync.AgendaSyncWorker
+import com.tkleen.schedule.sync.QuoteTickWorker
 
 /**
  * Fx 위젯 리시버. 동기화는 아젠다·작업·노트와 공유(AgendaSyncWorker가 전부 갱신).
@@ -16,6 +17,7 @@ class FxWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         AgendaSyncWorker.schedulePeriodic(context)
+        QuoteTickWorker.start(context)
         AgendaSyncWorker.syncNow(context)
     }
 
@@ -26,6 +28,7 @@ class FxWidgetReceiver : GlanceAppWidgetReceiver() {
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
         AgendaSyncWorker.schedulePeriodic(context)
+        QuoteTickWorker.start(context)
     }
 
     override fun onDisabled(context: Context) {

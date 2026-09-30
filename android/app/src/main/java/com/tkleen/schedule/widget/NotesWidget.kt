@@ -257,7 +257,7 @@ private fun NoteRow(item: NoteItem, textLevel: Int, colorIndex: Int) {
         putExtra("noteTitle", item.noteTitle)
     }
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = WidgetStyle.rowPadDp(textLevel).dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = WidgetStyle.listRowPadDp(textLevel).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 이미지·표가 든 소제목 표시 — 자리를 늘 차지하게 둔다(행 구조가 상태에

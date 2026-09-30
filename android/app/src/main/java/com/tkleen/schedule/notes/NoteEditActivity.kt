@@ -1,9 +1,14 @@
 package com.tkleen.schedule.notes
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
+import android.window.OnBackInvokedDispatcher
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
@@ -96,13 +101,47 @@ class NoteEditActivity : Activity() {
             setTextColor(0xFFB45309.toInt())
         }
 
+        // 저장하지 않고 닫을 때 물어보기 위한 기준값(요구). 글자색은 즉시 저장이라 제외.
+        val initialTitle = titleInput.text.toString()
+        val initialBody = bodyInput.text.toString()
+        isDirty = {
+            titleInput.text.toString() != initialTitle || bodyInput.text.toString() != initialBody
+        }
+
         val status = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f) }
         val saveBtn = Button(this).apply { text = "저장" }
         val cancelBtn = Button(this).apply { text = "취소" }
-        cancelBtn.setOnClickListener { finish() }
-        val deleteBtn = Button(this).apply {
+        cancelBtn.setOnClickListener { confirmClose() }
+        requestSave = { saveBtn.performClick() }
+
+        // 내용 전체 복사 / 붙여넣기(요구). 붙여넣기는 커서 자리(선택 영역은 교체).
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        val copyBtn = Button(this).apply { text = "전체 복사" }
+        copyBtn.setOnClickListener {
+            clipboard.setPrimaryClip(ClipData.newPlainText("note", bodyInput.text.toString()))
+            Toast.makeText(this, "내용을 복사했습니다", Toast.LENGTH_SHORT).show()
+        }
+        val pasteBtn = Button(this).apply { text = "붙여넣기" }
+        pasteBtn.setOnClickListener {
+            val clip = clipboard.primaryClip?.takeIf { it.itemCount > 0 }
+                ?.getItemAt(0)?.coerceToText(this)?.toString()
+            if (clip.isNullOrEmpty()) {
+                status.text = "클립보드가 비어 있습니다."
+                return@setOnClickListener
+            }
+            val e = bodyInput.text
+            val a = bodyInput.selectionStart.takeIf { it >= 0 } ?: e.length
+            val b = bodyInput.selectionEnd.takeIf { it >= 0 } ?: e.length
+            e.replace(minOf(a, b), maxOf(a, b), clip)
+        }
+
+        // 삭제는 자주 쓰는 동작이 아니라 작게, 오른쪽 끝에(요구: "너무 크다").
+        val deleteBtn = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
             text = "이 소제목 삭제"
             setTextColor(0xFFDC2626.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
+            setPadding(pad / 2, pad / 4, pad / 2, pad / 4)
         }
 
         saveBtn.setOnClickListener {
@@ -209,14 +248,28 @@ class NoteEditActivity : Activity() {
                 addView(
                     LinearLayout(this@NoteEditActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
+                        addView(copyBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                        // rich 본문은 읽기 전용이라 붙여넣기 없음.
+                        if (!rich) addView(pasteBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    },
+                    wide(),
+                )
+                addView(
+                    LinearLayout(this@NoteEditActivity).apply {
+                        orientation = LinearLayout.HORIZONTAL
                         addView(saveBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                         addView(cancelBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                     },
                     wide(),
                 )
                 if (isEdit) {
-                    addView(space(pad / 4))
-                    addView(deleteBtn, wide())
+                    addView(
+                        deleteBtn,
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                        ).apply { gravity = Gravity.END },
+                    )
                 }
                 addView(space(pad / 2))
                 addView(status)
@@ -224,6 +277,33 @@ class NoteEditActivity : Activity() {
         )
         // 새 소제목은 제목부터, 기존 것은 읽으러 온 것이므로 키보드를 띄우지 않는다.
         if (!isEdit) titleInput.requestFocus()
+
+        // ⚠ targetSdk 36(Android 16)은 onBackPressed를 부르지 않는다 — 뒤로가기는 콜백으로.
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            ) { confirmClose() }
+        }
+    }
+
+    private var isDirty: () -> Boolean = { false }
+    private var requestSave: () -> Unit = {}
+
+    @Deprecated("API 32 이하 경로")
+    override fun onBackPressed() = confirmClose()
+
+    /** 고친 내용이 있으면 저장 여부를 묻고 닫는다(요구). */
+    private fun confirmClose() {
+        if (!isDirty()) {
+            finish()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setMessage("수정한 내용을 저장할까요?")
+            .setPositiveButton("저장") { _, _ -> requestSave() }
+            .setNegativeButton("저장 안 함") { _, _ -> finish() }
+            .setNeutralButton("계속 편집", null)
+            .show()
     }
 
     /** 수정 결과를 캐시에 즉시 반영 — 위젯 목록의 제목이 바로 바뀐다. */

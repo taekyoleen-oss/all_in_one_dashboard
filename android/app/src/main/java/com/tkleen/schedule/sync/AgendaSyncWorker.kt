@@ -80,26 +80,8 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
         }
 
         // 주식·환율(읽기 전용)도 같은 주기로 — 실패는 캐시 유지(다음 주기 재시도).
-        when (val q = WidgetApi.fetchStocks(token, WidgetStore.stocksEtag(ctx))) {
-            is WidgetApi.ListResult.Ok ->
-                WidgetStore.putStocks(ctx, q.itemsJson, q.etag, q.linked, System.currentTimeMillis())
-            WidgetApi.ListResult.NotModified ->
-                WidgetStore.touchStocksSynced(ctx, System.currentTimeMillis())
-            WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
-            is WidgetApi.ListResult.Error -> Unit
-        }
-
-        when (val f = WidgetApi.fetchFx(token, WidgetStore.fxEtag(ctx))) {
-            is WidgetApi.ListResult.Ok ->
-                WidgetStore.putFx(
-                    ctx, f.itemsJson, f.etag, f.linked, System.currentTimeMillis(),
-                    f.unavailable, f.indicatorsJson,
-                )
-            WidgetApi.ListResult.NotModified ->
-                WidgetStore.touchFxSynced(ctx, System.currentTimeMillis())
-            WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
-            is WidgetApi.ListResult.Error -> Unit
-        }
+        syncQuotes(ctx, token)
+        QuoteTickWorker.start(ctx) // 5분 시세 체인이 끊겼으면 되살린다(KEEP이라 무해).
 
         AgendaWidget().updateAll(ctx) // 304여도 날짜 경계·갱신 시각 표시를 다시 그린다.
         TasksWidget.refresh(ctx) // 살아있는 세션도 새 데이터로 재구성(틱)
@@ -110,6 +92,30 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
     }
 
     companion object {
+
+        /** 주식·환율 받기 — 15분 동기화와 5분 시세 틱(QuoteTickWorker)이 함께 쓴다. */
+        fun syncQuotes(ctx: Context, token: String) {
+            when (val q = WidgetApi.fetchStocks(token, WidgetStore.stocksEtag(ctx))) {
+                is WidgetApi.ListResult.Ok ->
+                    WidgetStore.putStocks(ctx, q.itemsJson, q.etag, q.linked, System.currentTimeMillis())
+                WidgetApi.ListResult.NotModified ->
+                    WidgetStore.touchStocksSynced(ctx, System.currentTimeMillis())
+                WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
+                is WidgetApi.ListResult.Error -> Unit
+            }
+
+            when (val f = WidgetApi.fetchFx(token, WidgetStore.fxEtag(ctx))) {
+                is WidgetApi.ListResult.Ok ->
+                    WidgetStore.putFx(
+                        ctx, f.itemsJson, f.etag, f.linked, System.currentTimeMillis(),
+                        f.unavailable, f.indicatorsJson,
+                    )
+                WidgetApi.ListResult.NotModified ->
+                    WidgetStore.touchFxSynced(ctx, System.currentTimeMillis())
+                WidgetApi.ListResult.Unauthorized -> WidgetStore.markUnauthorized(ctx)
+                is WidgetApi.ListResult.Error -> Unit
+            }
+        }
         private const val PERIODIC = "pb-agenda-sync"
         private const val ONCE = "pb-agenda-sync-now"
 
@@ -167,6 +173,7 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             val wm = WorkManager.getInstance(context)
             wm.cancelUniqueWork(PERIODIC)
             wm.cancelUniqueWork(ONCE)
+            QuoteTickWorker.cancel(context)
         }
 
         /**

@@ -37,6 +37,9 @@ object WidgetStyle {
      */
     fun rowPadDp(level: Int): Float = scaled(level, 6f)
 
+    /** 작업·노트 목록은 제목 한 줄씩이라 조금 좁게(요구: 6→4dp, 행 사이 8dp). */
+    fun listRowPadDp(level: Int): Float = scaled(level, 4f)
+
     /* ── 배경색 ────────────────────────────────────────────────────────── */
 
     /** 0 = 기본(위젯 고유 배경 — 작업=흰색, 노트=옅은 회색). */
