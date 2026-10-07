@@ -33,8 +33,9 @@ export async function requireDevice(
   }
 
   const hash = sha256Hex(token);
-  // 계획서: 동일 토큰 분당 20회. 무효 토큰도 같은 키로 세어 무차별 대입을 함께 늦춘다.
-  if (rateLimited(`wdev:${hash}`)) {
+  // 동일 토큰 분당 60회(계획서의 20회는 동기화 1회 = 5요청이 된 지금 너무 빠듯해 저장까지
+  // 막았다). 무효 토큰도 같은 키로 세어 무차별 대입을 함께 늦춘다.
+  if (rateLimited(`wdev:${hash}`, 60)) {
     return Response.json(
       { error: "rate_limited", message: "요청이 너무 잦습니다. 잠시 후 다시 시도하세요." },
       { status: 429, headers: NO_STORE },

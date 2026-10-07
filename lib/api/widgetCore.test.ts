@@ -45,6 +45,15 @@ test("rateLimited: 한도 안 false, 초과 true, 창 밖 히트는 소멸", () 
   assert.equal(rateLimited("k", 3, 60_000, t0 + 61_000), false); // 창 밖 → 리셋
 });
 
+test("rateLimited: 거절된 요청은 세지 않는다 — 재시도가 차단을 연장하지 않음", () => {
+  const t0 = 5_000_000;
+  for (let i = 0; i < 3; i++) rateLimited("r", 3, 60_000, t0 + i);
+  // 차단 중 계속 재시도해도 …
+  for (let s = 10; s < 60; s += 10) assert.equal(rateLimited("r", 3, 60_000, t0 + s * 1000), true);
+  // … 처음 3건이 창을 벗어나면 바로 풀린다.
+  assert.equal(rateLimited("r", 3, 60_000, t0 + 60_100), false);
+});
+
 test("pickMobileInstance: mobileSync=true 중 mobileSyncAt 최신 1개, 없으면 null", () => {
   // 미지정·잘못된 config는 건너뛴다.
   assert.equal(pickMobileInstance([]), null);

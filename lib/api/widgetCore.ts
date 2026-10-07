@@ -97,11 +97,13 @@ const hits = new Map<string, number[]>();
 export function rateLimited(key: string, limit = 20, windowMs = 60_000, now = Date.now()): boolean {
   const cutoff = now - windowMs;
   const list = (hits.get(key) ?? []).filter((t) => t > cutoff);
-  list.push(now);
+  // 거절된 요청은 세지 않는다 — 세면 재시도가 창을 계속 밀어 차단이 영영 안 풀린다.
+  const limited = list.length >= limit;
+  if (!limited) list.push(now);
   hits.set(key, list);
   if (hits.size > 1_000) {
     // 오래된 키 정리 — 위젯 디바이스 수 규모에서 사실상 도달하지 않는 안전판.
     for (const [k, v] of hits) if (v.every((t) => t <= cutoff)) hits.delete(k);
   }
-  return list.length > limit;
+  return limited;
 }

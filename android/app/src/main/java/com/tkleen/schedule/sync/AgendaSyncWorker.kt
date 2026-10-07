@@ -48,8 +48,9 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
                 WidgetStore.markUnauthorized(ctx)
                 Result.success()
             }
+            // 429(요청 과다)는 재시도하지 않는다 — 재시도마다 5건을 더 보내 차단을 키웠다.
             is WidgetApi.AgendaResult.Error ->
-                if (runAttemptCount < 3) Result.retry() else Result.success()
+                if (runAttemptCount < 3 && r.message != "HTTP 429") Result.retry() else Result.success()
         }
 
         // 삭제 예정 마크(✕로 표시해 둔 작업) 먼저 실행 — 성공한 것만 마크 해제,
@@ -133,12 +134,17 @@ class AgendaSyncWorker(context: Context, params: WorkerParameters) :
             )
         }
 
-        /** 즉시 1회 동기화(페어링 직후·수동 새로고침). */
+        /**
+         * 즉시 1회 동기화(페어링 직후·수동 새로고침).
+         * 3초 지연 + REPLACE = 연달아 불려도 마지막 한 번만 돈다(디바운스). 지연이 없으면
+         * 취소된 작업이 진행 중이던 HTTP 호출을 끝까지 보내 동기화가 여러 벌 겹쳤다.
+         */
         fun syncNow(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 ONCE,
                 ExistingWorkPolicy.REPLACE,
                 OneTimeWorkRequestBuilder<AgendaSyncWorker>()
+                    .setInitialDelay(3, TimeUnit.SECONDS)
                     .setConstraints(connected)
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
                     .build(),

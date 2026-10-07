@@ -116,12 +116,13 @@ class NoteEditActivity : Activity() {
 
         // 내용 전체 복사 / 붙여넣기(요구). 붙여넣기는 커서 자리(선택 영역은 교체).
         val clipboard = getSystemService(ClipboardManager::class.java)
-        val copyBtn = Button(this).apply { text = "전체 복사" }
+        // 작은 텍스트 버튼(요구: 저장·취소와 붙어 있어 잘못 누르기 쉽다).
+        val copyBtn = smallButton("전체 복사", pad)
         copyBtn.setOnClickListener {
             clipboard.setPrimaryClip(ClipData.newPlainText("note", bodyInput.text.toString()))
             Toast.makeText(this, "내용을 복사했습니다", Toast.LENGTH_SHORT).show()
         }
-        val pasteBtn = Button(this).apply { text = "붙여넣기" }
+        val pasteBtn = smallButton("붙여넣기", pad)
         pasteBtn.setOnClickListener {
             val clip = clipboard.primaryClip?.takeIf { it.itemCount > 0 }
                 ?.getItemAt(0)?.coerceToText(this)?.toString()
@@ -136,12 +137,9 @@ class NoteEditActivity : Activity() {
         }
 
         // 삭제는 자주 쓰는 동작이 아니라 작게, 오른쪽 끝에(요구: "너무 크다").
-        val deleteBtn = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
-            text = "이 소제목 삭제"
+        val deleteBtn = smallButton("이 소제목 삭제", pad).apply {
             setTextColor(0xFFDC2626.toInt())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
-            setPadding(pad / 2, pad / 4, pad / 2, pad / 4)
         }
 
         saveBtn.setOnClickListener {
@@ -244,16 +242,18 @@ class NoteEditActivity : Activity() {
                         wide(),
                     )
                 }
-                addView(space(pad / 2))
+                // 복사·붙여넣기는 본문 바로 아래 오른쪽에 작게, 저장·취소와는 간격을 둔다.
                 addView(
                     LinearLayout(this@NoteEditActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
-                        addView(copyBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                        gravity = Gravity.END
+                        addView(copyBtn)
                         // rich 본문은 읽기 전용이라 붙여넣기 없음.
-                        if (!rich) addView(pasteBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                        if (!rich) addView(pasteBtn)
                     },
                     wide(),
                 )
+                addView(space(pad))
                 addView(
                     LinearLayout(this@NoteEditActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
@@ -345,6 +345,15 @@ class NoteEditActivity : Activity() {
         LinearLayout.LayoutParams.MATCH_PARENT,
         LinearLayout.LayoutParams.WRAP_CONTENT,
     )
+
+    /** 테두리 없는 작은 텍스트 버튼 — 자주 쓰지 않거나 오조작이 위험한 보조 동작용. */
+    private fun smallButton(label: String, pad: Int) =
+        Button(this, null, android.R.attr.borderlessButtonStyle).apply {
+            text = label
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
+            setPadding(pad / 2, pad / 4, pad / 2, pad / 4)
+        }
 
     private fun space(h: Int) = TextView(this).apply {
         layoutParams = LinearLayout.LayoutParams(1, h)
